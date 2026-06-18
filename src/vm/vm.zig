@@ -62,8 +62,8 @@ pub fn run(self: *Vm) InterpretResult {
 
             _ = debug.disassembleInstruction(
                 self.chunk,
-                // Find current instruction offset by subtracting the address of
-                // the first instruction from the address of the current instruction
+                // Find next instruction offset by subtracting the address of
+                // the first instruction from the address of the next instruction
                 @intFromPtr(self.ip) - @intFromPtr(self.chunk.instructions.items.ptr),
             );
         }
@@ -92,9 +92,15 @@ pub fn run(self: *Vm) InterpretResult {
 
 /// Read the next byte from the currently loaded chunk's instructions array.
 pub fn readByte(self: *Vm) u8 {
-    const result: u8 = self.ip[0];
     self.ip += 1;
-    return result;
+    return (self.ip - 1)[0];
+}
+
+/// Read the next two bytes from the currenty loaded chunk's instructions array,
+/// treating them as a single 16-bit value.
+pub fn readShort(self: *Vm) u16 {
+    self.ip += 2;
+    return (self.ip - 2)[0] << 8 | (self.ip - 1)[0];
 }
 
 /// Read a constant value from the currently loaded chunk's instructions array by
