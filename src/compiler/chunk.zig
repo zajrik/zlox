@@ -9,33 +9,33 @@ const ArrayList = std.ArrayList;
 
 const exit = std.process.exit;
 
+// ============================================================================
+
 /// A chunk of compiled lox instructions and constant values.
 const Chunk: type = @This();
 
 /// Compiled instruction opcodes and operands.
 instructions: ArrayList(u8),
 
-/// Compiled instruction line data.
+/// Compiled line data for instructions in this chunk.
 ///
-/// Mirrors [instructions] layout where an instruction offset will map to the
+/// Mirrors `instructions` layout where an instruction offset will map to the
 /// line number of that instruction.
 lines: ArrayList(u16),
 
-/// Compiled constant values.
+/// Compiled constant values in this chunk.
 constants: ArrayList(Value),
 
-/// Allocate a new [Chunk], returning a pointer to it.
-pub fn new() !*Chunk {
-    const chunk: *Chunk = try mem.create(Chunk);
-    chunk.* = Chunk{
+/// Allocate a new `Chunk`, returning a pointer to it.
+pub fn create() !*Chunk {
+    return try mem.createStruct(Chunk, .{
         .instructions = .empty,
         .lines = .empty,
         .constants = .empty,
-    };
-    return chunk;
+    });
 }
 
-/// Destroy this [Chunk], freeing its owned resources.
+/// Destroy this `Chunk`, freeing its owned resources.
 pub fn destroy(self: *Chunk) void {
     self.instructions.deinit(mem.allocator());
     self.lines.deinit(mem.allocator());
@@ -44,28 +44,55 @@ pub fn destroy(self: *Chunk) void {
 }
 
 /// Returns the instruction at the given offset.
-pub fn instruction(self: *Chunk, offset: usize) u8 {
+pub inline fn instructionAt(self: *Chunk, offset: usize) u8 {
     return self.instructions.items[offset];
 }
 
 /// Returns the line number at the given offset.
-pub fn line(self: *Chunk, offset: usize) u16 {
+pub inline fn lineAt(self: *Chunk, offset: usize) u16 {
     return self.lines.items[offset];
 }
 
-pub fn constant(self: *Chunk, offset: usize) Value {
+/// Returns the constant value at the given offset.
+pub inline fn constantAt(self: *Chunk, offset: usize) Value {
     return self.constants.items[offset];
 }
 
-/// Write the given [op] to this chunk.
-pub fn writeOp(self: *Chunk, op: OpCode, lineNum: u16) void {
-    self.writeByte(op.byte(), lineNum);
+/// Write the given `byte` to this chunk.
+pub fn writeByte(self: *Chunk, byte: u8, line: u16) void {
+    self.instructions.append(mem.allocator(), byte) catch exit(1);
+    self.lines.append(mem.allocator(), line) catch exit(1);
 }
 
-/// Write the given [byte] to this chunk.
-pub fn writeByte(self: *Chunk, byte: u8, lineNum: u16) void {
-    self.instructions.append(mem.allocator(), byte) catch exit(1);
-    self.lines.append(mem.allocator(), lineNum) catch exit(1);
+/// Write the given `op` to this chunk.
+///
+/// See also:
+/// - `writeOp1`
+/// - `writeOp2`
+/// - `writeOp3`
+pub fn writeOp(self: *Chunk, op: OpCode, line: u16) void {
+    self.writeByte(op.toByte(), line);
+}
+
+/// Write the given `op` to this chunk, followed by a single byte operand.
+pub fn writeOp1(self: *Chunk, op: OpCode, line: u16, byte: u8) void {
+    self.writeOp(op, line);
+    self.writeByte(byte, line);
+}
+
+/// Write the given `op` to this chunk, followed by two byte operands.
+pub fn writeOp2(self: *Chunk, op: OpCode, line: u16, byte_1: u8, byte_2: u8) void {
+    self.writeOp(op, line);
+    self.writeByte(byte_1, line);
+    self.writeByte(byte_2, line);
+}
+
+/// Write the given `op` to this chunk, followed by three byte operands.
+pub fn writeOp3(self: *Chunk, op: OpCode, line: u16, byte_1: u8, byte_2: u8, byte_3: u8) void {
+    self.writeOp(op, line);
+    self.writeByte(byte_1, line);
+    self.writeByte(byte_2, line);
+    self.writeByte(byte_3, line);
 }
 
 /// Add a constant to this chunk.
