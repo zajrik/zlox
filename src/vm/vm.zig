@@ -68,13 +68,40 @@ pub fn run(self: *Vm) InterpretResult {
         switch (instruction) {
             .op_constant => self.stack.push(self.readConstant()),
 
+            // Arithmetic ops
             .op_add => {
                 const b: Value = self.stack.pop();
                 const a: Value = self.stack.pop();
                 self.stack.push(a + b);
             },
+            .op_subtract => {
+                const b: Value = self.stack.pop();
+                const a: Value = self.stack.pop();
+                self.stack.push(a - b);
+            },
+            .op_multiply => {
+                const b: Value = self.stack.pop();
+                const a: Value = self.stack.pop();
+                self.stack.push(a * b);
+            },
+            .op_divide => {
+                const b: Value = self.stack.pop();
+                const a: Value = self.stack.pop();
+                self.stack.push(a / b);
+            },
+            .op_negate => self.stack.push(-self.stack.pop()),
 
+            // Stack ops
             // .op_peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
+            .op_pop => _ = self.stack.pop(),
+            .op_pop_n => self.stack.popN(self.readByte()),
+            .op_copy => self.stack.push(self.stack.peek(0)),
+            .op_swap => {
+                const b: Value = self.stack.pop();
+                const a: Value = self.stack.pop();
+                self.stack.push(b);
+                self.stack.push(a);
+            },
 
             .op_print => printf("{any}\n", .{self.stack.pop()}),
 

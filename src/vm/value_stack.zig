@@ -30,7 +30,7 @@ pub fn create() !*ValueStack {
     return stack;
 }
 
-/// Destorys this `ValueStack`, freeing its owned resources.
+/// Destroy this `ValueStack`, freeing its owned resources.
 pub fn destroy(self: *ValueStack) void {
     mem.destroy(self);
 }
@@ -51,6 +51,14 @@ pub fn push(self: *ValueStack, value: Value) void {
 pub fn pop(self: *ValueStack) Value {
     self.top -= 1;
     return self.top[0];
+}
+
+/// Pop the top `n` values off the top of this stack, discarding them.
+///
+/// Technically they're not being discarded, they'll just be overwritten when new
+/// values get pushed to the popped slots.
+pub fn popN(self: *ValueStack, n: u8) void {
+    self.top -= n;
 }
 
 /// Peek at a value in the stack, offset by `distance` from the top of this stack

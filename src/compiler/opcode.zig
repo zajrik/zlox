@@ -26,10 +26,46 @@ pub const OpCode = enum(u8) {
     ///   to the top of the stack.
     op_add,
 
+    /// ### `op_subtract()`
+    /// - Pops the top two values off the stack, subtracts them, and pushes the
+    ///   result to the top of the stack.
+    op_subtract,
+
+    /// ### `op_multiply()`
+    /// - Pops the top two values off the stack, multiplies them, and pushes the
+    ///   result to the top of the stack.
+    op_multiply,
+
+    /// ### `op_divide()`
+    /// - Pops the top two values off the stack, divides them, and pushes the result
+    ///   to the top of the stack.
+    op_divide,
+
+    /// ### `op_negate()`
+    /// - Pops the top value off the stack, negates it, and pushes the result to
+    ///   the top of the stack.
+    op_negate,
+
     // /// ### `op_peek(offset: stack_offset)`
     // /// - Prints the value on the stack at the given `offset` from the top of
     // ///   the stack.
     // op_peek,
+
+    /// ### `op_pop()`
+    /// - Pops the top value off of the stack, discarding it.
+    op_pop,
+
+    /// ### `op_pop_n(n: byte)`
+    /// - Pops the top `n` values off of the stack, discarding them.
+    op_pop_n,
+
+    /// ### `op_copy()`
+    /// - Pushes a copy of the value at the top of the stack to the top of the stack.
+    op_copy,
+
+    /// ### `op_swap()`
+    /// - Swaps the top two items on the stack.
+    op_swap,
 
     /// ### `op_print()`
     /// - Pops the value at the top of the stack and prints it.

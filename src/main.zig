@@ -14,13 +14,12 @@ pub fn main() !void {
     const chunk: *Chunk = try .create();
     defer chunk.destroy();
 
-    const constant_offset_1: u8 = chunk.addConstant(10);
-    const constant_offset_2: u8 = chunk.addConstant(23);
+    chunk.writeOp1(.op_constant, 1, chunk.addConstant(10));
+    chunk.writeOp1(.op_constant, 2, chunk.addConstant(23));
 
-    chunk.writeOp1(.op_constant, 1, constant_offset_1);
-    chunk.writeOp1(.op_constant, 2, constant_offset_2);
-
-    chunk.writeOp(.op_add, 3);
+    chunk.writeOp(.op_swap, 3);
+    chunk.writeOp(.op_subtract, 3);
+    chunk.writeOp(.op_negate, 3);
     chunk.writeOp(.op_print, 4);
     chunk.writeOp(.op_return, 5);
 

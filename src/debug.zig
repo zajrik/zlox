@@ -36,10 +36,24 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 
     return switch (instruction) {
         .op_constant => constantInstruction("op_constant", chunk, offset),
+
+        // Arithmetic ops
         .op_add => simpleInstruction("op_add", offset),
+        .op_subtract => simpleInstruction("op_subtract", offset),
+        .op_multiply => simpleInstruction("op_multiply", offset),
+        .op_divide => simpleInstruction("op_divide", offset),
+        .op_negate => simpleInstruction("op_negate", offset),
+
+        // Stack ops
         // .op_peek => byteInstruction("op_peek", chunk, offset),
+        .op_pop => simpleInstruction("op_pop", offset),
+        .op_pop_n => byteInstruction("op_pop_n", chunk, offset),
+        .op_copy => simpleInstruction("op_copy", offset),
+        .op_swap => simpleInstruction("op_swap", offset),
+
         .op_print => simpleInstruction("op_print", offset),
         .op_return => simpleInstruction("op_return", offset),
+
         _ => {
             printf("Unknown opcode {d}\n", .{offset});
             return offset + 1;
