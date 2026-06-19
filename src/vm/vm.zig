@@ -1,25 +1,23 @@
+//! Virtual machine for interpreting lox instructions.
+
 const std = @import("std");
 const builtin = @import("builtin");
+
+const debug = @import("../debug.zig");
 const mem = @import("../memory/memory.zig");
 const val = @import("../object/value.zig");
-const debug = @import("../debug.zig");
 
 const printf = std.debug.print;
 
 const Chunk = @import("../compiler/chunk.zig");
 const OpCode = @import("../compiler/opcode.zig").OpCode;
 const Value = @import("../object/value.zig").Value;
+const ValueStack = @import("value_stack.zig");
 
 const InterpretResult = @import("interpret_result.zig").InterpretResult;
 
-const U8_MAX = 255;
-const U8_SIZE = U8_MAX + 1;
-const FRAME_MAX = 64;
-const STACK_MAX = FRAME_MAX * U8_SIZE;
-
 // ============================================================================
 
-/// Virtual machine for interpreting lox instructions.
 const Vm: type = @This();
 
 /// Chunk of instructions currently being executed.
@@ -29,15 +27,12 @@ chunk: *Chunk,
 ip: [*]u8,
 
 /// Virtual machine value stack.
-stack: [STACK_MAX]Value,
-
-/// Pointer to the next slot on the vm stack.
-stack_top: [*]Value,
+stack: ValueStack,
 
 /// Allocate a new `Vm`, returning a pointer to it.
 pub fn create() !*Vm {
     const vm: *Vm = try mem.create(Vm);
-    vm.stack_top = &vm.stack;
+    vm.stack.reset();
     return vm;
 }
 
@@ -58,7 +53,7 @@ pub fn interpret(self: *Vm, chunk: *Chunk) InterpretResult {
 pub fn run(self: *Vm) InterpretResult {
     while (true) {
         if (builtin.mode == .Debug) {
-            debug.printStack(&self.stack, self.stack_top);
+            debug.printStack(&self.stack);
 
             _ = debug.disassembleInstruction(
                 self.chunk,
@@ -71,17 +66,17 @@ pub fn run(self: *Vm) InterpretResult {
         const instruction: OpCode = .fromByte(self.readByte());
 
         switch (instruction) {
-            .op_constant => self.push(self.readConstant()),
+            .op_constant => self.stack.push(self.readConstant()),
 
             .op_add => {
-                const b: Value = self.pop();
-                const a: Value = self.pop();
-                self.push(a + b);
+                const b: Value = self.stack.pop();
+                const a: Value = self.stack.pop();
+                self.stack.push(a + b);
             },
 
-            // .op_peek => printf("{any}\n", .{self.peek(self.readByte())}),
+            // .op_peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
 
-            .op_print => printf("{any}\n", .{self.pop()}),
+            .op_print => printf("{any}\n", .{self.stack.pop()}),
 
             .op_return => return .interpret_ok,
 
@@ -108,21 +103,4 @@ pub fn readShort(self: *Vm) u16 {
 /// value within the currently loaded chunk's constants array.
 pub fn readConstant(self: *Vm) Value {
     return self.chunk.constantAt(self.readByte());
-}
-
-/// Push the given `value` to the top of the stack.
-pub fn push(self: *Vm, value: Value) void {
-    self.stack_top[0] = value;
-    self.stack_top += 1;
-}
-
-/// Pop the value off of the top of the stack and return it.
-pub fn pop(self: *Vm) Value {
-    self.stack_top -= 1;
-    return self.stack_top[0];
-}
-
-/// Peek at a value in the stack, offset by `distance` from the top of the stack
-pub fn peek(self: *Vm, distance: usize) Value {
-    return (self.stack_top - 1 - distance)[0];
 }

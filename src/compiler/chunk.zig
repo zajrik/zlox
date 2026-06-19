@@ -1,3 +1,5 @@
+//! A chunk of compiled lox instructions and constant values.
+
 const std = @import("std");
 const mem = @import("../memory/memory.zig");
 
@@ -11,7 +13,6 @@ const exit = std.process.exit;
 
 // ============================================================================
 
-/// A chunk of compiled lox instructions and constant values.
 const Chunk: type = @This();
 
 /// Compiled instruction opcodes and operands.
@@ -95,9 +96,9 @@ pub fn writeOp3(self: *Chunk, op: OpCode, line: u16, byte_1: u8, byte_2: u8, byt
     self.writeByte(byte_3, line);
 }
 
-/// Add a constant to this chunk.
+/// Add the given constant `value` to this chunk's constants array.
 ///
-/// Returns the offset of the added chunk within the constants array.
+/// Returns the offset of the added value within this chunk's constants array.
 pub fn addConstant(self: *Chunk, value: Value) u8 {
     self.constants.append(mem.allocator(), value) catch exit(1);
     return @as(u8, @truncate(self.constants.items.len)) - 1;

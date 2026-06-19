@@ -4,6 +4,7 @@ const val = @import("object/value.zig");
 const Chunk = @import("compiler/chunk.zig");
 const OpCode = @import("compiler/opcode.zig").OpCode;
 const Value = @import("object/value.zig").Value;
+const ValueStack = @import("vm/value_stack.zig");
 
 const printf = std.debug.print;
 
@@ -46,13 +47,12 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
     };
 }
 
-/// Print the values of a stack given a pointer to the first item in the stack
-/// and a pointer to the top of the stack.
-pub fn printStack(stack: [*]Value, stack_top: [*]Value) void {
-    printf("            ", .{});
+/// Print the values on the given `ValueStack`.
+pub fn printStack(stack: *ValueStack) void {
+    printf("          ", .{});
 
-    var slot: [*]Value = stack;
-    while (@intFromPtr(slot) < @intFromPtr(stack_top)) : (slot += 1) {
+    var slot: [*]Value = &stack.values;
+    while (@intFromPtr(slot) < @intFromPtr(stack.top)) : (slot += 1) {
         printf("[ ", .{});
         val.print(slot[0]);
         printf(" ]", .{});
