@@ -1,0 +1,63 @@
+/// Represents types of tokens found in lox source text.
+const TokenType = enum {
+    // Single-character tokens
+    token_left_paren,
+    token_right_paren,
+    token_left_brace,
+    token_right_brace,
+    token_comma,
+    token_dot,
+    token_minus,
+    token_plus,
+    token_slash,
+    token_star,
+    token_colon,
+    token_semicolon,
+    token_question,
+
+    // One or two character tokens
+    token_bang,
+    token_bang_equal,
+    token_equal,
+    token_equal_equal,
+    token_greater,
+    token_greater_equal,
+    token_less,
+    token_less_equal,
+    token_plus_equal,
+    token_minus_equal,
+    token_star_equal,
+    token_slash_equal,
+    token_arrow,
+    token_nilish,
+    token_nilish_equal,
+
+    // Literals
+    token_identifier,
+    token_string,
+    token_number,
+
+    // Keywords
+    token_and,
+    token_case,
+    token_class,
+    token_default,
+    token_else,
+    token_false,
+    token_for,
+    token_fun,
+    token_if,
+    token_nil,
+    token_or,
+    token_print,
+    token_return,
+    token_super,
+    token_switch,
+    token_this,
+    token_true,
+    token_var,
+    token_while,
+
+    token_error,
+    token_eof,
+};
