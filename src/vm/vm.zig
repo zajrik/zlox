@@ -89,7 +89,7 @@ pub fn run(self: *Vm) InterpretResult {
                 const a: Value = self.stack.pop();
                 self.stack.push(a / b);
             },
-            .op_negate => self.stack.push(-self.stack.pop()),
+            .op_negate => _ = self.stack.replace(0, -self.stack.peek(0)),
 
             // Stack ops
             // .op_peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),

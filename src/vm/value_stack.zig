@@ -65,3 +65,13 @@ pub fn popN(self: *ValueStack, n: u8) void {
 pub fn peek(self: *ValueStack, distance: usize) Value {
     return (self.top - 1 - distance)[0];
 }
+
+/// Replace a value at `distance` from the top of this stack with the given `value`.
+///
+/// Returns the original value.
+pub fn replace(self: *ValueStack, distance: usize, value: Value) Value {
+    const slot: *Value = @ptrCast(self.top - 1 - distance);
+    const oldVal: Value = slot.*;
+    slot.* = value;
+    return oldVal;
+}
