@@ -18,9 +18,10 @@ line: u16,
 /// The column number of this token in the source text.
 column: u16,
 
-/// Initializes a new `Token` with the given `token_type`, `lexeme`, and source text position.
+/// Initializes a new `Token` on the stack with the given `token_type`, `lexeme`,
+/// and source text position (`line`/`column`).
 pub fn init(token_type: TokenType, lexeme: []const u8, line: u16, column: u16) Token {
-    return Token{
+    return .{
         .token_type = token_type,
         .lexeme = lexeme,
         .line = line,

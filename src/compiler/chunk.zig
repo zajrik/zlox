@@ -27,13 +27,20 @@ lines: ArrayList(u16),
 /// Compiled constant values in this chunk.
 constants: ArrayList(Value),
 
-/// Allocate a new `Chunk`, returning a pointer to it.
-pub fn create() !*Chunk {
-    return try mem.createStruct(Chunk, .{
+/// Initialize a new `Chunk` instance on the stack.
+pub fn init() Chunk {
+    return .{
         .instructions = .empty,
         .lines = .empty,
         .constants = .empty,
-    });
+    };
+}
+
+/// Allocate a new `Chunk` instance on the heap, returning a pointer to it.
+///
+/// The caller owns the returned pointer and is responsible for freeing it.
+pub fn create() !*Chunk {
+    return try mem.createStruct(Chunk, init());
 }
 
 /// Destroy this `Chunk`, freeing its owned resources.

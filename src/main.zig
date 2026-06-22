@@ -33,6 +33,6 @@ pub fn main() !void {
 
     var tokenizer = Tokenizer.init("foo bar baz");
     while (!tokenizer.isAtEnd()) : (_ = tokenizer.advance()) {
-        std.debug.print("{c}\n", .{tokenizer.peek()});
+        std.debug.print("{c}", .{tokenizer.peek()});
     }
 }

@@ -14,7 +14,7 @@ const OpCode = @import("../compiler/opcode.zig").OpCode;
 const Value = @import("../object/value.zig").Value;
 const ValueStack = @import("value_stack.zig");
 
-const InterpretResult = @import("interpret_result.zig").InterpretResult;
+const ExecutionResult = @import("execution_result.zig").ExecutionResult;
 
 // ============================================================================
 
@@ -29,11 +29,18 @@ ip: [*]u8,
 /// Virtual machine value stack.
 stack: ValueStack,
 
-/// Allocate a new `Vm`, returning a pointer to it.
-pub fn create() !*Vm {
-    const vm: *Vm = try mem.create(Vm);
+/// Initialize a new `Vm` instance on the stack.
+pub fn init() Vm {
+    const vm: Vm = .{};
     vm.stack.reset();
     return vm;
+}
+
+/// Allocate a new `Vm` instance on the heap, returning a pointer to it.
+///
+/// The caller owns the returned pointer and is responsible for freeing it.
+pub fn create() !*Vm {
+    return try mem.createStruct(Vm, init());
 }
 
 /// Destroy this `Vm`, freeing its owned resources.
@@ -42,7 +49,7 @@ pub fn destroy(self: *Vm) void {
 }
 
 /// Interpret the given chunk of lox instructions
-pub fn interpret(self: *Vm, chunk: *Chunk) InterpretResult {
+pub fn interpret(self: *Vm, chunk: *Chunk) ExecutionResult {
     self.chunk = chunk;
     self.ip = chunk.instructions.items.ptr;
 
@@ -50,7 +57,7 @@ pub fn interpret(self: *Vm, chunk: *Chunk) InterpretResult {
 }
 
 /// Run instructions from the currently loaded chunk.
-pub fn run(self: *Vm) InterpretResult {
+pub fn run(self: *Vm) ExecutionResult {
     while (true) {
         if (builtin.mode == .Debug) {
             debug.printStack(&self.stack);
@@ -105,9 +112,9 @@ pub fn run(self: *Vm) InterpretResult {
 
             .op_print => printf("{any}\n", .{self.stack.pop()}),
 
-            .op_return => return .interpret_ok,
+            .op_return => return .ok,
 
-            _ => return .interpret_runtime_error,
+            _ => return .runtime_error,
         }
     }
 }

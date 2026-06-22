@@ -21,7 +21,7 @@ column: u16,
 /// The line number of the current character being processed.
 line: u16,
 
-/// Initializes a new Tokenizer with the given source code.
+/// Initializes a new `Tokenizer` on the stack with the given source code string.
 pub fn init(chars: [:0]const u8) Tokenizer {
     return Tokenizer{
         .chars = chars,

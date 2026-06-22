@@ -23,11 +23,18 @@ values: [STACK_MAX]Value,
 /// the pointer will be incremented to point to the next slot on the stack.
 top: [*]Value,
 
-/// Allocate a new `ValueStack`, returning a pointer to it.
-pub fn create() !*ValueStack {
-    const stack: *ValueStack = try mem.create(ValueStack);
+/// Initialize a new `ValueStack` on the stack.
+pub fn init() ValueStack {
+    const stack: ValueStack = .{};
     stack.reset();
     return stack;
+}
+
+/// Allocate a new `ValueStack` on the heap, returning a pointer to it.
+///
+/// The caller owns the returned pointer and is responsible for freeing it.
+pub fn create() !*ValueStack {
+    return try mem.createStruct(ValueStack, init());
 }
 
 /// Destroy this `ValueStack`, freeing its owned resources.
@@ -68,7 +75,7 @@ pub fn peek(self: *ValueStack, distance: usize) Value {
 
 /// Replace a value at `distance` from the top of this stack with the given `value`.
 ///
-/// Returns the original value.
+/// Returns the original, replaced value.
 pub fn replace(self: *ValueStack, distance: usize, value: Value) Value {
     const slot: *Value = @ptrCast(self.top - 1 - distance);
     const oldVal: Value = slot.*;
