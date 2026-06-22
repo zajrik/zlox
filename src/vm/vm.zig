@@ -1,4 +1,4 @@
-//! Virtual machine for interpreting lox instructions.
+//! Virtual machine for executing lox instructions.
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -10,11 +10,10 @@ const val = @import("../object/value.zig");
 const printf = std.debug.print;
 
 const Chunk = @import("../compiler/chunk.zig");
-const OpCode = @import("../compiler/opcode.zig").OpCode;
-const Value = @import("../object/value.zig").Value;
-const ValueStack = @import("value_stack.zig");
-
 const ExecutionResult = @import("execution_result.zig").ExecutionResult;
+const OpCode = @import("../compiler/opcode.zig").OpCode;
+const Stack = @import("stack.zig").Stack;
+const Value = @import("../object/value.zig").Value;
 
 // ============================================================================
 
@@ -27,20 +26,15 @@ chunk: *Chunk,
 ip: [*]u8,
 
 /// Virtual machine value stack.
-stack: ValueStack,
-
-/// Initialize a new `Vm` instance on the stack.
-pub fn init() Vm {
-    const vm: Vm = .{};
-    vm.stack.reset();
-    return vm;
-}
+stack: Stack(Value),
 
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create() !*Vm {
-    return try mem.createStruct(Vm, init());
+    const vm: *Vm = try mem.create(Vm);
+    vm.stack.reset();
+    return vm;
 }
 
 /// Destroy this `Vm`, freeing its owned resources.

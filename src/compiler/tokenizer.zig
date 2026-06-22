@@ -1,5 +1,5 @@
-//! Reads through a given lox source code string and produces an array of tokens
-//! to be parsed and compiled into lox bytecode.
+//! Reads through a given lox source code string and produces tokens to be parsed
+//! and compiled into lox bytecode.
 
 const std = @import("std");
 
@@ -10,7 +10,7 @@ const Token = @import("./token.zig").Token;
 const Tokenizer: type = @This();
 
 /// The source code to be tokenized.
-chars: [:0]const u8,
+chars: []const u8,
 
 /// The current character being processed.
 current: [*]const u8,
@@ -22,7 +22,7 @@ column: u16,
 line: u16,
 
 /// Initializes a new `Tokenizer` on the stack with the given source code string.
-pub fn init(chars: [:0]const u8) Tokenizer {
+pub fn init(chars: []const u8) Tokenizer {
     return Tokenizer{
         .chars = chars,
         .current = chars.ptr,

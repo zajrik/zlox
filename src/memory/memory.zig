@@ -6,8 +6,6 @@ const DebugAllocator = std.heap.DebugAllocator;
 
 // ============================================================================
 
-pub const MemError = error{OutOfMemory};
-
 var _debugAllocator: DebugAllocator(.{}) = if (builtin.mode == .Debug) .init else null;
 var _allocator: ArenaAllocator = .init(switch (builtin.mode) {
     .Debug => _debugAllocator.allocator(),
@@ -27,7 +25,7 @@ pub fn deinitAllocator() void {
 /// Allocate memory for a struct of type `T`.
 ///
 /// Returns a pointer to the allocated struct.
-pub fn create(comptime T: type) MemError!*T {
+pub fn create(comptime T: type) !*T {
     return allocator().create(T);
 }
 
@@ -35,7 +33,7 @@ pub fn create(comptime T: type) MemError!*T {
 /// given `init` value.
 ///
 /// Returns a pointer to the allocated struct.
-pub fn createStruct(comptime T: type, init: T) MemError!*T {
+pub fn createStruct(comptime T: type, init: T) !*T {
     const result: *T = try create(T);
     result.* = init;
     return result;
@@ -47,12 +45,12 @@ pub fn destroy(ptr: anytype) void {
 }
 
 /// Allocates an array of type `T`, sized for `n` items.
-pub fn alloc(comptime T: type, n: usize) MemError![]T {
+pub fn alloc(comptime T: type, n: usize) ![]T {
     return allocator().alloc(T, n);
 }
 
 /// Reallocates memory for `ptr` to the given `new_size`.
-pub fn realloc(ptr: anytype, new_size: usize) MemError!@TypeOf(ptr) {
+pub fn realloc(ptr: anytype, new_size: usize) !@TypeOf(ptr) {
     return allocator().realloc(ptr, new_size);
 }
 

@@ -3,8 +3,8 @@ const val = @import("object/value.zig");
 
 const Chunk = @import("compiler/chunk.zig");
 const OpCode = @import("compiler/opcode.zig").OpCode;
+const Stack = @import("vm/stack.zig").Stack;
 const Value = @import("object/value.zig").Value;
-const ValueStack = @import("vm/value_stack.zig");
 
 const printf = std.debug.print;
 
@@ -62,7 +62,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 }
 
 /// Print the values on the given `ValueStack`.
-pub fn printStack(stack: *ValueStack) void {
+pub fn printStack(stack: *Stack(Value)) void {
     printf("          ", .{});
 
     var slot: [*]Value = &stack.values;
