@@ -1,14 +1,12 @@
 const std = @import("std");
 const mem = @import("../memory.zig");
-const common = @import("../common.zig");
+const cmn = @import("../common.zig");
 
 const printf = std.debug.print;
 
-const STACK_MAX = common.STACK_MAX;
-
 // ============================================================================
 
-/// A classic generic last-in, first-out stack structure.
+/// A classic generic last-in, first-out stack structure with a fixed max-size.
 ///
 /// `reset()` must be called before first use unless manually allocating a Stack
 /// instance on the heap using `create()`.
@@ -18,7 +16,7 @@ const STACK_MAX = common.STACK_MAX;
 pub fn Stack(comptime T: type) type {
     return struct {
         /// Array holding the values on this stack.
-        values: [STACK_MAX]T,
+        values: [cmn.STACK_MAX]T,
 
         /// Pointer to the next slot on this stack.
         ///
@@ -28,6 +26,8 @@ pub fn Stack(comptime T: type) type {
         top: [*]T,
 
         /// Initialize a new `Stack` instance on the zig stack.
+        ///
+        /// You *must* call `reset()` before using the stack.
         pub fn init() Stack(T) {
             return .{
                 .values = undefined,

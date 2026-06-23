@@ -1,5 +1,5 @@
 /// Represents types of tokens found in lox source text.
-const TokenType = enum {
+pub const TokenType = enum {
     // Single-character tokens
     token_left_paren,
     token_right_paren,
