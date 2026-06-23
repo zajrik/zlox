@@ -1,5 +1,5 @@
 const std = @import("std");
-const mem = @import("memory/memory.zig");
+const mem = @import("memory.zig");
 const debug = @import("debug.zig");
 
 const Chunk = @import("compiler/chunk.zig");

@@ -1,5 +1,5 @@
 const std = @import("std");
-const mem = @import("../memory/memory.zig");
+const mem = @import("../memory.zig");
 const common = @import("../common.zig");
 
 const printf = std.debug.print;
