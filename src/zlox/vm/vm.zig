@@ -3,8 +3,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const debug = @import("../debug.zig");
-const mem = @import("../memory.zig");
+const debug = @import("lib").debug;
+const mem = @import("lib").mem;
 const val = @import("../object/value.zig");
 
 const printf = std.debug.print;

@@ -2,9 +2,10 @@
 //! into lox bytecode.
 
 const std = @import("std");
+const lib = @import("../.lib.zig");
 
-const Token = @import("./token.zig").Token;
-const TokenType = @import("./token_type.zig").TokenType;
+const Token = lib.compiler.Token;
+const TokenType = lib.compiler.TokenType;
 
 // ============================================================================
 

@@ -2,7 +2,7 @@
 
 const std = @import("std");
 
-const TokenType = @import("token_type.zig").TokenType;
+const TokenType = @import("../.lib.zig").compiler.TokenType;
 
 const Writer = std.Io.Writer;
 

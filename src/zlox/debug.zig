@@ -1,10 +1,11 @@
 const std = @import("std");
-const val = @import("object/value.zig");
+const lib = @import(".lib.zig");
+const val = lib.object.Value;
 
-const Chunk = @import("compiler/chunk.zig");
-const OpCode = @import("compiler/opcode.zig").OpCode;
-const Stack = @import("vm/stack.zig").Stack;
-const Value = @import("object/value.zig").Value;
+const Chunk = lib.compiler.Chunk;
+const OpCode = lib.compiler.OpCode;
+const Value = lib.object.Value;
+const Stack = lib.vm.Stack;
 
 const printf = std.debug.print;
 

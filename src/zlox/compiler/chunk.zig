@@ -1,10 +1,11 @@
 //! A chunk of compiled lox instructions and constant values.
 
 const std = @import("std");
-const mem = @import("../memory.zig");
+const lib = @import("../.lib.zig");
+const mem = lib.mem;
 
-const OpCode = @import("opcode.zig").OpCode;
-const Value = @import("../object/value.zig").Value;
+const OpCode = lib.compiler.OpCode;
+const Value = lib.object.Value;
 
 const ArrayList = std.ArrayList;
 
