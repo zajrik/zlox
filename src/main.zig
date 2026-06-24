@@ -43,9 +43,8 @@ pub fn main(init: std.process.Init) !void {
     defer mem.free(lox_code);
 
     var tokenizer = Tokenizer.init(lox_code);
-    const tokens = TokenIterator.init(&tokenizer);
 
-    while (tokens.next()) |token| {
+    while (tokenizer.next()) |token| {
         std.debug.print("{f}\n", .{token});
     }
 }

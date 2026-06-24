@@ -54,6 +54,13 @@ pub fn init(source: []const u8) Tokenizer {
     };
 }
 
+/// Consumes and returns the next `Token` from the source input, or `null` if
+/// we've reached the end of the source input.
+pub fn next(self: *Tokenizer) ?Token {
+    if (self.isAtEnd()) return null;
+    return self.consumeToken();
+}
+
 /// Advance the tokenizer, moving past the currently-processing character to the
 /// next character to be processed.
 ///
@@ -279,7 +286,7 @@ fn consumeString(self: *Tokenizer) Token {
 /// Consume the next token from the source text.
 ///
 /// Returns the consumed token.
-pub fn consumeToken(self: *Tokenizer) Token {
+fn consumeToken(self: *Tokenizer) Token {
     self.discardWhitespace();
 
     // Set token lexeme start location within source
