@@ -1,11 +1,12 @@
 const std = @import("std");
-const lib = @import(".lib.zig");
-const val = lib.object.Value;
+const zlox = @import(".lib.zig");
 
-const Chunk = lib.compiler.Chunk;
-const OpCode = lib.compiler.OpCode;
-const Value = lib.object.Value;
-const Stack = lib.vm.Stack;
+const val = zlox.object.val;
+
+const Chunk = zlox.compiler.Chunk;
+const OpCode = zlox.compiler.OpCode;
+const Value = zlox.object.Value;
+const Stack = zlox.vm.Stack;
 
 const printf = std.debug.print;
 

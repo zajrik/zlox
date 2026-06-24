@@ -1,18 +1,19 @@
 const std = @import("std");
-const lib = @import("zlox/.lib.zig");
-const mem = lib.mem;
-const debug = lib.debug;
+const zlox = @import("zlox/.lib.zig");
+
+const mem = zlox.mem;
+const debug = zlox.debug;
 
 const Io = std.Io;
 const Dir = std.Io.Dir;
 
-const Chunk = lib.compiler.Chunk;
-const OpCode = lib.compiler.OpCode;
-const Stack = lib.vm.Stack;
-const Tokenizer = lib.compiler.Tokenizer;
-const TokenIterator = lib.compiler.TokenIterator;
-const Value = lib.object.Value;
-const Vm = lib.vm.Vm;
+const Chunk = zlox.compiler.Chunk;
+const OpCode = zlox.compiler.OpCode;
+const Stack = zlox.vm.Stack;
+const Tokenizer = zlox.compiler.Tokenizer;
+const TokenIterator = zlox.compiler.TokenIterator;
+const Value = zlox.object.Value;
+const Vm = zlox.vm.Vm;
 
 // ============================================================================
 

@@ -11,10 +11,10 @@
 //! ```
 
 const std = @import("std");
-const lib = @import("../.lib.zig");
+const zlox = @import("../.lib.zig");
 
-const Token = lib.compiler.Token;
-const Tokenizer = lib.compiler.Tokenizer;
+const Token = zlox.compiler.Token;
+const Tokenizer = zlox.compiler.Tokenizer;
 
 // ============================================================================
 

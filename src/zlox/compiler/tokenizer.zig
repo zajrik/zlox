@@ -2,10 +2,10 @@
 //! into lox bytecode.
 
 const std = @import("std");
-const lib = @import("../.lib.zig");
+const zlox = @import("../.lib.zig");
 
-const Token = lib.compiler.Token;
-const TokenType = lib.compiler.TokenType;
+const Token = zlox.compiler.Token;
+const TokenType = zlox.compiler.TokenType;
 
 // ============================================================================
 
@@ -96,6 +96,28 @@ fn discardWhitespace(self: *Tokenizer) void {
 
         else => break,
     };
+}
+
+/// Create and return a `Token` with the given `token_type` using the characters
+/// that have been consumed/discarded since `start` as the token lexeme.
+fn createToken(self: *Tokenizer, token_type: TokenType) Token {
+    const token_len: usize = self.current - self.start;
+    return Token.init(
+        token_type,
+        self.start[0..token_len],
+        self.start_line,
+        self.start_column,
+    );
+}
+
+/// Create and return an error token with the given `err` string as the token lexeme.
+fn errorToken(self: *Tokenizer, err: []const u8) Token {
+    return Token.init(
+        .token_error,
+        err,
+        self.line,
+        self.start_column,
+    );
 }
 
 /// Peek at the current character being processed.
@@ -308,28 +330,6 @@ pub fn consumeToken(self: *Tokenizer) Token {
 
         else => self.errorToken("Unexpected character."),
     };
-}
-
-/// Create and return a `Token` with the given `token_type` using the characters
-/// that have been consumed/discarded since `start` as the token lexeme.
-fn createToken(self: *Tokenizer, token_type: TokenType) Token {
-    const token_len: usize = self.current - self.start;
-    return Token.init(
-        token_type,
-        self.start[0..token_len],
-        self.start_line,
-        self.start_column,
-    );
-}
-
-/// Create and return an error token with the given `err` string as the token lexeme.
-fn errorToken(self: *Tokenizer, err: []const u8) Token {
-    return Token.init(
-        .token_error,
-        err,
-        self.line,
-        self.start_column,
-    );
 }
 
 /// Return whether the given `char` is a digit character.

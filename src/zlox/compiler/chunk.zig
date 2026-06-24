@@ -1,13 +1,14 @@
 //! A chunk of compiled lox instructions and constant values.
 
 const std = @import("std");
-const lib = @import("../.lib.zig");
-const mem = lib.mem;
+const zlox = @import("../.lib.zig");
 
-const OpCode = lib.compiler.OpCode;
-const Value = lib.object.Value;
+const mem = zlox.mem;
 
 const ArrayList = std.ArrayList;
+
+const OpCode = zlox.compiler.OpCode;
+const Value = zlox.object.Value;
 
 const exit = std.process.exit;
 

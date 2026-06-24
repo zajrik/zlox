@@ -2,18 +2,19 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const zlox = @import("../.lib.zig");
 
-const debug = @import("lib").debug;
-const mem = @import("lib").mem;
-const val = @import("../object/value.zig");
+const debug = zlox.debug;
+const mem = zlox.mem;
+const val = zlox.object.val;
 
 const printf = std.debug.print;
 
-const Chunk = @import("../compiler/chunk.zig");
-const ExecutionResult = @import("execution_result.zig").ExecutionResult;
-const OpCode = @import("../compiler/opcode.zig").OpCode;
-const Stack = @import("stack.zig").Stack;
-const Value = @import("../object/value.zig").Value;
+const Chunk = zlox.compiler.Chunk;
+const OpCode = zlox.compiler.OpCode;
+const Value = zlox.object.Value;
+const ExecutionResult = zlox.vm.ExecutionResult;
+const Stack = zlox.vm.Stack;
 
 // ============================================================================
 

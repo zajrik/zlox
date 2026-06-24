@@ -1,8 +1,9 @@
 //! A token scanned from lox source text.
 
 const std = @import("std");
+const zlox = @import("../.lib.zig");
 
-const TokenType = @import("../.lib.zig").compiler.TokenType;
+const TokenType = zlox.compiler.TokenType;
 
 const Writer = std.Io.Writer;
 

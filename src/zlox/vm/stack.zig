@@ -1,7 +1,8 @@
 const std = @import("std");
-const lib = @import("../.lib.zig");
-const mem = lib.mem;
-const cmn = lib.common;
+const zlox = @import("../.lib.zig");
+
+const mem = zlox.mem;
+const cmn = zlox.common;
 
 const printf = std.debug.print;
 
