@@ -9,6 +9,7 @@ const Chunk = @import("compiler/chunk.zig");
 const OpCode = @import("compiler/opcode.zig").OpCode;
 const Stack = @import("vm/stack.zig").Stack;
 const Tokenizer = @import("compiler/tokenizer.zig");
+const TokenIterator = @import("compiler/token_iterator.zig");
 const Value = @import("object/value.zig").Value;
 const Vm = @import("vm/vm.zig");
 
@@ -40,8 +41,10 @@ pub fn main(init: std.process.Init) !void {
     defer mem.free(lox_code);
 
     var tokenizer = Tokenizer.init(lox_code);
-    while (!tokenizer.isAtEnd()) {
-        std.debug.print("{f}\n", .{tokenizer.consumeToken()});
+    const tokens = TokenIterator.init(&tokenizer);
+
+    while (tokens.next()) |token| {
+        std.debug.print("{f}\n", .{token});
     }
 }
 
