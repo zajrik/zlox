@@ -37,24 +37,24 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
     const instruction: OpCode = @enumFromInt(chunk.instructionAt(offset));
 
     return switch (instruction) {
-        .op_constant => constantInstruction("op_constant", chunk, offset),
+        .constant => constantInstruction(".constant", chunk, offset),
 
         // Arithmetic ops
-        .op_add => simpleInstruction("op_add", offset),
-        .op_subtract => simpleInstruction("op_subtract", offset),
-        .op_multiply => simpleInstruction("op_multiply", offset),
-        .op_divide => simpleInstruction("op_divide", offset),
-        .op_negate => simpleInstruction("op_negate", offset),
+        .add => simpleInstruction(".add", offset),
+        .subtract => simpleInstruction(".subtract", offset),
+        .multiply => simpleInstruction(".multiply", offset),
+        .divide => simpleInstruction(".divide", offset),
+        .negate => simpleInstruction(".negate", offset),
 
         // Stack ops
-        // .op_peek => byteInstruction("op_peek", chunk, offset),
-        .op_pop => simpleInstruction("op_pop", offset),
-        .op_pop_n => byteInstruction("op_pop_n", chunk, offset),
-        .op_copy => simpleInstruction("op_copy", offset),
-        .op_swap => simpleInstruction("op_swap", offset),
+        // .peek => byteInstruction(".peek", chunk, offset),
+        .pop => simpleInstruction(".pop", offset),
+        .pop_n => byteInstruction(".pop_n", chunk, offset),
+        .copy => simpleInstruction(".copy", offset),
+        .swap => simpleInstruction(".swap", offset),
 
-        .op_print => simpleInstruction("op_print", offset),
-        .op_return => simpleInstruction("op_return", offset),
+        .print => simpleInstruction(".print", offset),
+        .@"return" => simpleInstruction(".return", offset),
 
         _ => {
             printf("Unknown opcode {d}\n", .{offset});
@@ -65,7 +65,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 
 /// Print the values on the given `ValueStack`.
 pub fn printStack(stack: *Stack(Value)) void {
-    printf("          ", .{});
+    printf("           ", .{});
 
     var slot: [*]Value = &stack.values;
     while (@intFromPtr(slot) < @intFromPtr(stack.top)) : (slot += 1) {

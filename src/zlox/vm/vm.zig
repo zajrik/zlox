@@ -68,46 +68,46 @@ pub fn run(self: *Vm) ExecutionResult {
         const instruction: OpCode = .fromByte(self.readByte());
 
         switch (instruction) {
-            .op_constant => self.stack.push(self.readConstant()),
+            .constant => self.stack.push(self.readConstant()),
 
             // Arithmetic ops
-            .op_add => {
+            .add => {
                 const b: Value = self.stack.pop();
                 const a: Value = self.stack.pop();
                 self.stack.push(a + b);
             },
-            .op_subtract => {
+            .subtract => {
                 const b: Value = self.stack.pop();
                 const a: Value = self.stack.pop();
                 self.stack.push(a - b);
             },
-            .op_multiply => {
+            .multiply => {
                 const b: Value = self.stack.pop();
                 const a: Value = self.stack.pop();
                 self.stack.push(a * b);
             },
-            .op_divide => {
+            .divide => {
                 const b: Value = self.stack.pop();
                 const a: Value = self.stack.pop();
                 self.stack.push(a / b);
             },
-            .op_negate => _ = self.stack.replace(0, -self.stack.peek(0)),
+            .negate => _ = self.stack.replace(0, -self.stack.peek(0)),
 
             // Stack ops
-            // .op_peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
-            .op_pop => _ = self.stack.pop(),
-            .op_pop_n => self.stack.popN(self.readByte()),
-            .op_copy => self.stack.push(self.stack.peek(0)),
-            .op_swap => {
+            // .peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
+            .pop => _ = self.stack.pop(),
+            .pop_n => self.stack.popN(self.readByte()),
+            .copy => self.stack.push(self.stack.peek(0)),
+            .swap => {
                 const b: Value = self.stack.pop();
                 const a: Value = self.stack.pop();
                 self.stack.push(b);
                 self.stack.push(a);
             },
 
-            .op_print => printf("{any}\n", .{self.stack.pop()}),
+            .print => printf("{any}\n", .{self.stack.pop()}),
 
-            .op_return => return .ok,
+            .@"return" => return .ok,
 
             _ => return .runtime_error,
         }

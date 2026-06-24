@@ -113,7 +113,7 @@ fn createToken(self: *Tokenizer, token_type: TokenType) Token {
 /// Create and return an error token with the given `err` string as the token lexeme.
 fn errorToken(self: *Tokenizer, err: []const u8) Token {
     return Token.init(
-        .token_error,
+        .err,
         err,
         self.line,
         self.start_column,
@@ -154,14 +154,13 @@ fn match(self: *Tokenizer, expected: u8) bool {
 /// Check if the remainder of the currently-processing token lexeme after `offset`
 /// matches the given partial token text.
 ///
-/// Returns the given `token_type` if it matches, otherwise returns
-/// `TokenType.token_identifier`.
+/// Returns the given `token_type` if it matches, otherwise returns `TokenType.identifier`.
 ///
 /// ```zig
 /// // Assume the input text is "class" and we've already checked 'c' and 'l'
-/// _ = checkKeyword(2, "ass", .token_class);
+/// _ = checkPartial(2, "ass", .keyword_class);
 /// //               ^  ^
-/// //               |  `--remainder of the keyword "class" after offset
+/// //               |  `--remainder of the keyword "class" text after offset
 /// //               |
 /// //               `--offset by 2 because 'c' and 'l' have already been checked
 /// ```
@@ -174,12 +173,12 @@ fn checkPartial(
     const token_len: usize = self.current - self.start;
     const keyword_len: usize = offset + rest.len;
 
-    if (token_len != keyword_len) return .token_identifier;
+    if (token_len != keyword_len) return .identifier;
 
     // Compare `rest` to the remaining token characters
     if (std.mem.eql(u8, self.start[offset..token_len], rest)) return token_type;
 
-    return .token_identifier;
+    return .identifier;
 }
 
 /// Determine if the currently-processing token lexeme is a keyword or an identifier.
@@ -190,45 +189,45 @@ fn identifierType(self: *Tokenizer) TokenType {
     const token_len: usize = self.current - self.start;
 
     return switch (self.start[0]) {
-        'a' => self.checkPartial(1, "nd", .token_and),
+        'a' => self.checkPartial(1, "nd", .keyword_and),
         'c' => if (token_len > 1) switch (self.start[1]) {
-            'l' => self.checkPartial(2, "ass", .token_class),
-            'a' => self.checkPartial(2, "se", .token_case),
-            else => .token_identifier,
-        } else .token_identifier,
+            'l' => self.checkPartial(2, "ass", .keyword_class),
+            'a' => self.checkPartial(2, "se", .keyword_case),
+            else => .identifier,
+        } else .identifier,
 
-        'd' => self.checkPartial(1, "efault", .token_default),
-        'e' => self.checkPartial(1, "lse", .token_else),
-        'i' => self.checkPartial(1, "f", .token_if),
+        'd' => self.checkPartial(1, "efault", .keyword_default),
+        'e' => self.checkPartial(1, "lse", .keyword_else),
+        'i' => self.checkPartial(1, "f", .keyword_if),
 
         'f' => if (token_len > 1) switch (self.start[1]) {
-            'a' => self.checkPartial(2, "lse", .token_false),
-            'o' => self.checkPartial(2, "r", .token_for),
-            'u' => self.checkPartial(2, "n", .token_fun),
-            else => .token_identifier,
-        } else .token_identifier,
+            'a' => self.checkPartial(2, "lse", .keyword_false),
+            'o' => self.checkPartial(2, "r", .keyword_for),
+            'u' => self.checkPartial(2, "n", .keyword_fun),
+            else => .identifier,
+        } else .identifier,
 
-        'n' => self.checkPartial(1, "il", .token_nil),
-        'o' => self.checkPartial(1, "r", .token_or),
-        'p' => self.checkPartial(1, "rint", .token_print),
-        'r' => self.checkPartial(1, "eturn", .token_return),
+        'n' => self.checkPartial(1, "il", .keyword_nil),
+        'o' => self.checkPartial(1, "r", .keyword_or),
+        'p' => self.checkPartial(1, "rint", .keyword_print),
+        'r' => self.checkPartial(1, "eturn", .keyword_return),
 
         's' => if (token_len > 1) switch (self.start[1]) {
-            'u' => self.checkPartial(2, "per", .token_super),
-            'w' => self.checkPartial(2, "itch", .token_switch),
-            else => .token_identifier,
-        } else .token_identifier,
+            'u' => self.checkPartial(2, "per", .keyword_super),
+            'w' => self.checkPartial(2, "itch", .keyword_switch),
+            else => .identifier,
+        } else .identifier,
 
         't' => if (token_len > 1) switch (self.start[1]) {
-            'h' => self.checkPartial(2, "is", .token_this),
-            'r' => self.checkPartial(2, "ue", .token_true),
-            else => .token_identifier,
-        } else .token_identifier,
+            'h' => self.checkPartial(2, "is", .keyword_this),
+            'r' => self.checkPartial(2, "ue", .keyword_true),
+            else => .identifier,
+        } else .identifier,
 
-        'v' => self.checkPartial(1, "ar", .token_var),
-        'w' => self.checkPartial(1, "hile", .token_while),
+        'v' => self.checkPartial(1, "ar", .keyword_var),
+        'w' => self.checkPartial(1, "hile", .keyword_while),
 
-        else => .token_identifier,
+        else => .identifier,
     };
 }
 
@@ -252,7 +251,7 @@ fn consumeNumber(self: *Tokenizer) Token {
         while (isDigit(self.peek())) self.advance();
     }
 
-    return self.createToken(.token_number);
+    return self.createToken(.number);
 }
 
 /// Consumes a string literal from source.
@@ -274,7 +273,7 @@ fn consumeString(self: *Tokenizer) Token {
     // Consume closing quote
     self.advance();
 
-    return self.createToken(.token_string);
+    return self.createToken(.string);
 }
 
 /// Consume the next token from the source text.
@@ -288,7 +287,7 @@ pub fn consumeToken(self: *Tokenizer) Token {
     self.start_line = self.line;
     self.start_column = self.column;
 
-    if (self.isAtEnd()) return self.createToken(.token_eof);
+    if (self.isAtEnd()) return self.createToken(.eof);
 
     const char: u8 = self.consume();
 
@@ -296,34 +295,33 @@ pub fn consumeToken(self: *Tokenizer) Token {
     if (isDigit(char)) return self.consumeNumber();
 
     return switch (char) {
-        '(' => self.createToken(.token_left_paren),
-        ')' => self.createToken(.token_right_paren),
-        '{' => self.createToken(.token_left_brace),
-        '}' => self.createToken(.token_right_brace),
-        ':' => self.createToken(.token_colon),
-        ';' => self.createToken(.token_semicolon),
-        ',' => self.createToken(.token_comma),
-        '.' => self.createToken(.token_dot),
+        '(' => self.createToken(.paren_left),
+        ')' => self.createToken(.paren_right),
+        '{' => self.createToken(.brace_left),
+        '}' => self.createToken(.brace_right),
+        ':' => self.createToken(.colon),
+        ';' => self.createToken(.semicolon),
+        ',' => self.createToken(.comma),
+        '.' => self.createToken(.dot),
 
-        '*' => self.createToken(if (self.match('=')) .token_star_equal else .token_star),
-        '/' => self.createToken(if (self.match('=')) .token_slash_equal else .token_slash),
-        '-' => self.createToken(if (self.match('=')) .token_minus_equal else .token_minus),
-        '+' => self.createToken(if (self.match('=')) .token_plus_equal else .token_plus),
+        '*' => self.createToken(if (self.match('=')) .star_equal else .star),
+        '/' => self.createToken(if (self.match('=')) .slash_equal else .slash),
+        '-' => self.createToken(if (self.match('=')) .minus_equal else .minus),
+        '+' => self.createToken(if (self.match('=')) .plus_equal else .plus),
 
-        '?' => self.createToken(
-            if (self.match('?'))
-                (if (self.match('=')) .token_nilish_equal else .token_nilish)
-            else
-                .token_question,
-        ),
+        '?' => self.createToken(token: {
+            if (!self.match('?')) break :token .question;
+            if (self.match('=')) break :token .nilish_equal;
+            break :token .nilish;
+        }),
 
-        '!' => self.createToken(if (self.match('=')) .token_bang_equal else .token_bang),
-        '<' => self.createToken(if (self.match('=')) .token_less_equal else .token_less),
-        '>' => self.createToken(if (self.match('=')) .token_greater_equal else .token_greater),
+        '!' => self.createToken(if (self.match('=')) .bang_equal else .bang),
+        '<' => self.createToken(if (self.match('=')) .less_equal else .less),
+        '>' => self.createToken(if (self.match('=')) .greater_equal else .greater),
         '=' => switch (self.peek()) {
-            '=' => do(self.advance(), self.createToken(.token_equal_equal)),
-            '>' => do(self.advance(), self.createToken(.token_arrow)),
-            else => self.createToken(.token_equal),
+            '=' => do(self.advance(), self.createToken(.equal_equal)),
+            '>' => do(self.advance(), self.createToken(.arrow)),
+            else => self.createToken(.equal),
         },
 
         '"' => self.consumeString(),

@@ -2,7 +2,7 @@
 ///
 /// ## Opcode instruction format documentation syntax:
 ///
-/// ### `op_name(operand1: type, operand2: type, ...)`
+/// ### `OpCode.name(operand1: type, operand2: type, ...)`
 ///
 /// ### Operand byte types:
 ///
@@ -17,64 +17,64 @@
 ///   top of the stack. A stack offset of `0` points to the top of the stack, `1`
 ///   to the item below that, etc.
 pub const OpCode = enum(u8) {
-    /// ### `op_constant(offset: constant_offset)`
+    /// ### `OpCode.constant(offset: constant_offset)`
     /// - Loads a constant value at the given `offset` onto the stack.
-    op_constant,
+    constant,
 
-    /// ### `op_add()`
+    /// ### `OpCode.add()`
     /// - Pops the top two values off the stack, adds them, and pushes the result
     ///   to the top of the stack.
-    op_add,
+    add,
 
-    /// ### `op_subtract()`
+    /// ### `OpCode.subtract()`
     /// - Pops the top two values off the stack, subtracts them, and pushes the
     ///   result to the top of the stack.
-    op_subtract,
+    subtract,
 
-    /// ### `op_multiply()`
+    /// ### `OpCode.multiply()`
     /// - Pops the top two values off the stack, multiplies them, and pushes the
     ///   result to the top of the stack.
-    op_multiply,
+    multiply,
 
-    /// ### `op_divide()`
+    /// ### `OpCode.divide()`
     /// - Pops the top two values off the stack, divides them, and pushes the result
     ///   to the top of the stack.
-    op_divide,
+    divide,
 
-    /// ### `op_negate()`
+    /// ### `OpCode.negate()`
     /// - Pops the top value off the stack, negates it, and pushes the result to
     ///   the top of the stack.
-    op_negate,
+    negate,
 
-    // /// ### `op_peek(offset: stack_offset)`
+    // /// ### `OpCode.peek(offset: stack_offset)`
     // /// - Prints the value on the stack at the given `offset` from the top of
     // ///   the stack.
-    // op_peek,
+    // peek,
 
-    /// ### `op_pop()`
+    /// ### `OpCode.pop()`
     /// - Pops the top value off of the stack, discarding it.
-    op_pop,
+    pop,
 
-    /// ### `op_pop_n(n: byte)`
+    /// ### `OpCode.pop_n(n: byte)`
     /// - Pops the top `n` values off of the stack, discarding them.
-    op_pop_n,
+    pop_n,
 
-    /// ### `op_copy()`
+    /// ### `OpCode.copy()`
     /// - Pushes a copy of the value at the top of the stack to the top of the stack.
-    op_copy,
+    copy,
 
-    /// ### `op_swap()`
+    /// ### `OpCode.swap()`
     /// - Swaps the top two items on the stack.
-    op_swap,
+    swap,
 
-    /// ### `op_print()`
+    /// ### `OpCode.print()`
     /// - Pops the value at the top of the stack and prints it.
-    op_print,
+    print,
 
-    /// ### `op_return()`
+    /// ### `OpCode.return()`
     /// - Returns the value at the top of the stack from whatever call frame
     ///   we're currently inside of.
-    op_return,
+    @"return",
 
     _,
 

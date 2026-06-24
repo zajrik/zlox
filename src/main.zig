@@ -20,24 +20,24 @@ const Vm = zlox.vm.Vm;
 pub fn main(init: std.process.Init) !void {
     mem.init(init.arena);
 
-    // const chunk: *Chunk = try .create();
-    // defer chunk.destroy();
+    const chunk: *Chunk = try .create();
+    defer chunk.destroy();
 
-    // chunk.writeOp1(.op_constant, 1, chunk.addConstant(5));
-    // chunk.writeOp1(.op_constant, 2, chunk.addConstant(20));
+    chunk.writeOp1(.constant, 1, chunk.addConstant(5));
+    chunk.writeOp1(.constant, 2, chunk.addConstant(20));
 
-    // chunk.writeOp(.op_swap, 3);
-    // chunk.writeOp(.op_subtract, 3);
-    // chunk.writeOp(.op_negate, 3);
-    // chunk.writeOp(.op_print, 4);
-    // chunk.writeOp(.op_return, 5);
+    chunk.writeOp(.swap, 3);
+    chunk.writeOp(.subtract, 3);
+    chunk.writeOp(.negate, 3);
+    chunk.writeOp(.print, 4);
+    chunk.writeOp(.@"return", 5);
 
-    // debug.disassembleChunk(chunk, "test chunk");
+    debug.disassembleChunk(chunk, "test chunk");
 
-    // const vm: *Vm = try .create();
-    // defer vm.destroy();
+    const vm: *Vm = try .create();
+    defer vm.destroy();
 
-    // _ = vm.interpret(chunk);
+    _ = vm.interpret(chunk);
 
     const lox_code: []u8 = try readFile(init.io, "test/test.lox");
     defer mem.free(lox_code);
