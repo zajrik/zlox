@@ -1,4 +1,4 @@
-//! An wrapper around a given `Tokenizer` to facilitate iterating over source
+//! A wrapper around a given `Tokenizer` to facilitate iterating over source
 //! tokens via loop payload captures.
 //!
 //! ```zig
