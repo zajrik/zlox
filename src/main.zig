@@ -15,7 +15,7 @@ const Vm = @import("vm/vm.zig");
 // ============================================================================
 
 pub fn main(init: std.process.Init) !void {
-    defer mem.deinitAllocator();
+    mem.init(init.arena);
 
     // const chunk: *Chunk = try .create();
     // defer chunk.destroy();

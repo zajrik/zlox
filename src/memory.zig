@@ -2,15 +2,15 @@ const std = @import("std");
 const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const DebugAllocator = std.heap.DebugAllocator;
 
 // ============================================================================
 
-var _debugAllocator: DebugAllocator(.{}) = if (builtin.mode == .Debug) .init else null;
-var _allocator: ArenaAllocator = .init(switch (builtin.mode) {
-    .Debug => _debugAllocator.allocator(),
-    else => std.heap.smp_allocator,
-});
+var _allocator: *ArenaAllocator = undefined;
+
+/// Initialize the memory module with the given `arena` allocator.
+pub fn init(arena: *ArenaAllocator) void {
+    _allocator = arena;
+}
 
 /// Returns the global allocator.
 pub fn allocator() Allocator {
@@ -18,6 +18,9 @@ pub fn allocator() Allocator {
 }
 
 /// Releases all resources allocated by the global allocator.
+///
+/// This does not need to be called if using the ArenaAllocator provided by
+/// juicy main, since that's automatically cleaned up on exit.
 pub fn deinitAllocator() void {
     _allocator.deinit();
 }
@@ -30,12 +33,12 @@ pub fn create(comptime T: type) !*T {
 }
 
 /// Allocate memory for a struct of type `T`, setting its initial value to the
-/// given `init` value.
+/// given `initial` value.
 ///
 /// Returns a pointer to the allocated struct.
-pub fn createStruct(comptime T: type, init: T) !*T {
+pub fn createStruct(comptime T: type, initial: T) !*T {
     const result: *T = try create(T);
-    result.* = init;
+    result.* = initial;
     return result;
 }
 
