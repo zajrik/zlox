@@ -30,6 +30,8 @@ pub fn init(tokenizer: *Tokenizer) TokenIterator {
 
 /// Returns the next `Token` from the `tokenizer`, or `null` if we've reached
 /// the end of the tokenizer input.
+///
+/// Note: This will advance the wrapped Tokenizer.
 pub fn next(self: *const TokenIterator) ?Token {
     if (self.tokenizer.isAtEnd()) return null;
     return self.tokenizer.consumeToken();

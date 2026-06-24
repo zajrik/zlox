@@ -1,5 +1,5 @@
-//! Processes given lox source code into individual tokens to be parsed and compiled
-//! into lox bytecode.
+//! Encapsulates the process of converting raw lox source code into a series of
+//! tokens to be parsed and compiled into lox bytecode.
 
 const std = @import("std");
 const zlox = @import("../.lib.zig");
