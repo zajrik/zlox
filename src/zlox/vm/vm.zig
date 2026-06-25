@@ -50,16 +50,16 @@ pub fn destroy(self: *Vm) void {
 ///
 /// Returns the result of executing the given code.
 pub fn interpret(self: *Vm, source: []const u8) ExecutionResult {
-    return self.interpretInternal(source) catch .compile_error;
+    return self.interp(source) catch .compile_error;
 }
 
 /// Interpret the given lox source code.
 ///
 /// Returns the result of compilation or an error to be replaced with `.compile_error`.
-fn interpretInternal(self: *Vm, source: []const u8) !ExecutionResult {
+fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     var tokenizer: Tokenizer = .init(source);
     const parser: *Parser = try .create(&tokenizer);
-    const compiler: *Compiler = try .create(parser, null);
+    const compiler: *Compiler = try .create(parser);
     const chunk: *Chunk = try compiler.compile();
 
     defer parser.destroy();

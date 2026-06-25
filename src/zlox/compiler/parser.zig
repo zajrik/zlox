@@ -16,6 +16,9 @@ const mem = zlox.mem;
 
 const Token = zlox.compiler.Token;
 const Tokenizer = zlox.compiler.Tokenizer;
+const TokenType = zlox.compiler.TokenType;
+
+const printf = std.debug.print;
 
 // ============================================================================
 
@@ -61,9 +64,68 @@ pub fn advance(self: *Parser) void {
     self.current = self.next;
 
     while (self.tokenizer.next()) |token| {
-        if (token.type == .@"error") break;
         self.next = token;
+        if (token.type == .@"error") break;
+        // self.parser.errorAtNext();
+    }
+}
+
+/// Consume a token of the given `type` from the tokenizer
+pub fn consume(self: *Parser, @"type": TokenType, msg: []const u8) void {
+    if (self.nextIs(@"type")) return self.advance();
+    self.errorAtNext(msg);
+}
+
+/// Returns the `TokenType` of the current token to be parsed.
+pub fn currentType(self: *Parser) TokenType {
+    return self.current.type;
+}
+
+/// Returns whether the current token to be parsed is of `type`.
+pub fn currentIs(self: *Parser, @"type": TokenType) bool {
+    return self.currentType() == @"type";
+}
+
+/// Returns the `TokenType` of the next token to be parsed.
+pub fn nextType(self: *Parser) TokenType {
+    return self.next.type;
+}
+
+/// Returns whether the next token to be parsed is of `type`.
+pub fn nextIs(self: *Parser, @"type": TokenType) bool {
+    return self.nextType() == @"type";
+}
+
+/// Returns whether the next token to be parsed is of `type`.
+///
+/// If it is, the token will be consumed and the next token will be fetched from
+/// the tokenizer.
+pub fn nextMatches(self: *Parser, @"type": TokenType) bool {
+    if (!self.nextIs(@"type")) return false;
+    self.advance();
+    return true;
+}
+
+/// Returns whether the given tokens have the same identifier lexemes.
+pub fn identifiersEqual(a: Token, b: Token) bool {
+    return std.mem.eql(u8, a.lexeme, b.lexeme);
+}
+
+pub fn @"error"(self: *Parser, msg: []const u8) void {
+    self.errorAt(self.current, msg);
+}
+
+pub fn errorAt(self: *Parser, token: *Token, msg: []const u8) void {
+    printf("[line {d}:{d}] Error", .{ token.line, token.column });
+
+    if (token.is(.eof)) {
+        printf(" at end", .{});
+    } else if (token.is(.@"error")) {
+        // No extra message needed for errors
+    } else {
+        printf(" at '{s}'", .{token.lexeme});
     }
 
-    // self.parser.errorAtNext();
+    printf(": {s}\n", .{msg});
+    self.had_error = true;
 }

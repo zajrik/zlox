@@ -31,7 +31,7 @@ parser: *Parser,
 /// compiling a single encapsulating function object.
 ///
 /// A compiler with null `enclosing` is the root compiler.
-enclosing: ?*Compiler,
+// enclosing: ?*Compiler,
 
 /// Current scope depth at a given point during compilation.
 scope_depth: u16 = 0,
@@ -44,10 +44,10 @@ chunk: *Chunk = undefined,
 /// Allocate a new `Compiler` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
-pub fn create(parser: *Parser, enclosing: ?*Compiler) !*Compiler {
+pub fn create(parser: *Parser) !*Compiler {
     return try mem.createStruct(Compiler, .{
         .parser = parser,
-        .enclosing = enclosing,
+        // .enclosing = enclosing,
     });
 }
 
@@ -65,7 +65,7 @@ pub fn compile(self: *Compiler) !*Chunk {
 
     self.expression();
 
-    return self.chunk;
+    return self.endCompilation();
 }
 
 /// Return the compiled chunk, ending compilation.
@@ -73,8 +73,31 @@ fn endCompilation(self: *Compiler) !*Chunk {
     return self.chunk;
 }
 
+// Scope management methods ===================================================
+
+/// Begin a new scope.
+fn pushScope(self: *Compiler) void {
+    self.scope_depth += 1;
+}
+
+/// End the current scope.
+fn popScope(self: *Compiler) void {
+    self.scope_depth -= 1;
+}
+
+/// Execute the given statement rule within a new scope.
+///
+/// The scope will be popped when the rule completes.
+fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
+    self.pushScope();
+    rule(self);
+    self.popScope();
+}
+
 /// Compile an expression from source tokens.
-fn expression(_: *Compiler) void {}
+pub fn expression(_: *Compiler) void {}
+
+// Chunk-writing methods ======================================================
 
 /// Write the given `byte` to the chunk currently being compiled.
 fn emitByte(self: *Compiler, byte: u8) void {

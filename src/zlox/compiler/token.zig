@@ -25,13 +25,23 @@ column: u16,
 
 /// Initializes a new `Token` on the stack with the given `token_type`, `lexeme`,
 /// and source text position (`line`/`column`).
-pub fn init(token_type: TokenType, lexeme: []const u8, line: u16, column: u16) Token {
+pub fn init(@"type": TokenType, lexeme: []const u8, line: u16, column: u16) Token {
     return .{
-        .type = token_type,
+        .type = @"type",
         .lexeme = lexeme,
         .line = line,
         .column = column,
     };
+}
+
+/// Returns whether this token is of the given `type`.
+pub fn is(self: Token, @"type": TokenType) bool {
+    return self.type == @"type";
+}
+
+/// Returns whether this token is a discard token (`_`).
+pub fn isDiscard(self: Token) bool {
+    return self.lexeme.len == 1 and self.lexeme[0] == '_';
 }
 
 /// Custom formatter for `Token` values.
