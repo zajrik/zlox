@@ -9,7 +9,7 @@ const Writer = std.Io.Writer;
 
 // ============================================================================
 
-pub const Token: type = @This();
+const Token: type = @This();
 
 /// The type of this token.
 type: TokenType,

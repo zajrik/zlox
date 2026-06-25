@@ -1,4 +1,5 @@
 {
+    // Zig snippets
     "zlox": {
         "scope": "zig",
         "prefix": "lib",
@@ -11,16 +12,31 @@
         "description": "Inserts an empty struct/tuple, ready to be filled.",
         "body": ".{$1}",
     },
+    "Struct @This() declaration": {
+        "scope": "zig",
+        "prefix": "this",
+        "body": "const ${TM_FILENAME_BASE/(.+)/${1:/pascalcase}/}: type = @This();"
+    },
+    "Struct method": {
+        "scope": "zig",
+        "prefix": [
+            "fn",
+            "method",
+            "meth"
+        ],
+        "body": [
+            "fn ${1:name}(self: ${TM_FILENAME_BASE/(.+)/${1:/pascalcase}/}$2) ${3:void} {",
+            "    $0",
+            "}"
+        ]
+    },
+    // JSON snippets
     "Escape JSON String": {
         "scope": "json,jsonc,snippets",
-        "body": [
-            "${TM_SELECTED_TEXT/(?:(\\\\)|(\"))/${1:+\\\\\\\\}${2:+\\\\\"}/g}"
-        ],
+        "body": "${TM_SELECTED_TEXT/(?:(\\\\)|(\"))/${1:+\\\\\\\\}${2:+\\\\\"}/g}",
     },
     "Unescape JSON String": {
         "scope": "json,jsonc,snippets",
-        "body": [
-            "${TM_SELECTED_TEXT/(?:(\\\\\\\\)|(\\\\\"))/${1:+\\\\}${2:+\"}/g}"
-        ],
+        "body": "${TM_SELECTED_TEXT/(?:(\\\\\\\\)|(\\\\\"))/${1:+\\\\}${2:+\"}/g}",
     },
 }
