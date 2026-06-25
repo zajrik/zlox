@@ -11,7 +11,10 @@ const val = zlox.object.val;
 const printf = std.debug.print;
 
 const Chunk = zlox.compiler.Chunk;
+const Compiler = zlox.compiler.Compiler;
 const OpCode = zlox.compiler.OpCode;
+const Parser = zlox.compiler.Parser;
+const Tokenizer = zlox.compiler.Tokenizer;
 const Value = zlox.object.Value;
 const ExecutionResult = zlox.vm.ExecutionResult;
 const Stack = zlox.vm.Stack;
@@ -43,8 +46,28 @@ pub fn destroy(self: *Vm) void {
     mem.destroy(self);
 }
 
-/// Interpret the given chunk of lox instructions
-pub fn interpret(self: *Vm, chunk: *Chunk) ExecutionResult {
+/// Interpret the given lox source code by compiling it to lox bytecode and running it.
+///
+/// Returns the result of executing the given code.
+pub fn interpret(self: *Vm, source: []const u8) ExecutionResult {
+    return self.interpretInternal(source) catch .compile_error;
+}
+
+/// Interpret the given lox source code.
+///
+/// Returns the result of compilation or an error to be replaced with `.compile_error`.
+fn interpretInternal(self: *Vm, source: []const u8) !ExecutionResult {
+    var tokenizer: Tokenizer = .init(source);
+    const parser: *Parser = try .create(&tokenizer);
+    const compiler: *Compiler = try .create(parser, null);
+    const chunk: *Chunk = try compiler.compile();
+
+    defer parser.destroy();
+    defer compiler.destroy();
+    defer chunk.destroy();
+
+    if (chunk.isEmpty()) return .ok;
+
     self.chunk = chunk;
     self.ip = chunk.instructions.items.ptr;
 
@@ -52,9 +75,9 @@ pub fn interpret(self: *Vm, chunk: *Chunk) ExecutionResult {
 }
 
 /// Run instructions from the currently loaded chunk.
-pub fn run(self: *Vm) ExecutionResult {
+fn run(self: *Vm) ExecutionResult {
     while (true) {
-        if (builtin.mode == .Debug) {
+        if (comptime builtin.mode == .Debug) {
             debug.printStack(&self.stack);
 
             _ = debug.disassembleInstruction(
@@ -115,14 +138,14 @@ pub fn run(self: *Vm) ExecutionResult {
 }
 
 /// Read the next byte from the currently loaded chunk's instructions array.
-pub fn readByte(self: *Vm) u8 {
+fn readByte(self: *Vm) u8 {
     self.ip += 1;
     return (self.ip - 1)[0];
 }
 
 /// Read the next two bytes from the currenty loaded chunk's instructions array,
 /// treating them as a single 16-bit value.
-pub fn readShort(self: *Vm) u16 {
+fn readShort(self: *Vm) u16 {
     self.ip += 2;
     return (self.ip - 2)[0] << 8 | (self.ip - 1)[0];
 }
@@ -130,6 +153,6 @@ pub fn readShort(self: *Vm) u16 {
 /// Read a constant value from the currently loaded chunk's instructions array by
 /// reading the next byte, which is expected to be an offset pointing to a constant
 /// value within the currently loaded chunk's constants array.
-pub fn readConstant(self: *Vm) Value {
+fn readConstant(self: *Vm) Value {
     return self.chunk.constantAt(self.readByte());
 }

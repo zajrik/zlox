@@ -26,6 +26,8 @@ pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {
 ///
 /// Returns the offset of the next instruction.
 pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
+    if (chunk.isEmpty()) return offset;
+
     printf("{:04} ", .{offset});
 
     if (offset > 0 and chunk.lineAt(offset) == chunk.lineAt(offset - 1)) {
@@ -66,6 +68,9 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 /// Print the values on the given `ValueStack`.
 pub fn printStack(stack: *Stack(Value)) void {
     printf("           ", .{});
+
+    // If stack is empty, print a closed stack
+    if (&stack.values - stack.top == 0) return printf("[]\n", .{});
 
     var slot: [*]Value = &stack.values;
     while (@intFromPtr(slot) < @intFromPtr(stack.top)) : (slot += 1) {

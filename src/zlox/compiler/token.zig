@@ -12,7 +12,7 @@ const Writer = std.Io.Writer;
 pub const Token: type = @This();
 
 /// The type of this token.
-token_type: TokenType,
+type: TokenType,
 
 /// The lexeme of this token, sliced from the source text.
 lexeme: []const u8,
@@ -27,7 +27,7 @@ column: u16,
 /// and source text position (`line`/`column`).
 pub fn init(token_type: TokenType, lexeme: []const u8, line: u16, column: u16) Token {
     return .{
-        .token_type = token_type,
+        .type = token_type,
         .lexeme = lexeme,
         .line = line,
         .column = column,
@@ -37,7 +37,7 @@ pub fn init(token_type: TokenType, lexeme: []const u8, line: u16, column: u16) T
 /// Custom formatter for `Token` values.
 pub fn format(self: Token, writer: *Writer) !void {
     try writer.writeAll("Token { ");
-    try writer.print(".token_type = {}, ", .{self.token_type});
+    try writer.print(".token_type = {}, ", .{self.type});
     try writer.print(".lexeme = '{s}', ", .{self.lexeme});
     try writer.print(".line = {d}, ", .{self.line});
     try writer.print(".column = {d} ", .{self.column});

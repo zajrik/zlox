@@ -79,12 +79,12 @@ pub const OpCode = enum(u8) {
     _,
 
     /// Convert the given byte `value` to its equivalent `OpCode` value.
-    pub fn fromByte(value: u8) OpCode {
+    pub inline fn fromByte(value: u8) OpCode {
         return @enumFromInt(value);
     }
 
     /// Convert this opcode to its equivalent `u8` byte value.
-    pub fn toByte(self: OpCode) u8 {
+    pub inline fn toByte(self: OpCode) u8 {
         return @intFromEnum(self);
     }
 };

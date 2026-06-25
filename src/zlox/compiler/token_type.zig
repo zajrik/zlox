@@ -59,6 +59,6 @@ pub const TokenType = enum {
     keyword_while,
 
     // Special
-    err,
+    @"error",
     eof,
 };

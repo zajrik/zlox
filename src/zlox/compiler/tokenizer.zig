@@ -120,7 +120,7 @@ fn createToken(self: *Tokenizer, token_type: TokenType) Token {
 /// Create and return an error token with the given `err` string as the token lexeme.
 fn errorToken(self: *Tokenizer, err: []const u8) Token {
     return Token.init(
-        .err,
+        .@"error",
         err,
         self.line,
         self.start_column,
@@ -142,7 +142,7 @@ fn peekNext(self: *Tokenizer) u8 {
 }
 
 /// Returns whether the tokenizer has reached the end of the source code.
-pub fn isAtEnd(self: *Tokenizer) bool {
+fn isAtEnd(self: *Tokenizer) bool {
     return self.peek() == 0;
 }
 
