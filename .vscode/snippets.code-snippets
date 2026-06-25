@@ -1,0 +1,16 @@
+{
+    "zlox": {
+        "scope": "zig",
+        "prefix": "lib",
+        "description": "Inserts a zlox root library import with a relative path.",
+        "body": "const zlox = @import(\"${RELATIVE_FILEPATH/(src\\\\zlox\\\\[^\\\\]+\\\\[^\\\\]+.zig|(?:src\\\\zlox\\\\[^\\\\]+\\\\|(?:[^\\\\]+\\\\[^\\\\]+.zig|[^\\\\]+\\\\)))/..\\\//g}.lib.zig\");"
+    },
+    "Empty struct/tuple": {
+        "scope": "zig",
+        "prefix": "..",
+        "description": "Inserts an empty struct/tuple, ready to be filled.",
+        "body": [
+            ".{$1}"
+        ]
+    }
+}
