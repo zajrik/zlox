@@ -30,12 +30,30 @@
             "}"
         ]
     },
+    "Pub struct method": {
+        "scope": "zig",
+        "prefix": [
+            "pubfn",
+            "pubmethod",
+            "pubmeth"
+        ],
+        "body": [
+            "pub fn ${1:name}(self: *${TM_FILENAME_BASE/(.+)/${1:/pascalcase}/}$2) ${3:void} {",
+            "    $0",
+            "}"
+        ]
+    },
+    "String ([]const u8)": {
+        "scope": "zig",
+        "prefix": "String",
+        "body": "[]const u8"
+    },
     // JSON snippets
-    "Escape JSON String": {
+    "Escape JSON string": {
         "scope": "json,jsonc,snippets",
         "body": "${TM_SELECTED_TEXT/(?:(\\\\)|(\"))/${1:+\\\\\\\\}${2:+\\\\\"}/g}",
     },
-    "Unescape JSON String": {
+    "Unescape JSON string": {
         "scope": "json,jsonc,snippets",
         "body": "${TM_SELECTED_TEXT/(?:(\\\\\\\\)|(\\\\\"))/${1:+\\\\}${2:+\"}/g}",
     },
