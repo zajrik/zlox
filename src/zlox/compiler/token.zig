@@ -23,8 +23,8 @@ line: u16,
 /// The column number of this token in the source text.
 column: u16,
 
-/// Initializes a new `Token` on the stack with the given `token_type`, `lexeme`,
-/// and source text position (`line`/`column`).
+/// Initializes a new `Token` on the stack with the given `type`, `lexeme`, and
+/// source text location (`line`/`column`).
 pub fn init(@"type": TokenType, lexeme: []const u8, line: u16, column: u16) Token {
     return .{
         .type = @"type",
@@ -37,6 +37,11 @@ pub fn init(@"type": TokenType, lexeme: []const u8, line: u16, column: u16) Toke
 /// Returns whether this token is of the given `type`.
 pub fn is(self: Token, @"type": TokenType) bool {
     return self.type == @"type";
+}
+
+/// Returns whether this token is *not* of the given `type`.
+pub fn isNot(self: Token, @"type": TokenType) bool {
+    return self.type != @"type";
 }
 
 /// Returns whether this token is a discard token (`_`).

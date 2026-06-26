@@ -11,12 +11,15 @@ const std = @import("std");
 const zlox = @import("../.lib.zig");
 
 const mem = zlox.mem;
+const cmn = zlox.common;
 
 const Chunk = zlox.compiler.Chunk;
 const OpCode = zlox.compiler.OpCode;
 const Parser = zlox.compiler.Parser;
 const Token = zlox.compiler.Token;
 const Tokenizer = zlox.compiler.Tokenizer;
+const TokenType = zlox.compiler.TokenType;
+const Value = zlox.object.Value;
 
 // ============================================================================
 
@@ -65,11 +68,14 @@ pub fn compile(self: *Compiler) !*Chunk {
 
     self.expression();
 
+    // self.parser.consume(.eof, "Expect end of expression.");
+
     return self.endCompilation();
 }
 
 /// Return the compiled chunk, ending compilation.
 fn endCompilation(self: *Compiler) !*Chunk {
+    self.emitOp(.@"return");
     return self.chunk;
 }
 
@@ -97,7 +103,44 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
 /// Compile an expression from source tokens.
 pub fn expression(_: *Compiler) void {}
 
+/// Compile a parenthesized grouping expression from source tokens.
+fn grouping(self: *Compiler) void {
+    self.expression();
+    self.parser.consume(.paren_right, "Expected ')' after expression.");
+}
+
+/// Compile a unary expression from source tokens.
+fn unary(self: *Compiler) void {
+    const operator_type: TokenType = self.parser.current.type;
+    self.expression();
+    switch (operator_type) {
+        .minus => self.emitOp(.negate),
+        // .bang => self.emitOp(.not),
+        else => return,
+    }
+}
+
+/// Compile a number expression from the current source token.
+fn number(self: *Compiler) void {
+    const value: f64 = std.fmt.parseFloat(f64, self.parser.current.lexeme);
+    self.emitConstant(value);
+}
+
 // Chunk-writing methods ======================================================
+
+/// Add the given `value` to the constants in the chunk being compiled.
+///
+/// Returns the offset of the added constant.
+fn makeConstant(self: *Compiler, value: Value) u8 {
+    const offset: u8 = self.chunk.addConstant(value);
+
+    if (offset > cmn.U8_MAX) {
+        self.parser.@"error"("Too many constants in one chunk.");
+        return 0;
+    }
+
+    return offset;
+}
 
 /// Write the given `byte` to the chunk currently being compiled.
 fn emitByte(self: *Compiler, byte: u8) void {
@@ -125,4 +168,10 @@ fn emitOp2(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
 /// byte operands.
 fn emitOp3(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void {
     self.chunk.writeOp3(op, self.parser.current.line, byte_1, byte_2, byte_3);
+}
+
+/// Write `OpCode.constant` to the chunk currently being compiled, followed by
+/// the constants array offset of the given `value`.
+fn emitConstant(self: *Compiler, value: Value) void {
+    self.emitOp1(.constant, self.makeConstant(value));
 }

@@ -42,9 +42,14 @@ pub const OpCode = enum(u8) {
     divide,
 
     /// ### `OpCode.negate()`
-    /// - Pops the top value off the stack, negates it, and pushes the result to
-    ///   the top of the stack.
+    /// - Pops the top numerical value off the stack, negates it, and pushes the
+    ///   result to the top of the stack.
     negate,
+
+    /// ### `OpCode.not()`
+    /// - Pops the top boolean value off the stack, negates it, and pushes the
+    ///   result to the top of the stack.
+    // not,
 
     // /// ### `OpCode.peek(offset: stack_offset)`
     // /// - Prints the value on the stack at the given `offset` from the top of

@@ -116,6 +116,8 @@ fn run(self: *Vm) ExecutionResult {
             },
             .negate => _ = self.stack.replace(0, -self.stack.peek(0)),
 
+            // .not => _ = self.stack.replace(0, negate bool value object TBI),
+
             // Stack ops
             // .peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
             .pop => _ = self.stack.pop(),

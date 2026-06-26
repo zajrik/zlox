@@ -65,12 +65,15 @@ pub fn advance(self: *Parser) void {
 
     while (self.tokenizer.next()) |token| {
         self.next = token;
-        if (token.type == .@"error") break;
-        // self.parser.errorAtNext();
+        if (token.isNot(.@"error")) break;
+
+        self.errorAtNext(token.lexeme);
     }
 }
 
-/// Consume a token of the given `type` from the tokenizer
+/// Consume a token of the given `type` from the tokenizer.
+///
+/// Emits error `msg` if a token of the given type is not found.
 pub fn consume(self: *Parser, @"type": TokenType, msg: []const u8) void {
     if (self.nextIs(@"type")) return self.advance();
     self.errorAtNext(msg);
@@ -111,11 +114,10 @@ pub fn identifiersEqual(a: Token, b: Token) bool {
     return std.mem.eql(u8, a.lexeme, b.lexeme);
 }
 
-pub fn @"error"(self: *Parser, msg: []const u8) void {
-    self.errorAt(self.current, msg);
-}
+// Error management ===========================================================
 
-pub fn errorAt(self: *Parser, token: *Token, msg: []const u8) void {
+/// Output error `msg` at the given `token`.
+pub fn errorAt(self: *Parser, token: Token, msg: []const u8) void {
     printf("[line {d}:{d}] Error", .{ token.line, token.column });
 
     if (token.is(.eof)) {
@@ -128,4 +130,39 @@ pub fn errorAt(self: *Parser, token: *Token, msg: []const u8) void {
 
     printf(": {s}\n", .{msg});
     self.had_error = true;
+}
+
+/// Output error `msg` at the current token being parsed.
+pub fn @"error"(self: *Parser, msg: []const u8) void {
+    self.errorAt(self.current, msg);
+}
+
+/// Output error `msg` at the next token to be parsed.
+pub fn errorAtNext(self: *Parser, msg: []const u8) void {
+    self.errorAt(self.next, msg);
+}
+
+/// Synchronize parser to the next valid statement boundary after encountering
+/// an error.
+pub fn synchronize(self: *Parser) void {
+    self.panic_mode = false;
+
+    while (!self.nextIs(.eof)) : (self.advance()) {
+        if (self.currentIs(.semicolon)) return;
+
+        // zig fmt: off
+        switch (self.nextType()) {
+            .keyword_class,
+            .keyword_fun,
+            .keyword_var,
+            .keyword_for,
+            .keyword_if,
+            .keyword_switch,
+            .keyword_while,
+            .keyword_print,
+            .keyword_return => return,
+            else => break,
+        }
+        // zig fmt: on
+    }
 }

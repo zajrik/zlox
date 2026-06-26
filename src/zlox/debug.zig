@@ -48,6 +48,8 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .divide => simpleInstruction(".divide", offset),
         .negate => simpleInstruction(".negate", offset),
 
+        // .not => simpleInstruction(".not", offset),
+
         // Stack ops
         // .peek => byteInstruction(".peek", chunk, offset),
         .pop => simpleInstruction(".pop", offset),
