@@ -1,5 +1,5 @@
 /// Represents types of tokens found in lox source text.
-pub const TokenType = enum {
+pub const TokenType = enum(u8) {
     // Single-character tokens
     paren_left,
     paren_right,
@@ -7,13 +7,13 @@ pub const TokenType = enum {
     brace_right,
     comma,
     dot,
+    semicolon,
+    question,
+    colon,
     minus,
     plus,
     slash,
     star,
-    colon,
-    semicolon,
-    question,
 
     // One or two character tokens
     bang,
