@@ -3,7 +3,7 @@
 const std = @import("std");
 const zlox = @import("../.lib.zig");
 
-const TokenType = zlox.compiler.TokenType;
+const TokenType = zlox.tokenizer.TokenType;
 
 const Writer = std.Io.Writer;
 

@@ -11,7 +11,7 @@ const Chunk = zlox.compiler.Chunk;
 const OpCode = zlox.compiler.OpCode;
 const ExecutionResult = zlox.vm.ExecutionResult;
 const Stack = zlox.vm.Stack;
-const Tokenizer = zlox.compiler.Tokenizer;
+const Tokenizer = zlox.tokenizer.Tokenizer;
 const Value = zlox.object.Value;
 const Vm = zlox.vm.Vm;
 

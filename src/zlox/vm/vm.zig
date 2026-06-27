@@ -13,9 +13,9 @@ const printf = std.debug.print;
 const Chunk = zlox.compiler.Chunk;
 const Compiler = zlox.compiler.Compiler;
 const OpCode = zlox.compiler.OpCode;
-const Parser = zlox.compiler.Parser;
-const Tokenizer = zlox.compiler.Tokenizer;
+const Tokenizer = zlox.tokenizer.Tokenizer;
 const Value = zlox.object.Value;
+const Parser = zlox.parser.Parser;
 const ExecutionResult = zlox.vm.ExecutionResult;
 const Stack = zlox.vm.Stack;
 

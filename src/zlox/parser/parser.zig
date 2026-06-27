@@ -14,9 +14,9 @@ const zlox = @import("../.lib.zig");
 
 const mem = zlox.mem;
 
-const Token = zlox.compiler.Token;
-const Tokenizer = zlox.compiler.Tokenizer;
-const TokenType = zlox.compiler.TokenType;
+const Token = zlox.tokenizer.Token;
+const Tokenizer = zlox.tokenizer.Tokenizer;
+const TokenType = zlox.tokenizer.TokenType;
 
 const printf = std.debug.print;
 

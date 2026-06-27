@@ -15,10 +15,10 @@ const cmn = zlox.common;
 
 const Chunk = zlox.compiler.Chunk;
 const OpCode = zlox.compiler.OpCode;
-const Parser = zlox.compiler.Parser;
-const Token = zlox.compiler.Token;
-const Tokenizer = zlox.compiler.Tokenizer;
-const TokenType = zlox.compiler.TokenType;
+const Parser = zlox.parser.Parser;
+const Token = zlox.tokenizer.Token;
+const Tokenizer = zlox.tokenizer.Tokenizer;
+const TokenType = zlox.tokenizer.TokenType;
 const Value = zlox.object.Value;
 
 // ============================================================================

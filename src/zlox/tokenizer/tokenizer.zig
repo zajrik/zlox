@@ -4,8 +4,8 @@
 const std = @import("std");
 const zlox = @import("../.lib.zig");
 
-const Token = zlox.compiler.Token;
-const TokenType = zlox.compiler.TokenType;
+const Token = zlox.tokenizer.Token;
+const TokenType = zlox.tokenizer.TokenType;
 
 // ============================================================================
 
