@@ -16,6 +16,9 @@ const cmn = zlox.common;
 const Chunk = zlox.compiler.Chunk;
 const OpCode = zlox.compiler.OpCode;
 const Parser = zlox.parser.Parser;
+const ParseStrategy = zlox.parser.ParseStrategy;
+const Precedence = zlox.parser.Precedence;
+const Rule = zlox.parser.Rule;
 const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
 const TokenType = zlox.tokenizer.TokenType;
@@ -30,19 +33,17 @@ const Compiler: type = @This();
 /// Not owned by the compiler.
 parser: *Parser,
 
-/// Enclosing compiler forming a linked list of nested compilation scopes, each
-/// compiling a single encapsulating function object.
-///
-/// A compiler with null `enclosing` is the root compiler.
-// enclosing: ?*Compiler,
-
 /// Current scope depth at a given point during compilation.
 scope_depth: u16 = 0,
 
 /// Currently-compiling chunk.
 ///
+/// This is null if compilation failed, or if `compile()` has not been called yet.
+/// If compilation failed, the chunk will be freed so no need to worry about freeing
+/// it manually on failure.
+///
 /// TODO: Chunks will be encapsulated by function objects after objects are implemented
-chunk: *Chunk = undefined,
+chunk: ?*Chunk = null,
 
 /// Allocate a new `Compiler` instance on the heap, returning a pointer to it.
 ///
@@ -50,7 +51,6 @@ chunk: *Chunk = undefined,
 pub fn create(parser: *Parser) !*Compiler {
     return try mem.createStruct(Compiler, .{
         .parser = parser,
-        // .enclosing = enclosing,
     });
 }
 
@@ -63,18 +63,23 @@ pub fn destroy(self: *Compiler) void {
 ///
 /// Returns a pointer to the compiled `Chunk`. The caller owns the returned pointer
 /// and is responsible for freeing it.
-pub fn compile(self: *Compiler) !*Chunk {
+pub fn compile(self: *Compiler) !?*Chunk {
     self.chunk = try .create();
 
     self.expression();
 
-    // self.parser.consume(.eof, "Expect end of expression.");
+    self.parser.consume(.eof, "Expect end of expression.");
+
+    if (self.parser.had_error) {
+        defer self.chunk = null;
+        defer self.chunk.?.destroy();
+    }
 
     return self.endCompilation();
 }
 
 /// Return the compiled chunk, ending compilation.
-fn endCompilation(self: *Compiler) !*Chunk {
+fn endCompilation(self: *Compiler) ?*Chunk {
     self.emitOp(.@"return");
     return self.chunk;
 }
@@ -103,6 +108,17 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
 /// Compile an expression from source tokens.
 pub fn expression(_: *Compiler) void {}
 
+fn expr(self: *Compiler, precedence: Precedence) void {
+    self.parser.advance();
+
+    const rule: Rule = ParseStrategy.forToken(self.parser.currentType()).prefix orelse {
+        return self.parser.@"error"("Expected expression");
+    };
+    // TODO: finish this lol
+}
+
+// TODO: Write function to match Rule to rule function
+
 /// Compile a parenthesized grouping expression from source tokens.
 fn grouping(self: *Compiler) void {
     self.expression();
@@ -124,6 +140,21 @@ fn unary(self: *Compiler) void {
 fn number(self: *Compiler) void {
     const value: f64 = std.fmt.parseFloat(f64, self.parser.current.lexeme);
     self.emitConstant(value);
+}
+
+fn binary(self: *Compiler) void {
+    const operator: TokenType = self.parser.current.type;
+    const strategy: ParseStrategy = ParseStrategy.forToken(operator);
+
+    self.expr(strategy.precedence.next());
+
+    switch (operator) {
+        .plus => self.emitOp(.add),
+        .minus => self.emitOp(.subtract),
+        .star => self.emitOp(.multiply),
+        .slash => self.emitOp(.divide),
+        else => return,
+    }
 }
 
 // Chunk-writing methods ======================================================
@@ -149,25 +180,25 @@ fn emitByte(self: *Compiler, byte: u8) void {
 
 /// Write the given `op` to the chunk currently being compiled.
 fn emitOp(self: *Compiler, op: OpCode) void {
-    self.chunk.writeOp(op, self.parser.current.line);
+    self.chunk.?.writeOp(op, self.parser.current.line);
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by a single
 /// byte operand.
 fn emitOp1(self: *Compiler, op: OpCode, byte: u8) void {
-    self.chunk.writeOp1(op, self.parser.current.line, byte);
+    self.chunk.?.writeOp1(op, self.parser.current.line, byte);
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by two
 /// byte operands.
 fn emitOp2(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
-    self.chunk.writeOp2(op, self.parser.current.line, byte_1, byte_2);
+    self.chunk.?.writeOp2(op, self.parser.current.line, byte_1, byte_2);
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by three
 /// byte operands.
 fn emitOp3(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void {
-    self.chunk.writeOp3(op, self.parser.current.line, byte_1, byte_2, byte_3);
+    self.chunk.?.writeOp3(op, self.parser.current.line, byte_1, byte_2, byte_3);
 }
 
 /// Write `OpCode.constant` to the chunk currently being compiled, followed by

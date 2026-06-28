@@ -60,7 +60,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     var tokenizer: Tokenizer = .init(source);
     const parser: *Parser = try .create(&tokenizer);
     const compiler: *Compiler = try .create(parser);
-    const chunk: *Chunk = try compiler.compile();
+    const chunk: *Chunk = try compiler.compile() orelse return .compile_error;
 
     defer parser.destroy();
     defer compiler.destroy();
