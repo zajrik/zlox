@@ -17,9 +17,9 @@ pub const Precedence = enum(u8) {
 
     _,
 
-    /// Returns whether `other` is less than this precedence level.
-    pub fn lessThan(self: Precedence, other: Precedence) bool {
-        return @intFromEnum(self) < @intFromEnum(other);
+    /// Returns whether `other` is less than or equal to this precedence level.
+    pub fn lte(self: Precedence, other: Precedence) bool {
+        return @intFromEnum(self) <= @intFromEnum(other);
     }
 
     /// Returns the next precedence level above this.

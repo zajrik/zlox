@@ -8,10 +8,12 @@
 //! purposes of having only a single abstracted compilation process.
 
 const std = @import("std");
+const builtin = @import("builtin");
 const zlox = @import("../.lib.zig");
 
 const mem = zlox.mem;
 const cmn = zlox.common;
+const debug = zlox.debug;
 
 const Chunk = zlox.compiler.Chunk;
 const OpCode = zlox.compiler.OpCode;
@@ -80,7 +82,13 @@ pub fn compile(self: *Compiler) !?*Chunk {
 
 /// Return the compiled chunk, ending compilation.
 fn endCompilation(self: *Compiler) ?*Chunk {
-    self.emitOp(.@"return");
+    if (self.chunk) |_| {
+        self.emitOp(.@"return");
+        if (comptime builtin.mode == .Debug) {
+            if (self.parser.had_error) debug.disassembleChunk(self.chunk.?, "code");
+        }
+    }
+
     return self.chunk;
 }
 
@@ -106,23 +114,69 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
 }
 
 /// Compile an expression from source tokens.
-pub fn expression(_: *Compiler) void {}
+pub fn expression(self: *Compiler) void {
+    self.expr(Precedence.assignment);
+}
 
 fn expr(self: *Compiler, precedence: Precedence) void {
     self.parser.advance();
 
-    const rule: Rule = ParseStrategy.forToken(self.parser.currentType()).prefix orelse {
+    const prefix_rule: RuleFn = getStrategy(self.parser.current).prefix orelse {
         return self.parser.@"error"("Expected expression");
     };
-    // TODO: finish this lol
+
+    prefix_rule(self);
+
+    while (precedence.lte(getStrategy(self.parser.next).precedence)) {
+        self.parser.advance();
+        const infix_rule: RuleFn = getStrategy(self.parser.current).infix orelse {
+            return self.parser.@"error"("Expected expression");
+        };
+        infix_rule(self);
+    }
 }
 
-// TODO: Write function to match Rule to rule function
+fn getStrategy(token: Token) StrategyMapping {
+    const strategy: ParseStrategy = .forToken(token.type);
+    return .{
+        .prefix = mapRule(strategy.prefix),
+        .infix = mapRule(strategy.infix),
+        .precedence = strategy.precedence,
+    };
+}
+
+fn mapRule(rule: ?Rule) ?RuleFn {
+    if (rule) |r| return switch (r) {
+        .grouping => grouping,
+        // .string => expression,
+        .number => number,
+        // .literal => self.expression(),
+        // .variable => self.expression(),
+        .unary => unary,
+        .binary => binary,
+        // .orExpr => self.expression(),
+        // .andExpr => self.expression(),
+        // .call => self.expression(),
+        // .dot => self.expression(),
+        // .nilish => self.expression(),
+        // .funExpr => self.expression(),
+        // .thisExpr => self.expression(),
+        else => null,
+    };
+
+    return null;
+}
 
 /// Compile a parenthesized grouping expression from source tokens.
 fn grouping(self: *Compiler) void {
     self.expression();
     self.parser.consume(.paren_right, "Expected ')' after expression.");
+}
+
+/// Compile a number expression from the current source token.
+fn number(self: *Compiler) void {
+    const value: f32 = std.fmt.parseFloat(f32, self.parser.current.lexeme) catch return;
+    self.emitConstant(value);
 }
 
 /// Compile a unary expression from source tokens.
@@ -134,12 +188,6 @@ fn unary(self: *Compiler) void {
         // .bang => self.emitOp(.not),
         else => return,
     }
-}
-
-/// Compile a number expression from the current source token.
-fn number(self: *Compiler) void {
-    const value: f64 = std.fmt.parseFloat(f64, self.parser.current.lexeme);
-    self.emitConstant(value);
 }
 
 fn binary(self: *Compiler) void {
@@ -163,7 +211,7 @@ fn binary(self: *Compiler) void {
 ///
 /// Returns the offset of the added constant.
 fn makeConstant(self: *Compiler, value: Value) u8 {
-    const offset: u8 = self.chunk.addConstant(value);
+    const offset: u8 = self.chunk.?.addConstant(value);
 
     if (offset > cmn.U8_MAX) {
         self.parser.@"error"("Too many constants in one chunk.");
@@ -175,7 +223,7 @@ fn makeConstant(self: *Compiler, value: Value) u8 {
 
 /// Write the given `byte` to the chunk currently being compiled.
 fn emitByte(self: *Compiler, byte: u8) void {
-    self.chunk.writeByte(byte, self.parser.current.line);
+    self.chunk.?.writeByte(byte, self.parser.current.line);
 }
 
 /// Write the given `op` to the chunk currently being compiled.
@@ -206,3 +254,11 @@ fn emitOp3(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void
 fn emitConstant(self: *Compiler, value: Value) void {
     self.emitOp1(.constant, self.makeConstant(value));
 }
+
+const RuleFn = *const fn (*Compiler) void;
+
+const StrategyMapping: type = struct {
+    infix: ?RuleFn,
+    prefix: ?RuleFn,
+    precedence: Precedence,
+};

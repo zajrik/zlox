@@ -78,28 +78,8 @@ pub fn advance(self: *Parser) void {
 ///
 /// Emits error `msg` if a token of the given type is not found.
 pub fn consume(self: *Parser, @"type": TokenType, msg: []const u8) void {
-    if (self.nextIs(@"type")) return self.advance();
+    if (self.next.is(@"type")) return self.advance();
     self.errorAtNext(msg);
-}
-
-/// Returns the `TokenType` of the current token to be parsed.
-pub fn currentType(self: *Parser) TokenType {
-    return self.current.type;
-}
-
-/// Returns whether the current token to be parsed is of `type`.
-pub fn currentIs(self: *Parser, @"type": TokenType) bool {
-    return self.currentType() == @"type";
-}
-
-/// Returns the `TokenType` of the next token to be parsed.
-pub fn nextType(self: *Parser) TokenType {
-    return self.next.type;
-}
-
-/// Returns whether the next token to be parsed is of `type`.
-pub fn nextIs(self: *Parser, @"type": TokenType) bool {
-    return self.nextType() == @"type";
 }
 
 /// Returns whether the next token to be parsed is of `type`.
@@ -107,7 +87,7 @@ pub fn nextIs(self: *Parser, @"type": TokenType) bool {
 /// If it is, the token will be consumed and the next token will be fetched from
 /// the tokenizer.
 pub fn nextMatches(self: *Parser, @"type": TokenType) bool {
-    if (!self.nextIs(@"type")) return false;
+    if (self.next.isNot(@"type")) return false;
     self.advance();
     return true;
 }
@@ -150,8 +130,8 @@ pub fn errorAtNext(self: *Parser, msg: []const u8) void {
 pub fn synchronize(self: *Parser) void {
     self.panic_mode = false;
 
-    while (!self.nextIs(.eof)) : (self.advance()) {
-        if (self.currentIs(.semicolon)) return;
+    while (self.next.isNot(.eof)) : (self.advance()) {
+        if (self.current.is(.semicolon)) return;
 
         // zig fmt: off
         switch (self.nextType()) {
