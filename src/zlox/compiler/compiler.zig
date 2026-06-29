@@ -182,7 +182,7 @@ fn number(self: *Compiler) void {
 /// Compile a unary expression from source tokens.
 fn unary(self: *Compiler) void {
     const operator_type: TokenType = self.parser.current.type;
-    self.expression();
+    self.expr(.unary);
     switch (operator_type) {
         .minus => self.emitOp(.negate),
         // .bang => self.emitOp(.not),
