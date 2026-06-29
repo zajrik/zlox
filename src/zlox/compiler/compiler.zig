@@ -16,14 +16,19 @@ const cmn = zlox.common;
 const debug = zlox.debug;
 
 const Chunk = zlox.compiler.Chunk;
+const CompileStrategy = zlox.compiler.CompileStrategy;
+const ExprFn = zlox.compiler.ExprFn;
 const OpCode = zlox.compiler.OpCode;
+
 const Parser = zlox.parser.Parser;
 const ParseStrategy = zlox.parser.ParseStrategy;
 const Precedence = zlox.parser.Precedence;
 const Rule = zlox.parser.Rule;
+
 const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
 const TokenType = zlox.tokenizer.TokenType;
+
 const Value = zlox.object.Value;
 
 // ============================================================================
@@ -82,10 +87,10 @@ pub fn compile(self: *Compiler) !?*Chunk {
 
 /// Return the compiled chunk, ending compilation.
 fn endCompilation(self: *Compiler) ?*Chunk {
-    if (self.chunk) |_| {
+    if (self.chunk) |chunk| {
         self.emitOp(.@"return");
-        if (comptime builtin.mode == .Debug) {
-            if (self.parser.had_error) debug.disassembleChunk(self.chunk.?, "code");
+        if ((comptime builtin.mode == .Debug) and self.parser.had_error) {
+            debug.disassembleChunk(chunk, "code");
         }
     }
 
@@ -113,31 +118,21 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
     self.popScope();
 }
 
-/// Compile an expression from source tokens.
-pub fn expression(self: *Compiler) void {
-    self.expr(Precedence.assignment);
-}
+// Statement compilation methods ==============================================
 
-fn expr(self: *Compiler, precedence: Precedence) void {
-    self.parser.advance();
+// Expression compilation methods =============================================
 
-    const prefix_rule: RuleFn = getStrategy(self.parser.current).prefix orelse {
-        return self.parser.@"error"("Expected expression");
-    };
+/// Get the strategy for compiling the given expression `token` from the parser.
+fn getStrategy(token: Token) CompileStrategy {
+    // This is a really pointless level of indirection in hindsight but I consider
+    // determining how the expression should be compiled to be a part of the parsing
+    // phase so I want to keep the pratt parser table in the parser namespace.
+    //
+    // An alternative could be to make the expression methods pub so they can just
+    // be referenced directly in the parser. I'll consider it if this becomes a
+    // compilation bottleneck
 
-    prefix_rule(self);
-
-    while (precedence.lte(getStrategy(self.parser.next).precedence)) {
-        self.parser.advance();
-        const infix_rule: RuleFn = getStrategy(self.parser.current).infix orelse {
-            return self.parser.@"error"("Expected expression");
-        };
-        infix_rule(self);
-    }
-}
-
-fn getStrategy(token: Token) StrategyMapping {
-    const strategy: ParseStrategy = .forToken(token.type);
+    const strategy: ParseStrategy = .forToken(token);
     return .{
         .prefix = mapRule(strategy.prefix),
         .infix = mapRule(strategy.infix),
@@ -145,26 +140,47 @@ fn getStrategy(token: Token) StrategyMapping {
     };
 }
 
-fn mapRule(rule: ?Rule) ?RuleFn {
-    if (rule) |r| return switch (r) {
+/// Map the given parser `Rule` into its matching expression compilation function.
+fn mapRule(rule: ?Rule) ?ExprFn {
+    return if (rule) |r| switch (r) {
         .grouping => grouping,
         // .string => expression,
         .number => number,
-        // .literal => self.expression(),
-        // .variable => self.expression(),
+        // .literal => expression,
+        // .variable => expression,
         .unary => unary,
         .binary => binary,
-        // .orExpr => self.expression(),
-        // .andExpr => self.expression(),
-        // .call => self.expression(),
-        // .dot => self.expression(),
-        // .nilish => self.expression(),
-        // .funExpr => self.expression(),
-        // .thisExpr => self.expression(),
+        // .orExpr => expression,
+        // .andExpr => expression,
+        // .call => expression,
+        // .dot => expression,
+        // .nilish => expression,
+        // .funExpr => expression,
+        // .thisExpr => expression,
         else => null,
-    };
+    } else null;
+}
 
-    return null;
+/// Compile an expression from source tokens.
+fn expression(self: *Compiler) void {
+    self.expr(.assignment);
+}
+
+/// Compile an expression from source tokens with the given `precedence`.
+fn expr(self: *Compiler, precedence: Precedence) void {
+    self.parser.advance();
+    const prefix_rule: ExprFn = getStrategy(self.parser.current).prefix orelse {
+        return self.parser.@"error"("Expected expression");
+    };
+    prefix_rule(self);
+
+    while (precedence.lte(getStrategy(self.parser.next).precedence)) {
+        self.parser.advance();
+        const infix_rule: ExprFn = getStrategy(self.parser.current).infix orelse {
+            return self.parser.@"error"("Expected expression");
+        };
+        infix_rule(self);
+    }
 }
 
 /// Compile a parenthesized grouping expression from source tokens.
@@ -182,7 +198,9 @@ fn number(self: *Compiler) void {
 /// Compile a unary expression from source tokens.
 fn unary(self: *Compiler) void {
     const operator_type: TokenType = self.parser.current.type;
+
     self.expr(.unary);
+
     switch (operator_type) {
         .minus => self.emitOp(.negate),
         // .bang => self.emitOp(.not),
@@ -190,10 +208,12 @@ fn unary(self: *Compiler) void {
     }
 }
 
+/// Compile a binary expression from source tokens.
 fn binary(self: *Compiler) void {
     const operator: TokenType = self.parser.current.type;
-    const strategy: ParseStrategy = ParseStrategy.forToken(operator);
+    const strategy: ParseStrategy = .forToken(self.parser.current);
 
+    // Compile expression right-hand side with precedence + 1
     self.expr(strategy.precedence.next());
 
     switch (operator) {
@@ -254,11 +274,3 @@ fn emitOp3(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void
 fn emitConstant(self: *Compiler, value: Value) void {
     self.emitOp1(.constant, self.makeConstant(value));
 }
-
-const RuleFn = *const fn (*Compiler) void;
-
-const StrategyMapping: type = struct {
-    infix: ?RuleFn,
-    prefix: ?RuleFn,
-    precedence: Precedence,
-};

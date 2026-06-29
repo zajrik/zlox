@@ -1,9 +1,10 @@
 //! Holds rules for how a given token should be parsed as part of an expression
-//! based on its position and precedence.
+//! based on its lexical position and precedence.
 
 const std = @import("std");
 const zlox = @import("../.lib.zig");
 
+const Token = zlox.tokenizer.Token;
 const TokenType = zlox.tokenizer.TokenType;
 const Rule = zlox.parser.Rule;
 const Precedence = zlox.parser.Precedence;
@@ -17,7 +18,13 @@ prefix: ?Rule,
 infix: ?Rule,
 precedence: Precedence,
 
-fn strat(comptime token: TokenType, prefix: ?Rule, infix: ?Rule, precedence: Precedence) ParseStrategy {
+/// Creates a `ParseStrategy` from the given parameters.
+fn strat(
+    comptime token: TokenType,
+    comptime prefix: ?Rule,
+    comptime infix: ?Rule,
+    comptime precedence: Precedence,
+) ParseStrategy {
     return .{
         .token = token,
         .prefix = prefix,
@@ -26,13 +33,14 @@ fn strat(comptime token: TokenType, prefix: ?Rule, infix: ?Rule, precedence: Pre
     };
 }
 
-pub fn forToken(token: TokenType) ParseStrategy {
-    return strategies[@intFromEnum(token)];
+/// Returns the `ParseStrategy` for the given `token`.
+pub fn forToken(token: Token) ParseStrategy {
+    return strategies[@intFromEnum(token.type)];
 }
 
 // zig fmt: off
 const token_count: u8 = std.enums.values(TokenType).len;
-const strategies = [token_count]ParseStrategy{
+const strategies: [token_count]ParseStrategy = .{
     .strat(.paren_left,      .grouping,  null,     .none      ),
     .strat(.paren_right,     null,       null,     .none      ),
     .strat(.brace_left,      null,       null,     .none      ),
@@ -105,10 +113,9 @@ comptime {
 
         if (actual_index == expected_index) continue;
 
-        const msg: []const u8 = std.fmt.comptimePrint(
+        @compileError(std.fmt.comptimePrint(
             "Parsing strategy '{s}' out of order. Expected {d}, got {d}",
             .{ @tagName(strategy.token), expected_index, actual_index },
-        );
-        @compileError(msg);
+        ));
     }
 }

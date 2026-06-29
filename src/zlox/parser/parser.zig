@@ -17,6 +17,7 @@ const mem = zlox.mem;
 const ParseStrategy = zlox.parser.ParseStrategy;
 const Precedence = zlox.parser.Precedence;
 const Rule = zlox.parser.Rule;
+
 const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
 const TokenType = zlox.tokenizer.TokenType;
@@ -49,7 +50,9 @@ panic_mode: bool = false,
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(tokenizer: *Tokenizer) !*Parser {
-    const parser: *Parser = try mem.createStruct(Parser, .{ .tokenizer = tokenizer });
+    const parser: *Parser = try mem.createStruct(Parser, .{
+        .tokenizer = tokenizer,
+    });
 
     // Load the first token into `next`
     parser.advance();
