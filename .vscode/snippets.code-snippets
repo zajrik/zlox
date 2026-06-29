@@ -22,12 +22,12 @@
         "prefix": [
             "fn",
             "method",
-            "meth"
+            "meth",
         ],
         "body": [
             "fn ${1:name}(self: *${TM_FILENAME_BASE/(.+)/${1:/pascalcase}/}$2) ${3:void} {",
             "    $0",
-            "}"
+            "}",
         ]
     },
     "Pub struct method": {
@@ -35,18 +35,23 @@
         "prefix": [
             "pubfn",
             "pubmethod",
-            "pubmeth"
+            "pubmeth",
         ],
         "body": [
             "pub fn ${1:name}(self: *${TM_FILENAME_BASE/(.+)/${1:/pascalcase}/}$2) ${3:void} {",
             "    $0",
-            "}"
+            "}",
         ]
     },
     "String ([]const u8)": {
         "scope": "zig",
         "prefix": "String",
-        "body": "[]const u8"
+        "body": "[]const u8",
+    },
+    "Section separator": {
+        "scope": "zig",
+        "prefix": "sep",
+        "body": "// ============================================================================",
     },
     // JSON snippets
     "Escape JSON string": {
