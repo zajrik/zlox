@@ -83,11 +83,15 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
     const b: Value = self.stack.pop();
     const a: Value = self.stack.pop();
 
-    self.stack.push(.numberVal(switch (op) {
-        .add => a.number + b.number,
-        .subtract => a.number - b.number,
-        .multiply => a.number * b.number,
-        .divide => a.number / b.number,
+    self.stack.push((switch (op) {
+        .add => .numberVal(a.number + b.number),
+        .subtract => .numberVal(a.number - b.number),
+        .multiply => .numberVal(a.number * b.number),
+        .divide => .numberVal(a.number / b.number),
+
+        .greater => .boolVal(a.number > b.number),
+        .less => .boolVal(a.number < b.number),
+
         else => {
             self.runtimeError("Invalid binary operator: '{s}'", .{@tagName(op)});
             return error.invalid_operator;
@@ -116,6 +120,15 @@ fn run(self: *Vm) ExecutionResult {
             .nil => self.stack.push(.nil_val),
             .true => self.stack.push(.boolVal(true)),
             .false => self.stack.push(.boolVal(false)),
+
+            // Comparison ops
+            .equal => {
+                const b: Value = self.stack.pop();
+                const a: Value = self.stack.pop();
+                self.stack.push(.boolVal(a.equals(b)));
+            },
+            .greater => self.binaryOp(.greater) catch return .runtime_error,
+            .less => self.binaryOp(.less) catch return .runtime_error,
 
             // Arithmetic ops
             .add => self.binaryOp(.add) catch return .runtime_error,

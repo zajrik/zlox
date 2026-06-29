@@ -48,6 +48,17 @@ pub const Value: type = union(Type) {
         return self.is(.nil) or (self.is(.bool) and !self.bool);
     }
 
+    /// Returns whether this value equals `other`.
+    pub fn equals(self: Value, other: Value) bool {
+        if (@as(Type, self) != @as(Type, other)) return false;
+
+        return switch (self) {
+            .nil => true,
+            .bool => self.bool == other.bool,
+            .number => self.number == other.number,
+        };
+    }
+
     /// Custom formatter for `Value` values.
     pub fn format(self: Value, writer: *Writer) Writer.Error!void {
         switch (self) {

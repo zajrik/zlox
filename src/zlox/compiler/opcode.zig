@@ -33,6 +33,21 @@ pub const OpCode = enum(u8) {
     /// - Loads the constant value `false` onto the stack.
     false,
 
+    /// ### `OpCode.equal()`
+    /// - Pops the top two values off the stack, compares them, and pushes the
+    ///   result to the top of the stack.
+    equal,
+
+    /// ### `OpCode.greater()`
+    /// - Pops the top two values off the stack, compares them, and pushes the
+    ///   result to the top of the stack.
+    greater,
+
+    /// ### `OpCode.less()`
+    /// - Pops the top two values off the stack, compares them, and pushes the
+    ///   result to the top of the stack.
+    less,
+
     /// ### `OpCode.add()`
     /// - Pops the top two values off the stack, adds them, and pushes the result
     ///   to the top of the stack.

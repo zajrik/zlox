@@ -55,6 +55,11 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .true => simpleInstruction(".true", offset),
         .false => simpleInstruction(".false", offset),
 
+        // Comparison ops
+        .equal => simpleInstruction(".equal", offset),
+        .greater => simpleInstruction(".greater", offset),
+        .less => simpleInstruction(".less", offset),
+
         // Arithmetic ops
         .add => simpleInstruction(".add", offset),
         .subtract => simpleInstruction(".subtract", offset),

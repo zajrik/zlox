@@ -219,17 +219,25 @@ fn unary(self: *Compiler) void {
 
 /// Compile a binary expression from source tokens.
 fn binary(self: *Compiler) void {
-    const operator: TokenType = self.parser.current.type;
-    const strategy: ParseStrategy = .forToken(self.parser.current);
+    const operator: Token = self.parser.current;
+    const strategy: ParseStrategy = .forToken(operator);
 
     // Compile expression right-hand side with precedence + 1
     self.expr(strategy.precedence.next());
 
-    switch (operator) {
+    switch (operator.type) {
         .plus => self.emitOp(.add),
         .minus => self.emitOp(.subtract),
         .star => self.emitOp(.multiply),
         .slash => self.emitOp(.divide),
+
+        .bang_equal => self.emitOps(.equal, .not),
+        .equal_equal => self.emitOp(.equal),
+        .greater => self.emitOp(.greater),
+        .less => self.emitOp(.less),
+        .greater_equal => self.emitOps(.less, .not),
+        .less_equal => self.emitOps(.greater, .not),
+
         else => return,
     }
 }
@@ -257,25 +265,36 @@ fn emitByte(self: *Compiler, byte: u8) void {
 
 /// Write the given `op` to the chunk currently being compiled.
 fn emitOp(self: *Compiler, op: OpCode) void {
-    self.chunk.?.writeOp(op, self.parser.current.line);
+    self.emitByte(op.toByte());
+}
+
+/// Write the two given `OpCode` values to the chunk currently being compiled.
+fn emitOps(self: *Compiler, op_1: OpCode, op_2: OpCode) void {
+    self.emitOp1(op_1, op_2.toByte());
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by a single
 /// byte operand.
 fn emitOp1(self: *Compiler, op: OpCode, byte: u8) void {
-    self.chunk.?.writeOp1(op, self.parser.current.line, byte);
+    self.emitOp(op);
+    self.emitByte(byte);
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by two
 /// byte operands.
 fn emitOp2(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
-    self.chunk.?.writeOp2(op, self.parser.current.line, byte_1, byte_2);
+    self.emitOp(op);
+    self.emitByte(byte_1);
+    self.emitByte(byte_2);
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by three
 /// byte operands.
 fn emitOp3(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void {
-    self.chunk.?.writeOp3(op, self.parser.current.line, byte_1, byte_2, byte_3);
+    self.emitOp(op);
+    self.emitByte(byte_1);
+    self.emitByte(byte_2);
+    self.emitByte(byte_3);
 }
 
 /// Write `OpCode.constant` to the chunk currently being compiled, followed by

@@ -73,37 +73,6 @@ pub fn writeByte(self: *Chunk, byte: u8, line: u16) void {
     self.lines.append(mem.allocator(), line) catch exit(1);
 }
 
-/// Write the given `op` to this chunk.
-///
-/// See also:
-/// - `writeOp1`
-/// - `writeOp2`
-/// - `writeOp3`
-pub fn writeOp(self: *Chunk, op: OpCode, line: u16) void {
-    self.writeByte(op.toByte(), line);
-}
-
-/// Write the given `op` to this chunk, followed by a single byte operand.
-pub fn writeOp1(self: *Chunk, op: OpCode, line: u16, byte: u8) void {
-    self.writeOp(op, line);
-    self.writeByte(byte, line);
-}
-
-/// Write the given `op` to this chunk, followed by two byte operands.
-pub fn writeOp2(self: *Chunk, op: OpCode, line: u16, byte_1: u8, byte_2: u8) void {
-    self.writeOp(op, line);
-    self.writeByte(byte_1, line);
-    self.writeByte(byte_2, line);
-}
-
-/// Write the given `op` to this chunk, followed by three byte operands.
-pub fn writeOp3(self: *Chunk, op: OpCode, line: u16, byte_1: u8, byte_2: u8, byte_3: u8) void {
-    self.writeOp(op, line);
-    self.writeByte(byte_1, line);
-    self.writeByte(byte_2, line);
-    self.writeByte(byte_3, line);
-}
-
 /// Add the given constant `value` to this chunk's constants array.
 ///
 /// Returns the offset of the added value within this chunk's constants array.
