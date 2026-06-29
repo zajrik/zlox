@@ -21,6 +21,18 @@ pub const OpCode = enum(u8) {
     /// - Loads a constant value at the given `offset` onto the stack.
     constant,
 
+    /// ### `OpCode.nil()`
+    /// - Loads the constant value `nil` onto the stack.
+    nil,
+
+    /// ### `OpCode.true()`
+    /// - Loads the constant value `true` onto the stack.
+    true,
+
+    /// ### `OpCode.false()`
+    /// - Loads the constant value `false` onto the stack.
+    false,
+
     /// ### `OpCode.add()`
     /// - Pops the top two values off the stack, adds them, and pushes the result
     ///   to the top of the stack.
@@ -49,7 +61,7 @@ pub const OpCode = enum(u8) {
     /// ### `OpCode.not()`
     /// - Pops the top boolean value off the stack, negates it, and pushes the
     ///   result to the top of the stack.
-    // not,
+    not,
 
     // /// ### `OpCode.peek(offset: stack_offset)`
     // /// - Prints the value on the stack at the given `offset` from the top of

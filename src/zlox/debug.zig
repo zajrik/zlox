@@ -49,7 +49,11 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
     const instruction: OpCode = @enumFromInt(chunk.instructionAt(offset));
 
     return switch (instruction) {
+        // Constant ops
         .constant => constantInstruction(".constant", chunk, offset),
+        .nil => simpleInstruction(".nil", offset),
+        .true => simpleInstruction(".true", offset),
+        .false => simpleInstruction(".false", offset),
 
         // Arithmetic ops
         .add => simpleInstruction(".add", offset),
@@ -58,7 +62,8 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .divide => simpleInstruction(".divide", offset),
         .negate => simpleInstruction(".negate", offset),
 
-        // .not => simpleInstruction(".not", offset),
+        // Logical ops
+        .not => simpleInstruction(".not", offset),
 
         // Stack ops
         // .peek => byteInstruction(".peek", chunk, offset),
@@ -77,7 +82,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
     };
 }
 
-/// Print the values on the given `ValueStack`.
+/// Print the values on the given `stack`.
 pub fn printStack(stack: *Stack(Value)) void {
     printf("           ", .{});
 
@@ -86,9 +91,7 @@ pub fn printStack(stack: *Stack(Value)) void {
 
     var slot: [*]Value = &stack.values;
     while (@intFromPtr(slot) < @intFromPtr(stack.top)) : (slot += 1) {
-        printf("[ ", .{});
-        val.print(slot[0]);
-        printf(" ]", .{});
+        printf("[ {f} ]", .{slot[0]});
     }
 
     printf("\n", .{});
@@ -107,13 +110,8 @@ fn simpleInstruction(name: []const u8, offset: usize) usize {
 ///
 /// Returns the offset of the next instruction (skipping over the constant operand).
 fn constantInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {
-    // Get the constant value byte after the instruction byte
     const constant: u8 = chunk.instructionAt(offset + 1);
-
-    printf("{s:<16} {d:4} '", .{ name, constant });
-    val.print(chunk.constantAt(constant));
-    printf("'\n", .{});
-
+    printf("{s:<16} {d:4} '{f}'\n", .{ name, constant, chunk.constantAt(constant) });
     return offset + 2;
 }
 

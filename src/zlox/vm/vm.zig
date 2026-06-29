@@ -73,6 +73,28 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     return self.run();
 }
 
+/// Perform a binary operation on the top two number values on the stack.
+fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!void {
+    if (self.stack.peek(0).isNot(.number) or self.stack.peek(1).isNot(.number)) {
+        self.runtimeError("Operands must be numbers.", .{});
+        return error.invalid_operand;
+    }
+
+    const b: Value = self.stack.pop();
+    const a: Value = self.stack.pop();
+
+    self.stack.push(.numberVal(switch (op) {
+        .add => a.number + b.number,
+        .subtract => a.number - b.number,
+        .multiply => a.number * b.number,
+        .divide => a.number / b.number,
+        else => {
+            self.runtimeError("Invalid binary operator: '{s}'", .{@tagName(op)});
+            return error.invalid_operator;
+        },
+    }));
+}
+
 /// Run instructions from the currently loaded chunk.
 fn run(self: *Vm) ExecutionResult {
     while (true) {
@@ -91,31 +113,27 @@ fn run(self: *Vm) ExecutionResult {
 
         switch (instruction) {
             .constant => self.stack.push(self.readConstant()),
+            .nil => self.stack.push(.nil_val),
+            .true => self.stack.push(.boolVal(true)),
+            .false => self.stack.push(.boolVal(false)),
 
             // Arithmetic ops
-            .add => {
-                const b: Value = self.stack.pop();
-                const a: Value = self.stack.pop();
-                self.stack.push(a + b);
-            },
-            .subtract => {
-                const b: Value = self.stack.pop();
-                const a: Value = self.stack.pop();
-                self.stack.push(a - b);
-            },
-            .multiply => {
-                const b: Value = self.stack.pop();
-                const a: Value = self.stack.pop();
-                self.stack.push(a * b);
-            },
-            .divide => {
-                const b: Value = self.stack.pop();
-                const a: Value = self.stack.pop();
-                self.stack.push(a / b);
-            },
-            .negate => _ = self.stack.replace(0, -self.stack.peek(0)),
+            .add => self.binaryOp(.add) catch return .runtime_error,
+            .subtract => self.binaryOp(.subtract) catch return .runtime_error,
+            .multiply => self.binaryOp(.multiply) catch return .runtime_error,
+            .divide => self.binaryOp(.divide) catch return .runtime_error,
 
-            // .not => _ = self.stack.replace(0, negate bool value object TBI),
+            .negate => {
+                const value: Value = self.stack.peek(0);
+                if (value.isNot(.number)) {
+                    self.runtimeError("Operand must be a number.", .{});
+                    return .runtime_error;
+                }
+                _ = self.stack.replace(0, .numberVal(-value.number));
+            },
+
+            // Logical ops
+            .not => _ = self.stack.replace(0, .boolVal(self.stack.peek(0).isFalsey())),
 
             // Stack ops
             // .peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
@@ -156,4 +174,19 @@ fn readShort(self: *Vm) u16 {
 /// value within the currently loaded chunk's constants array.
 fn readConstant(self: *Vm) Value {
     return self.chunk.constantAt(self.readByte());
+}
+
+/// Print a runtime error and stack trace at the current instruction.
+fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
+    printf(fmt, args);
+    printf("\n", .{});
+
+    // Get current erroring instruction line
+    const instruction: usize = @intFromPtr(self.ip) - @intFromPtr(self.chunk.instructions.items.ptr) - 1;
+    const line: u16 = self.chunk.lineAt(instruction);
+
+    // TODO: Add stack trace printing when callframes are ported
+
+    printf("[line {d}] in script\n", .{line});
+    self.stack.reset();
 }

@@ -50,7 +50,7 @@ pub fn isDiscard(self: Token) bool {
 }
 
 /// Custom formatter for `Token` values.
-pub fn format(self: Token, writer: *Writer) !void {
+pub fn format(self: Token, writer: *Writer) Writer.Error!void {
     try writer.writeAll("Token { ");
     try writer.print(".token_type = {}, ", .{self.type});
     try writer.print(".lexeme = '{s}', ", .{self.lexeme});

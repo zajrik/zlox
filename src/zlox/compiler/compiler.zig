@@ -145,7 +145,7 @@ fn mapRule(rule: ?Rule) ?ExprFn {
         .grouping => grouping,
         // .string => expression,
         .number => number,
-        // .literal => expression,
+        .literal => literal,
         // .variable => expression,
         .unary => unary,
         .binary => binary,
@@ -191,7 +191,17 @@ fn grouping(self: *Compiler) void {
 /// Compile a number expression from the current source token.
 fn number(self: *Compiler) void {
     const value: f32 = std.fmt.parseFloat(f32, self.parser.current.lexeme) catch return;
-    self.emitConstant(value);
+    self.emitConstant(.numberVal(value));
+}
+
+/// Compile a literal expression from the current source token.
+fn literal(self: *Compiler) void {
+    switch (self.parser.current.type) {
+        .keyword_nil => self.emitOp(.nil),
+        .keyword_true => self.emitOp(.true),
+        .keyword_false => self.emitOp(.false),
+        else => return,
+    }
 }
 
 /// Compile a unary expression from source tokens.
@@ -202,7 +212,7 @@ fn unary(self: *Compiler) void {
 
     switch (operator_type) {
         .minus => self.emitOp(.negate),
-        // .bang => self.emitOp(.not),
+        .bang => self.emitOp(.not),
         else => return,
     }
 }
