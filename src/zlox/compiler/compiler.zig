@@ -8,7 +8,6 @@
 //! purposes of having only a single abstracted compilation process.
 
 const std = @import("std");
-const builtin = @import("builtin");
 const zlox = @import("../.lib.zig");
 
 const mem = zlox.mem;
@@ -89,7 +88,7 @@ pub fn compile(self: *Compiler) !?*Chunk {
 fn endCompilation(self: *Compiler) ?*Chunk {
     if (self.chunk) |chunk| {
         self.emitOp(.@"return");
-        if ((comptime builtin.mode == .Debug) and self.parser.had_error) {
+        if ((comptime debug.print_code) and self.parser.had_error) {
             debug.disassembleChunk(chunk, "code");
         }
     }

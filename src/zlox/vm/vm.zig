@@ -1,7 +1,6 @@
 //! Virtual machine for executing lox instructions.
 
 const std = @import("std");
-const builtin = @import("builtin");
 const zlox = @import("../.lib.zig");
 
 const debug = zlox.debug;
@@ -77,7 +76,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 /// Run instructions from the currently loaded chunk.
 fn run(self: *Vm) ExecutionResult {
     while (true) {
-        if (comptime builtin.mode == .Debug) {
+        if (comptime debug.trace_execution) {
             debug.printStack(&self.stack);
 
             _ = debug.disassembleInstruction(
