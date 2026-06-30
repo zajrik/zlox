@@ -198,13 +198,13 @@ fn string(self: *Compiler) void {
         self.parser.current.lexeme[1 .. self.parser.current.lexeme.len - 1],
     ) catch exit(1);
 
-    self.emitConstant(.objVal(strObj));
+    self.emitConstant(.Object(strObj));
 }
 
 /// Compile a number expression from the current source token.
 fn number(self: *Compiler) void {
     const value: f32 = std.fmt.parseFloat(f32, self.parser.current.lexeme) catch return;
-    self.emitConstant(.numberVal(value));
+    self.emitConstant(.Number(value));
 }
 
 /// Compile a literal expression from the current source token.

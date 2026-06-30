@@ -89,13 +89,13 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
     const a: Value = self.stack.pop();
 
     self.stack.push((switch (op) {
-        .add => .numberVal(a.number + b.number),
-        .subtract => .numberVal(a.number - b.number),
-        .multiply => .numberVal(a.number * b.number),
-        .divide => .numberVal(a.number / b.number),
+        .add => .Number(a.number + b.number),
+        .subtract => .Number(a.number - b.number),
+        .multiply => .Number(a.number * b.number),
+        .divide => .Number(a.number / b.number),
 
-        .greater => .boolVal(a.number > b.number),
-        .less => .boolVal(a.number < b.number),
+        .greater => .Bool(a.number > b.number),
+        .less => .Bool(a.number < b.number),
 
         else => {
             self.runtimeError("Invalid binary operator: '{s}'", .{@tagName(op)});
@@ -121,7 +121,7 @@ fn concatenate(self: *Vm) !void {
         Obj.String{ .chars = new_chars },
     );
 
-    self.stack.push(.objVal(new_string));
+    self.stack.push(.Object(new_string));
 }
 
 /// Run instructions from the currently loaded chunk.
@@ -142,15 +142,15 @@ fn run(self: *Vm) ExecutionResult {
 
         switch (instruction) {
             .constant => self.stack.push(self.readConstant()),
-            .nil => self.stack.push(.nil_val),
-            .true => self.stack.push(.boolVal(true)),
-            .false => self.stack.push(.boolVal(false)),
+            .nil => self.stack.push(.Nil),
+            .true => self.stack.push(.Bool(true)),
+            .false => self.stack.push(.Bool(false)),
 
             // Comparison ops
             .equal => {
                 const b: Value = self.stack.pop();
                 const a: Value = self.stack.pop();
-                self.stack.push(.boolVal(a.equals(b)));
+                self.stack.push(.Bool(a.equals(b)));
             },
             .greater => self.binaryOp(.greater) catch return .runtime_error,
             .less => self.binaryOp(.less) catch return .runtime_error,
@@ -172,7 +172,7 @@ fn run(self: *Vm) ExecutionResult {
                 else if (a.is(.number) and b.is(.number)) {
                     const b_number: f32 = self.stack.pop().number;
                     const a_number: f32 = self.stack.pop().number;
-                    self.stack.push(.numberVal(a_number + b_number));
+                    self.stack.push(.Number(a_number + b_number));
                 }
 
                 // Otherwise error for invalid operands
@@ -191,11 +191,11 @@ fn run(self: *Vm) ExecutionResult {
                     self.runtimeError("Operand must be a number.", .{});
                     return .runtime_error;
                 }
-                _ = self.stack.replace(0, .numberVal(-value.number));
+                _ = self.stack.replace(0, .Number(-value.number));
             },
 
             // Logical ops
-            .not => _ = self.stack.replace(0, .boolVal(self.stack.peek(0).isFalsey())),
+            .not => _ = self.stack.replace(0, .Bool(self.stack.peek(0).isFalsey())),
 
             // Stack ops
             // .peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),

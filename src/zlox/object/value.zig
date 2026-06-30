@@ -9,6 +9,9 @@ const Writer = std.Io.Writer;
 
 /// Represents a lox value.
 pub const Value: type = union(Value.Type) {
+    // Represents the type of a lox value.
+    pub const Type = enum { nil, bool, number, obj };
+
     /// A `void` standin for a `nil` lox Value.
     nil,
 
@@ -21,24 +24,21 @@ pub const Value: type = union(Value.Type) {
     /// Holds a pointer to a heap-allocated lox object.
     obj: *Obj,
 
-    // Represents the type of a lox value.
-    pub const Type = enum { nil, bool, number, obj };
-
     /// The constant `nil` lox Value.
-    pub const nil_val: Value = .nil;
+    pub const Nil: Value = .nil;
 
     /// Creates a bool `Value` from the given `value`.
-    pub fn boolVal(value: bool) Value {
+    pub fn Bool(value: bool) Value {
         return Value{ .bool = value };
     }
 
     /// Creates a number `Value` from the given `value`.
-    pub fn numberVal(value: f32) Value {
+    pub fn Number(value: f32) Value {
         return Value{ .number = value };
     }
 
     /// Creates an object `Value` from the given `obj`.
-    pub fn objVal(obj: *Obj) Value {
+    pub fn Object(obj: *Obj) Value {
         return Value{ .obj = obj };
     }
 
