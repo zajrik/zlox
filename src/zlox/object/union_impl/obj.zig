@@ -4,7 +4,7 @@
 //! allow additional shared fields between objects.
 
 const std = @import("std");
-const zlox = @import("../.lib.zig");
+const zlox = @import("../../.lib.zig");
 
 const mem = zlox.mem;
 
@@ -19,8 +19,8 @@ const Obj: type = @This();
 /// Represents the different union types of heap-allocated lox objects.
 pub const Type = enum(u1) { string };
 
-/// Object data payload type for the given object `type`.
-fn Data(comptime @"type": Type) type {
+/// Object body payload type for the given object `type`.
+fn Body(comptime @"type": Type) type {
     return switch (@"type") {
         .string => String,
     };
@@ -38,24 +38,24 @@ as: union {
     string: String,
 },
 
-/// Allocate a new `Obj` of the given `type` with the given `data`.
+/// Allocate a new `Obj` of the given `type` with the given `body`.
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns this obj and
 /// is responsible for freeing it.
-pub fn create(comptime @"type": Type, data: Data(@"type")) !*Obj {
+pub fn create(comptime @"type": Type, body: Body(@"type")) !*Obj {
     const obj: *Obj = try mem.create(Obj);
     obj.type = @"type";
 
-    // Set obj payload to the given data
+    // Set obj payload to the given body
     switch (@"type") {
-        inline .string => obj.as.string = data,
+        inline .string => obj.as.string = body,
     }
 
     return obj;
 }
 
 /// Destroy this `Obj`, freeing its owned resources.
-pub fn destroy(self: *Obj) void {
+pub fn destroy(self: *const Obj) void {
     // Free data owned by the object
     switch (self.type) {
         .string => mem.free(self.as.string.chars),
@@ -66,18 +66,18 @@ pub fn destroy(self: *Obj) void {
 }
 
 /// Returns whether this obj is of the given `type`.
-pub fn is(self: *Obj, @"type": Type) bool {
+pub fn is(self: *const Obj, @"type": Type) bool {
     return self.type == @"type";
 }
 
 /// Returns whether this obj is not of the given `type`.
-pub fn isNot(self: *Obj, @"type": Type) bool {
+pub fn isNot(self: *const Obj, @"type": Type) bool {
     return self.type != @"type";
 }
 
 /// Custom formatter for `Obj` values.
-pub fn format(self: *Obj, writer: *Writer) Writer.Error!void {
+pub fn format(self: *const Obj, writer: *Writer) Writer.Error!void {
     switch (self.type) {
-        inline .string => try writer.print("{s}", .{self.as.string.chars}),
+        .string => try writer.print("{s}", .{self.as.string.chars}),
     }
 }

@@ -1,5 +1,7 @@
 const std = @import("std");
-const Obj = @import("obj.zig");
+const zlox = @import("../.lib.zig");
+
+const Obj = zlox.object.Obj;
 
 const Writer = std.Io.Writer;
 
@@ -27,17 +29,17 @@ pub const Value: type = union(Value.Type) {
 
     /// Creates a bool `Value` from the given `value`.
     pub fn boolVal(value: bool) Value {
-        return .{ .bool = value };
+        return Value{ .bool = value };
     }
 
     /// Creates a number `Value` from the given `value`.
     pub fn numberVal(value: f32) Value {
-        return .{ .number = value };
+        return Value{ .number = value };
     }
 
     /// Creates an object `Value` from the given `obj`.
     pub fn objVal(obj: *Obj) Value {
-        return .{ .obj = obj };
+        return Value{ .obj = obj };
     }
 
     /// Returns whether this value is of the given `type`.
