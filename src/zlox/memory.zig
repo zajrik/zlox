@@ -1,7 +1,10 @@
 const std = @import("std");
+const zlox = @import(".lib.zig");
 
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
+
+const Obj = zlox.object.obj.Obj;
 
 // ============================================================================
 
@@ -60,4 +63,26 @@ pub fn realloc(ptr: anytype, new_size: usize) !@TypeOf(ptr) {
 /// Free an allocated array.
 pub fn free(ptr: anytype) void {
     return allocator().free(ptr);
+}
+
+/// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
+/// allocated lox string `Obj`.
+///
+/// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
+/// pointer and is responsible for freeing it.
+pub fn copyString(string: []const u8) !*Obj {
+    const copy: []u8 = try alloc(u8, string.len);
+    @memcpy(copy.ptr, string);
+    return try .create(.string, .{ .chars = copy });
+}
+
+/// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
+/// the given slice.
+///
+/// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
+/// pointer and is responsible for freeing it.
+///
+/// The given `string` slice will be freed when the allocated `Obj` is freed.
+pub fn takeString(string: []const u8) !*Obj {
+    return try .create(.string, .{ .chars = string });
 }

@@ -75,7 +75,7 @@ const strategies: [token_count]ParseStrategy = .{
 
     // Literals
     .strat(.identifier,      null,       null,     .none       ),
-    .strat(.string,          null,       null,     .none       ),
+    .strat(.string,          .string,    null,     .none       ),
     .strat(.number,          .number,    null,     .none       ),
 
     // Keywords

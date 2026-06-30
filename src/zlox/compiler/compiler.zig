@@ -28,7 +28,10 @@ const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
 const TokenType = zlox.tokenizer.TokenType;
 
+const Obj = zlox.object.obj.Obj;
 const Value = zlox.object.Value;
+
+const exit = std.process.exit;
 
 // ============================================================================
 
@@ -143,7 +146,7 @@ fn getStrategy(token: Token) CompileStrategy {
 fn mapRule(rule: ?Rule) ?ExprFn {
     return if (rule) |r| switch (r) {
         .grouping => grouping,
-        // .string => expression,
+        .string => string,
         .number => number,
         .literal => literal,
         // .variable => expression,
@@ -186,6 +189,15 @@ fn expr(self: *Compiler, precedence: Precedence) void {
 fn grouping(self: *Compiler) void {
     self.expression();
     self.parser.consume(.paren_right, "Expected ')' after expression.");
+}
+
+/// Compile a string expression from the current source token.
+fn string(self: *Compiler) void {
+    const strObj: *Obj = mem.copyString(
+        self.parser.current.lexeme[1 .. self.parser.current.lexeme.len - 1],
+    ) catch exit(1);
+
+    self.emitConstant(.objVal(strObj));
 }
 
 /// Compile a number expression from the current source token.

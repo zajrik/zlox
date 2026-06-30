@@ -7,16 +7,21 @@ const debug = zlox.debug;
 const mem = zlox.mem;
 const val = zlox.object.val;
 
-const printf = std.debug.print;
-
 const Chunk = zlox.compiler.Chunk;
 const Compiler = zlox.compiler.Compiler;
 const OpCode = zlox.compiler.OpCode;
+
 const Tokenizer = zlox.tokenizer.Tokenizer;
+
+const Obj = zlox.object.obj.Obj;
 const Value = zlox.object.Value;
+
 const Parser = zlox.parser.Parser;
+
 const ExecutionResult = zlox.vm.ExecutionResult;
 const Stack = zlox.vm.Stack;
+
+const printf = std.debug.print;
 
 // ============================================================================
 
@@ -73,7 +78,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     return self.run();
 }
 
-/// Perform a binary operation on the top two number values on the stack.
+/// Perform a binary operation with the top two number values on the stack.
 fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!void {
     if (self.stack.peek(0).isNot(.number) or self.stack.peek(1).isNot(.number)) {
         self.runtimeError("Operands must be numbers.", .{});
@@ -97,6 +102,21 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
             return error.invalid_operator;
         },
     }));
+}
+
+/// Pop the top two strings off of the stack, concatenate them, and push the resulting
+/// string to the stack.
+fn concatenate(self: *Vm) !void {
+    const b: []const u8 = self.stack.pop().obj.*.string.chars;
+    const a: []const u8 = self.stack.pop().obj.*.string.chars;
+
+    const new_len: usize = a.len + b.len;
+    const new_chars: []u8 = try mem.alloc(u8, new_len);
+
+    @memcpy(new_chars.ptr, a);
+    @memcpy(new_chars.ptr + a.len, b);
+
+    self.stack.push(.objVal(try .create(.string, .{ .chars = new_chars })));
 }
 
 /// Run instructions from the currently loaded chunk.
@@ -131,7 +151,31 @@ fn run(self: *Vm) ExecutionResult {
             .less => self.binaryOp(.less) catch return .runtime_error,
 
             // Arithmetic ops
-            .add => self.binaryOp(.add) catch return .runtime_error,
+            .add => {
+                const b: Value = self.stack.peek(0);
+                const a: Value = self.stack.peek(1);
+
+                // If both values are strings, conctatenate them
+                if (a.isObj(.string) and b.isObj(.string)) {
+                    self.concatenate() catch |err| {
+                        self.runtimeError("Error concatenating strings: {any}", .{err});
+                        return .runtime_error;
+                    };
+                }
+
+                // If both values are numbers, add them
+                else if (a.is(.number) and b.is(.number)) {
+                    const b_number: f32 = self.stack.pop().number;
+                    const a_number: f32 = self.stack.pop().number;
+                    self.stack.push(.numberVal(a_number + b_number));
+                }
+
+                // Otherwise error for invalid operands
+                else {
+                    self.runtimeError("Operands must be both numbers or both strings.", .{});
+                    return .runtime_error;
+                }
+            },
             .subtract => self.binaryOp(.subtract) catch return .runtime_error,
             .multiply => self.binaryOp(.multiply) catch return .runtime_error,
             .divide => self.binaryOp(.divide) catch return .runtime_error,
