@@ -50,7 +50,7 @@
     },
     "Section separator": {
         "scope": "zig",
-        "prefix": "sep",
+        "prefix": "separator",
         "body": "// ============================================================================",
     },
     // JSON snippets

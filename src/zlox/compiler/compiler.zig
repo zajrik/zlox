@@ -28,7 +28,7 @@ const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
 const TokenType = zlox.tokenizer.TokenType;
 
-const Obj = zlox.object.obj.Obj;
+const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
 const exit = std.process.exit;
@@ -58,9 +58,10 @@ chunk: ?*Chunk = null,
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(parser: *Parser) !*Compiler {
-    return try mem.createStruct(Compiler, .{
-        .parser = parser,
-    });
+    return try mem.createStruct(
+        Compiler,
+        Compiler{ .parser = parser },
+    );
 }
 
 /// Destroy this `Compiler`, freeing its owned resources.
@@ -73,7 +74,7 @@ pub fn destroy(self: *Compiler) void {
 /// Returns a pointer to the compiled `Chunk`. The caller owns the returned pointer
 /// and is responsible for freeing it.
 pub fn compile(self: *Compiler) !?*Chunk {
-    self.chunk = try .create();
+    self.chunk = try Chunk.create();
 
     self.expression();
 
@@ -149,16 +150,16 @@ fn mapRule(rule: ?Rule) ?ExprFn {
         .string => string,
         .number => number,
         .literal => literal,
-        // .variable => expression,
+        // .variable => variable,
         .unary => unary,
         .binary => binary,
-        // .orExpr => expression,
-        // .andExpr => expression,
-        // .call => expression,
-        // .dot => expression,
-        // .nilish => expression,
-        // .funExpr => expression,
-        // .thisExpr => expression,
+        // .orExpr => orExpr,
+        // .andExpr => andExpr,
+        // .call => call,
+        // .dot => dot,
+        // .nilish => nilish,
+        // .funExpr => funExpr,
+        // .thisExpr => thisExpr,
         else => null,
     } else null;
 }

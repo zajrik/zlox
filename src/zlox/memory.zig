@@ -4,7 +4,7 @@ const zlox = @import(".lib.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 
-const Obj = zlox.object.obj.Obj;
+const Obj = zlox.object.Obj;
 
 // ============================================================================
 
@@ -73,7 +73,11 @@ pub fn free(ptr: anytype) void {
 pub fn copyString(string: []const u8) !*Obj {
     const copy: []u8 = try alloc(u8, string.len);
     @memcpy(copy.ptr, string);
-    return try .create(.string, .{ .chars = copy });
+
+    return try Obj.create(
+        .string,
+        Obj.String{ .chars = copy },
+    );
 }
 
 /// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
@@ -84,5 +88,8 @@ pub fn copyString(string: []const u8) !*Obj {
 ///
 /// The given `string` slice will be freed when the allocated `Obj` is freed.
 pub fn takeString(string: []const u8) !*Obj {
-    return try .create(.string, .{ .chars = string });
+    return try Obj.create(
+        .string,
+        Obj.String{ .chars = string },
+    );
 }

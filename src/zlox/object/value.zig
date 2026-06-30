@@ -1,12 +1,12 @@
 const std = @import("std");
-const Obj = @import("obj.zig").Obj;
+const Obj = @import("obj.zig");
 
 const Writer = std.Io.Writer;
 
 // ============================================================================
 
 /// Represents a lox value.
-pub const Value: type = union(Type) {
+pub const Value: type = union(Value.Type) {
     /// A `void` standin for a `nil` lox Value.
     nil,
 
@@ -41,18 +41,18 @@ pub const Value: type = union(Type) {
     }
 
     /// Returns whether this value is of the given `type`.
-    pub fn is(self: Value, @"type": Type) bool {
+    pub fn is(self: Value, @"type": Value.Type) bool {
         return self == @"type";
     }
 
     /// Returns whether this value is not of the given `type`.
-    pub fn isNot(self: Value, @"type": Type) bool {
+    pub fn isNot(self: Value, @"type": Value.Type) bool {
         return self != @"type";
     }
 
     /// Returns whether this value is an object of the given `type`.
     pub fn isObj(self: Value, @"type": Obj.Type) bool {
-        return self.is(.obj) and self.obj.* == @"type";
+        return self.is(.obj) and self.obj.is(@"type");
     }
 
     /// Returns whether this value is falsey.
@@ -65,23 +65,21 @@ pub const Value: type = union(Type) {
     /// Returns whether this value equals `other`.
     pub fn equals(self: Value, other: Value) bool {
         // Check if value types match
-        if (@as(Type, self) != @as(Type, other)) return false;
+        if (@as(Value.Type, self) != @as(Value.Type, other)) return false;
 
         // Check if object types match
-        if (self == .obj) {
-            if (@as(Obj.Type, self.obj.*) != @as(Obj.Type, other.obj.*)) return false;
-        }
+        if (self.is(.obj) and self.obj.isNot(other.obj.type)) return false;
 
         return switch (self) {
             .nil => true,
             .bool => self.bool == other.bool,
             .number => self.number == other.number,
-            .obj => switch (self.obj.*) {
+            .obj => switch (self.obj.type) {
                 // Compare string character equality
                 .string => std.mem.eql(
                     u8,
-                    self.obj.*.string.chars,
-                    other.obj.*.string.chars,
+                    self.obj.as.string.chars,
+                    other.obj.as.string.chars,
                 ),
 
                 // Compare reference equality

@@ -13,7 +13,7 @@ const OpCode = zlox.compiler.OpCode;
 
 const Tokenizer = zlox.tokenizer.Tokenizer;
 
-const Obj = zlox.object.obj.Obj;
+const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
 const Parser = zlox.parser.Parser;
@@ -107,8 +107,8 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
 /// Pop the top two strings off of the stack, concatenate them, and push the resulting
 /// string to the stack.
 fn concatenate(self: *Vm) !void {
-    const b: []const u8 = self.stack.pop().obj.*.string.chars;
-    const a: []const u8 = self.stack.pop().obj.*.string.chars;
+    const b: []const u8 = self.stack.pop().obj.as.string.chars;
+    const a: []const u8 = self.stack.pop().obj.as.string.chars;
 
     const new_len: usize = a.len + b.len;
     const new_chars: []u8 = try mem.alloc(u8, new_len);
@@ -116,7 +116,12 @@ fn concatenate(self: *Vm) !void {
     @memcpy(new_chars.ptr, a);
     @memcpy(new_chars.ptr + a.len, b);
 
-    self.stack.push(.objVal(try .create(.string, .{ .chars = new_chars })));
+    const new_string: *Obj = try .create(
+        .string,
+        Obj.String{ .chars = new_chars },
+    );
+
+    self.stack.push(.objVal(new_string));
 }
 
 /// Run instructions from the currently loaded chunk.

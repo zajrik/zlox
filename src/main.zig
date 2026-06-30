@@ -23,7 +23,7 @@ pub fn main(init: std.process.Init) !void {
     const lox_code: []u8 = try readFile(init.io, "test/test.lox");
     defer mem.free(lox_code);
 
-    var tokenizer = Tokenizer.init(lox_code);
+    var tokenizer: Tokenizer = .init(lox_code);
     while (tokenizer.next()) |token| std.debug.print("{f}\n", .{token});
 
     const vm: *Vm = try .create();
