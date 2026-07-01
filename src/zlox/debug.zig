@@ -19,8 +19,11 @@ pub const is_debug_mode: bool = builtin.mode == .Debug;
 /// Whether the vm should print instruction traces during execution.
 pub const trace_execution: bool = is_debug_mode and true;
 
+/// Whether the vm should print the stack in between instruction traces.
+pub const print_stack: bool = is_debug_mode and true;
+
 /// Whether the vm should dump the compiled chunk when there were errors.
-pub const print_code: bool = is_debug_mode and true;
+pub const dump_chunk: bool = is_debug_mode and true;
 
 /// Print the contents (instructions, values, etc.) of the chunk at address `chunk`.
 pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {

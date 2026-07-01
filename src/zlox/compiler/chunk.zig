@@ -69,8 +69,9 @@ pub inline fn constantAt(self: *Chunk, offset: usize) Value {
 
 /// Write the given `byte` to this chunk.
 pub fn writeByte(self: *Chunk, byte: u8, line: u16) void {
-    self.instructions.append(mem.allocator(), byte) catch exit(1);
-    self.lines.append(mem.allocator(), line) catch exit(1);
+    errdefer exit(1);
+    try self.instructions.append(mem.allocator(), byte);
+    try self.lines.append(mem.allocator(), line);
 }
 
 /// Add the given constant `value` to this chunk's constants array.

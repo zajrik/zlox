@@ -92,7 +92,7 @@ pub fn compile(self: *Compiler) !?*Chunk {
 fn endCompilation(self: *Compiler) ?*Chunk {
     if (self.chunk) |chunk| {
         self.emitOp(.@"return");
-        if ((comptime debug.print_code) and self.parser.had_error) {
+        if ((comptime debug.dump_chunk) and self.parser.had_error) {
             debug.disassembleChunk(chunk, "code");
         }
     }
@@ -194,11 +194,12 @@ fn grouping(self: *Compiler) void {
 
 /// Compile a string expression from the current source token.
 fn string(self: *Compiler) void {
-    const strObj: *Obj = mem.copyString(
-        self.parser.current.lexeme[1 .. self.parser.current.lexeme.len - 1],
-    ) catch exit(1);
+    errdefer exit(1);
 
-    self.emitConstant(.Object(strObj));
+    const lexeme: []const u8 = self.parser.current.lexeme;
+    const str_obj: *Obj = try mem.copyString(lexeme[1..(lexeme.len - 1)]);
+
+    self.emitConstant(.Object(str_obj));
 }
 
 /// Compile a number expression from the current source token.

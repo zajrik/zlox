@@ -128,7 +128,7 @@ fn concatenate(self: *Vm) !void {
 fn run(self: *Vm) ExecutionResult {
     while (true) {
         if (comptime debug.trace_execution) {
-            debug.printStack(&self.stack);
+            if (debug.print_stack) debug.printStack(&self.stack);
 
             _ = debug.disassembleInstruction(
                 self.chunk,
@@ -160,19 +160,19 @@ fn run(self: *Vm) ExecutionResult {
                 const b: Value = self.stack.peek(0);
                 const a: Value = self.stack.peek(1);
 
+                // If both values are numbers, add them
+                if (a.is(.number) and b.is(.number)) {
+                    const b_number: f32 = self.stack.pop().number;
+                    const a_number: f32 = self.stack.pop().number;
+                    self.stack.push(.Number(a_number + b_number));
+                }
+
                 // If both values are strings, conctatenate them
-                if (a.isObj(.string) and b.isObj(.string)) {
+                else if (a.isObj(.string) and b.isObj(.string)) {
                     self.concatenate() catch |err| {
                         self.runtimeError("Error concatenating strings: {any}", .{err});
                         return .runtime_error;
                     };
-                }
-
-                // If both values are numbers, add them
-                else if (a.is(.number) and b.is(.number)) {
-                    const b_number: f32 = self.stack.pop().number;
-                    const a_number: f32 = self.stack.pop().number;
-                    self.stack.push(.Number(a_number + b_number));
                 }
 
                 // Otherwise error for invalid operands
