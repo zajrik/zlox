@@ -105,11 +105,10 @@ pub fn free(ptr: anytype) void {
 
 // Free all allocated lox objects.
 pub fn freeObjects() void {
-    var object: ?*Obj = root_obj;
-    while (object != null) {
-        const next: ?*Obj = object.?.next;
-        object.?.destroy();
-        object = next;
+    while (root_obj) |obj| {
+        const next: ?*Obj = obj.next;
+        obj.destroy();
+        root_obj = next;
     }
 }
 

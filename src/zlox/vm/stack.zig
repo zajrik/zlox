@@ -57,6 +57,16 @@ pub fn Stack(comptime T: type) type {
             self.top = &self.values;
         }
 
+        /// Returns whether this stack is empty.
+        pub fn isEmpty(self: *Stack(T)) bool {
+            return self.top == &self.values;
+        }
+
+        /// Returns whether this stack has at least one item on it.
+        pub fn isNotEmpty(self: *Stack(T)) bool {
+            return self.top > &self.values;
+        }
+
         /// Push the given `value` to the top of this stack.
         pub fn push(self: *Stack(T), value: T) void {
             self.top[0] = value;

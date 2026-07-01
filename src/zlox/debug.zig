@@ -92,10 +92,10 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 
 /// Print the values on the given `stack`.
 pub fn printStack(stack: *Stack(Value)) void {
-    printf("           ", .{});
+    // If stack is empty, don't print anything
+    if (stack.isEmpty()) return;
 
-    // If stack is empty, print a closed stack
-    if (&stack.values - stack.top == 0) return printf("[]\n", .{});
+    printf("           ", .{});
 
     var slot: [*]Value = &stack.values;
     while (@intFromPtr(slot) < @intFromPtr(stack.top)) : (slot += 1) {

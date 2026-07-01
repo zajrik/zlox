@@ -220,15 +220,15 @@ fn run(self: *Vm) ExecutionResult {
 
 /// Read the next byte from the currently loaded chunk's instructions array.
 fn readByte(self: *Vm) u8 {
-    self.ip += 1;
-    return (self.ip - 1)[0];
+    defer self.ip += 1;
+    return self.ip[0];
 }
 
 /// Read the next two bytes from the currenty loaded chunk's instructions array,
 /// treating them as a single 16-bit value.
 fn readShort(self: *Vm) u16 {
-    self.ip += 2;
-    return (self.ip - 2)[0] << 8 | (self.ip - 1)[0];
+    defer self.ip += 2;
+    return self.ip[0] << 8 | self.ip[1];
 }
 
 /// Read a constant value from the currently loaded chunk's instructions array by
