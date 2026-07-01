@@ -18,7 +18,7 @@ const Vm = zlox.vm.Vm;
 // ============================================================================
 
 pub fn main(init: std.process.Init) !void {
-    mem.init(init.arena);
+    mem.initArena(init.arena);
 
     const lox_code: []u8 = try readFile(init.io, "test/test.lox");
     defer mem.free(lox_code);

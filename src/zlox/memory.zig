@@ -1,3 +1,9 @@
+//! The zlox memory management module.
+//!
+//! This is the one piece of global state I'm allowing myself in this project.
+//! I don't want to have to pass allocators all over the place when I'm not even
+//! writing this for public consumption or like as a library or anything 🤡
+
 const std = @import("std");
 const zlox = @import(".lib.zig");
 
@@ -8,24 +14,47 @@ const Obj = zlox.object.Obj;
 
 // ============================================================================
 
-var _allocator: *ArenaAllocator = undefined;
+var _arena: *ArenaAllocator = undefined;
+var _allocator: Allocator = undefined;
+var _initialized: bool = false;
+var _is_arena: bool = false;
 
 /// Initialize the memory module with the given `arena` allocator.
-pub fn init(arena: *ArenaAllocator) void {
-    _allocator = arena;
+///
+/// The memory module may only be initialized once.
+pub fn initArena(arena: *ArenaAllocator) void {
+    if (_initialized) return;
+    _initialized = true;
+    _is_arena = true;
+
+    _arena = arena;
+    _allocator = arena.allocator();
+}
+
+/// Initialize the memory module with the given `Allocator`.
+///
+/// The memory module may only be initialized once.
+pub fn init(a: Allocator) void {
+    if (_initialized) return;
+    _initialized = true;
+
+    _allocator = a;
 }
 
 /// Returns the global allocator.
 pub fn allocator() Allocator {
-    return _allocator.allocator();
+    return _allocator;
 }
 
-/// Releases all resources allocated by the global allocator.
+/// Releases all resources allocated by the global arena allocator.
+///
+/// Does nothing if the module was initialized with a non-arena allocator.
 ///
 /// This does not need to be called if using the ArenaAllocator provided by
 /// juicy main, since that's automatically cleaned up on exit.
 pub fn deinitAllocator() void {
-    _allocator.deinit();
+    if (!_is_arena) return;
+    _arena.deinit();
 }
 
 /// Allocate memory for a struct of type `T`.
