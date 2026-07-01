@@ -8,9 +8,9 @@ const zlox = @import("../../.lib.zig");
 
 const mem = zlox.mem;
 
-pub const String = @import("string.zig");
-
 const Writer = std.Io.Writer;
+
+pub const String = @import("string.zig");
 
 // ============================================================================
 
@@ -20,7 +20,7 @@ const Obj: type = @This();
 pub const Type = enum(u1) { string };
 
 /// Object body payload type for the given object `type`.
-fn Body(comptime @"type": Type) type {
+pub fn Body(comptime @"type": Type) type {
     return switch (@"type") {
         .string => String,
     };
@@ -42,6 +42,11 @@ as: union {
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns this obj and
 /// is responsible for freeing it.
+///
+/// Note: Objects created directly with this function are not able to be traced
+/// by the garbage collector unless reachable through some other traceable structure.
+///
+/// Use `zlox.mem.createObj()` when creating objects that need to be garbage-collectable.
 pub fn create(comptime @"type": Type, body: Body(@"type")) !*Obj {
     const obj: *Obj = try mem.create(Obj);
     obj.type = @"type";

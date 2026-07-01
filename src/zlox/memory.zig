@@ -19,6 +19,13 @@ var _allocator: Allocator = undefined;
 var _initialized: bool = false;
 var _is_arena: bool = false;
 
+/// Linked list of heap-allocated `Obj` values.
+///
+/// Contains all lox objects created by the VM at runtime, to be used by the
+/// garbage collector to reach unreferenced objects after tracing living object
+/// references.
+var root_obj: ?*Obj = null;
+
 /// Initialize the memory module with the given `arena` allocator.
 ///
 /// The memory module may only be initialized once.
@@ -94,6 +101,32 @@ pub fn free(ptr: anytype) void {
     return allocator().free(ptr);
 }
 
+// Object management functions ================================================
+
+// Free all allocated lox objects.
+pub fn freeObjects() void {
+    var object: ?*Obj = root_obj;
+    while (object != null) {
+        const next: ?*Obj = object.?.next;
+        object.?.destroy();
+        object = next;
+    }
+}
+
+/// Allocate a new `Obj` of the given `type` with the given `body`.
+///
+/// Returns a pointer to the allocated `Obj`.
+///
+/// Objects created with this function are linked to allow tracing by the GC.
+pub fn createObj(comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
+    const obj: *Obj = try .create(@"type", body);
+
+    obj.next = root_obj;
+    root_obj = obj;
+
+    return obj;
+}
+
 /// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
 /// allocated lox string `Obj`.
 ///
@@ -103,7 +136,7 @@ pub fn copyString(string: []const u8) !*Obj {
     const copy: []u8 = try alloc(u8, string.len);
     @memcpy(copy.ptr, string);
 
-    return try Obj.create(
+    return try createObj(
         .string,
         Obj.String{ .chars = copy },
     );
@@ -117,7 +150,7 @@ pub fn copyString(string: []const u8) !*Obj {
 ///
 /// The given `string` slice will be freed when the allocated `Obj` is freed.
 pub fn takeString(string: []const u8) !*Obj {
-    return try Obj.create(
+    return try createObj(
         .string,
         Obj.String{ .chars = string },
     );
