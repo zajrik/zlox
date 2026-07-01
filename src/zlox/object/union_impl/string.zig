@@ -6,3 +6,6 @@ const String: type = @This();
 /// This slice is owned by the lox string obj and must be freed when the obj
 /// is destroyed.
 chars: []const u8,
+
+/// Pre-calculated hash for this string.
+hash: u32 = 0,

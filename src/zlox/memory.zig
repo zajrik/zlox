@@ -9,6 +9,7 @@ const zlox = @import(".lib.zig");
 
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
+const Fnv1a_32 = std.hash.Fnv1a_32;
 
 const Obj = zlox.object.Obj;
 
@@ -18,6 +19,9 @@ var _arena: *ArenaAllocator = undefined;
 var _allocator: Allocator = undefined;
 var _initialized: bool = false;
 var _is_arena: bool = false;
+
+/// Growth factor for expanding array/table capacity.
+const growth_factor: usize = 2;
 
 /// Linked list of heap-allocated `Obj` values.
 ///
@@ -101,6 +105,13 @@ pub fn free(ptr: anytype) void {
     return allocator().free(ptr);
 }
 
+/// Increase the given `capacity` by a predefined growth factor.
+///
+/// Returns the increased capacity.
+pub fn growCapacity(capacity: usize) usize {
+    return if (capacity < 8) 8 else capacity * growth_factor;
+}
+
 // Object management functions ================================================
 
 // Free all allocated lox objects.
@@ -119,6 +130,11 @@ pub fn freeObjects() void {
 /// Objects created with this function are linked to allow tracing by the GC.
 pub fn createObj(comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
     const obj: *Obj = try .create(@"type", body);
+
+    // Pre-hash string values.
+    if (@"type" == .string) {
+        obj.as.string.hash = Fnv1a_32.hash(body.chars);
+    }
 
     obj.next = root_obj;
     root_obj = obj;

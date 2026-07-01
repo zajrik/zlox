@@ -15,6 +15,8 @@ const Tokenizer = zlox.tokenizer.Tokenizer;
 const Value = zlox.object.Value;
 const Vm = zlox.vm.Vm;
 
+const HashTable = zlox.object.HashTable;
+
 // ============================================================================
 
 pub fn main(init: std.process.Init) !void {
@@ -32,6 +34,28 @@ pub fn main(init: std.process.Init) !void {
 
     const result: ExecutionResult = vm.interpret(lox_code);
     std.debug.print("{}\n", .{result});
+
+    const table = try HashTable.create();
+    const str_1 = try mem.copyString("foo");
+    const str_2 = try mem.copyString("bar");
+    defer table.destroy();
+
+    _ = table.set(str_1, .Number(420));
+    _ = table.set(str_2, .Number(69));
+
+    std.debug.print("{?f} {?f}\n", .{ table.get(str_1), table.get(str_2) });
+
+    std.debug.print("{any}\n", .{table.entries});
+    std.debug.print("{any}\n", .{table.entries.len});
+
+    try table.resize(20);
+    _ = table.set(str_2, .Number(420));
+    _ = table.set(str_1, .Number(69));
+
+    std.debug.print("{?f} {?f}\n", .{ table.get(str_1), table.get(str_2) });
+
+    std.debug.print("{any}\n", .{table.entries});
+    std.debug.print("{any}\n", .{table.entries.len});
 }
 
 /// Read the contents of the file at the given `path` using the given `Io` implementation.
