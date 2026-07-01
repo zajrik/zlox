@@ -116,7 +116,7 @@ fn concatenate(self: *Vm) !void {
     @memcpy(new_chars.ptr, a);
     @memcpy(new_chars.ptr + a.len, b);
 
-    const new_string: *Obj = try .create(
+    const new_string: *Obj = try mem.createObj(
         .string,
         Obj.String{ .chars = new_chars },
     );
