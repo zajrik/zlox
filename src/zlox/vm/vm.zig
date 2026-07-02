@@ -12,6 +12,7 @@ const OpCode = zlox.compiler.OpCode;
 
 const Tokenizer = zlox.tokenizer.Tokenizer;
 
+const HashTable = zlox.object.HashTable;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
@@ -37,6 +38,9 @@ ip: [*]u8,
 /// Virtual machine value stack.
 stack: Stack(Value),
 
+/// Contains all runtime-interned strings.
+strings: *HashTable,
+
 /// Linked list of heap-allocated `Obj` values.
 ///
 /// Contains all lox objects created by the VM at runtime, to be used by the
@@ -50,12 +54,14 @@ root_obj: ?*Obj,
 pub fn create() !*Vm {
     const vm: *Vm = try mem.create(Vm);
     vm.stack.reset();
+    vm.strings = try .create();
     vm.root_obj = null;
     return vm;
 }
 
 /// Destroy this `Vm`, freeing its owned resources.
 pub fn destroy(self: *Vm) void {
+    self.strings.destroy();
     self.freeObjects();
     mem.destroy(self);
 }
@@ -256,9 +262,19 @@ fn readConstant(self: *Vm) Value {
 pub fn createObj(self: *Vm, comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
     const obj: *Obj = try .create(@"type", body);
 
-    // Pre-hash string values.
+    // Pre-hash and intern string objects
     if (@"type" == .string) {
-        obj.as.string.hash = Fnv1a_32.hash(body.chars);
+        const hash: u32 = Fnv1a_32.hash(body.chars);
+        const interned_string: ?*Obj = self.strings.findString(body.chars, hash);
+
+        // Return interned string if it exists
+        if (interned_string) |str| {
+            obj.destroy();
+            return str;
+        }
+
+        obj.as.string.hash = hash;
+        _ = self.strings.set(obj, .Nil);
     }
 
     // Link object for GC tracing

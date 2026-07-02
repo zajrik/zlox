@@ -10,6 +10,7 @@ const Value = zlox.object.Value;
 
 const Writer = std.Io.Writer;
 
+const eql = std.mem.eql;
 const exit = std.process.exit;
 
 // ============================================================================
@@ -121,13 +122,38 @@ fn findEntry(self: *HashTable, key: *Obj) *Entry {
         }
 
         // Otherwise check if key matches and move on to the next slot if not.
-        //
-        // Comparing strings for now but we'll compare references after string
-        // interning is in place
-        else if (std.mem.eql(u8, entry.key.?.as.string.chars, key.as.string.chars)) {
-            return entry;
+        else if (entry.key == key) return entry;
+
+        index = (index + 1) % self.entries.len;
+    }
+}
+
+/// Find a string key object in this table matching the given `chars` and `hash`.
+///
+/// Returns a pointer to the string key object, or `null` if no key was found.
+pub fn findString(self: *HashTable, chars: []const u8, hash: u32) ?*Obj {
+    if (self.count == 0 or self.entries.len == 0) return null;
+
+    var index: usize = hash % self.entries.len;
+
+    while (true) {
+        const entry: *Entry = &self.entries[index];
+
+        // If entry key isn't null, check that it's the one we're looking for
+        // and return it if so
+        if (entry.key) |key| {
+            const key_str: Obj.String = key.as.string;
+            const key_match: bool = key_str.chars.len == chars.len and
+                key_str.hash == hash and
+                eql(u8, key_str.chars, chars);
+
+            if (key_match) return key;
         }
 
+        // If it's an empty slot, no key was found
+        else if (entry.val.is(.nil)) return null;
+
+        // Otherwise continue to the next slot
         index = (index + 1) % self.entries.len;
     }
 }
