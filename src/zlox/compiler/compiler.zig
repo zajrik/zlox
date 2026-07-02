@@ -28,6 +28,7 @@ const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
 const TokenType = zlox.tokenizer.TokenType;
 
+const HashTable = zlox.object.HashTable;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
@@ -56,14 +57,20 @@ scope_depth: u16 = 0,
 /// TODO: Chunks will be encapsulated by function objects after objects are implemented
 chunk: ?*Chunk = null,
 
+/// Table for interning strings at compile time.
+///
+/// This is not owned by the compiler and does not need to be freed when the
+/// compiler is freed.
+strings: *HashTable,
+
 /// Allocate a new `Compiler` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
-pub fn create(parser: *Parser) !*Compiler {
-    return try mem.createStruct(
-        Compiler,
-        Compiler{ .parser = parser },
-    );
+pub fn create(parser: *Parser, interned_strings: *HashTable) !*Compiler {
+    return try mem.createStruct(Compiler, .{
+        .parser = parser,
+        .strings = interned_strings,
+    });
 }
 
 /// Destroy this `Compiler`, freeing its owned resources.
@@ -199,7 +206,7 @@ fn string(self: *Compiler) void {
     errdefer exit(1);
 
     const lexeme: []const u8 = self.parser.current.lexeme;
-    const str_obj: *Obj = try copyString(lexeme[1..(lexeme.len - 1)]);
+    const str_obj: *Obj = try self.copyString(lexeme[1..(lexeme.len - 1)]);
 
     self.emitConstant(.Object(str_obj));
 }
@@ -325,12 +332,22 @@ fn emitConstant(self: *Compiler, value: Value) void {
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns the returned pointer
 /// and is responsible for freeing it.
-pub fn createObj(comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
+pub fn createObj(self: *Compiler, comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
     const obj: *Obj = try .createConstant(@"type", body);
 
-    // Pre-hash string values.
+    // Pre-hash and intern string objects
     if (@"type" == .string) {
-        obj.as.string.hash = Fnv1a_32.hash(body.chars);
+        const hash: u32 = Fnv1a_32.hash(body.chars);
+        const interned_string: ?*Obj = self.strings.findString(body.chars, hash);
+
+        // Return interned string if it exists
+        if (interned_string) |str| {
+            obj.destroy();
+            return str;
+        }
+
+        obj.as.string.hash = hash;
+        _ = self.strings.set(obj, .Nil);
     }
 
     return obj;
@@ -341,11 +358,11 @@ pub fn createObj(comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
 ///
 /// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
 /// pointer and is responsible for freeing it.
-pub fn copyString(chars: []const u8) !*Obj {
+pub fn copyString(self: *Compiler, chars: []const u8) !*Obj {
     const copy: []u8 = try mem.alloc(u8, chars.len);
     @memcpy(copy.ptr, chars);
 
-    return try createObj(
+    return try self.createObj(
         .string,
         Obj.String{ .chars = copy },
     );
