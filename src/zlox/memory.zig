@@ -9,9 +9,6 @@ const zlox = @import(".lib.zig");
 
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
-const Fnv1a_32 = std.hash.Fnv1a_32;
-
-const Obj = zlox.object.Obj;
 
 // ============================================================================
 
@@ -22,13 +19,6 @@ var _is_arena: bool = false;
 
 /// Growth factor for expanding array/table capacity.
 const growth_factor: usize = 2;
-
-/// Linked list of heap-allocated `Obj` values.
-///
-/// Contains all lox objects created by the VM at runtime, to be used by the
-/// garbage collector to reach unreferenced objects after tracing living object
-/// references.
-var root_obj: ?*Obj = null;
 
 /// Initialize the memory module with the given `arena` allocator.
 ///
@@ -110,63 +100,4 @@ pub fn free(ptr: anytype) void {
 /// Returns the increased capacity.
 pub fn growCapacity(capacity: usize) usize {
     return if (capacity < 8) 8 else capacity * growth_factor;
-}
-
-// Object management functions ================================================
-
-// Free all allocated lox objects.
-pub fn freeObjects() void {
-    while (root_obj) |obj| {
-        const next: ?*Obj = obj.next;
-        obj.destroy();
-        root_obj = next;
-    }
-}
-
-/// Allocate a new `Obj` of the given `type` with the given `body`.
-///
-/// Returns a pointer to the allocated `Obj`.
-///
-/// Objects created with this function are linked to allow tracing by the GC.
-pub fn createObj(comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
-    const obj: *Obj = try .create(@"type", body);
-
-    // Pre-hash string values.
-    if (@"type" == .string) {
-        obj.as.string.hash = Fnv1a_32.hash(body.chars);
-    }
-
-    obj.next = root_obj;
-    root_obj = obj;
-
-    return obj;
-}
-
-/// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
-/// allocated lox string `Obj`.
-///
-/// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
-/// pointer and is responsible for freeing it.
-pub fn copyString(string: []const u8) !*Obj {
-    const copy: []u8 = try alloc(u8, string.len);
-    @memcpy(copy.ptr, string);
-
-    return try createObj(
-        .string,
-        Obj.String{ .chars = copy },
-    );
-}
-
-/// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
-/// the given slice.
-///
-/// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
-/// pointer and is responsible for freeing it.
-///
-/// The given `string` slice will be freed when the allocated `Obj` is freed.
-pub fn takeString(string: []const u8) !*Obj {
-    return try createObj(
-        .string,
-        Obj.String{ .chars = string },
-    );
 }

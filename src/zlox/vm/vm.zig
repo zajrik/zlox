@@ -5,7 +5,6 @@ const zlox = @import("../.lib.zig");
 
 const debug = zlox.debug;
 const mem = zlox.mem;
-const val = zlox.object.val;
 
 const Chunk = zlox.compiler.Chunk;
 const Compiler = zlox.compiler.Compiler;
@@ -20,6 +19,8 @@ const Parser = zlox.parser.Parser;
 
 const ExecutionResult = zlox.vm.ExecutionResult;
 const Stack = zlox.vm.Stack;
+
+const Fnv1a_32 = std.hash.Fnv1a_32;
 
 const printf = std.debug.print;
 
@@ -36,17 +37,26 @@ ip: [*]u8,
 /// Virtual machine value stack.
 stack: Stack(Value),
 
+/// Linked list of heap-allocated `Obj` values.
+///
+/// Contains all lox objects created by the VM at runtime, to be used by the
+/// garbage collector to reach unreferenced objects after tracing living object
+/// references.
+root_obj: ?*Obj,
+
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create() !*Vm {
     const vm: *Vm = try mem.create(Vm);
     vm.stack.reset();
+    vm.root_obj = null;
     return vm;
 }
 
 /// Destroy this `Vm`, freeing its owned resources.
 pub fn destroy(self: *Vm) void {
+    self.freeObjects();
     mem.destroy(self);
 }
 
@@ -116,10 +126,7 @@ fn concatenate(self: *Vm) !void {
     @memcpy(new_chars.ptr, a);
     @memcpy(new_chars.ptr + a.len, b);
 
-    const new_string: *Obj = try mem.createObj(
-        .string,
-        Obj.String{ .chars = new_chars },
-    );
+    const new_string: *Obj = try self.takeString(new_chars);
 
     self.stack.push(.Object(new_string));
 }
@@ -237,6 +244,68 @@ fn readShort(self: *Vm) u16 {
 fn readConstant(self: *Vm) Value {
     return self.chunk.constantAt(self.readByte());
 }
+
+// Object management functions ================================================
+
+/// Allocate a new `Obj` of the given `type` with the given `body`.
+///
+/// Returns a pointer to the allocated `Obj`.
+///
+/// Objects created this way are managed by the garbage collector, or cleaned up
+/// when the VM is freed if they live until the end of the program.
+pub fn createObj(self: *Vm, comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
+    const obj: *Obj = try .create(@"type", body);
+
+    // Pre-hash string values.
+    if (@"type" == .string) {
+        obj.as.string.hash = Fnv1a_32.hash(body.chars);
+    }
+
+    // Link object for GC tracing
+    obj.next = self.root_obj;
+    self.root_obj = obj;
+
+    return obj;
+}
+
+/// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
+/// the given slice.
+///
+/// The given `string` slice will be freed when the allocated `Obj` is freed.
+///
+/// Returns a pointer to the allocated lox string `Obj`.
+///
+/// Objects created this way are managed by the garbage collector, or cleaned up
+/// when the VM is freed if they live until the end of the program.
+pub fn takeString(self: *Vm, string: []const u8) !*Obj {
+    return try self.createObj(
+        .string,
+        Obj.String{ .chars = string },
+    );
+}
+
+/// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
+/// allocated lox string `Obj`.
+///
+/// Returns a pointer to the allocated lox string `Obj`.
+///
+/// Objects created this way are managed by the garbage collector, or cleaned up
+/// when the VM is freed if they live until the end of the program.
+pub fn copyString(self: *Vm, string: []const u8) !*Obj {
+    const copy: []u8 = try mem.alloc(u8, string.len);
+    @memcpy(copy.ptr, string);
+    return try self.takeString(copy);
+}
+
+// Free all lox objects allocated by the vm.
+pub fn freeObjects(self: *Vm) void {
+    while (self.root_obj) |obj| {
+        self.root_obj = obj.next;
+        obj.destroy();
+    }
+}
+
+// ============================================================================
 
 /// Print a runtime error and stack trace at the current instruction.
 fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {

@@ -21,7 +21,6 @@ const HashTable = zlox.object.HashTable;
 
 pub fn main(init: std.process.Init) !void {
     mem.initArena(init.arena);
-    defer mem.freeObjects();
 
     const lox_code: []u8 = try readFile(init.io, "test/test.lox");
     defer mem.free(lox_code);
@@ -36,8 +35,8 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("{}\n", .{result});
 
     const table = try HashTable.create();
-    const str_1 = try mem.copyString("foo");
-    const str_2 = try mem.copyString("bar");
+    const str_1 = try vm.copyString("aaa");
+    const str_2 = try vm.copyString("bbb");
     defer table.destroy();
 
     _ = table.set(str_1, .Number(420));

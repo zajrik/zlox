@@ -31,6 +31,8 @@ const TokenType = zlox.tokenizer.TokenType;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
+const Fnv1a_32 = std.hash.Fnv1a_32;
+
 const exit = std.process.exit;
 
 // ============================================================================
@@ -197,7 +199,7 @@ fn string(self: *Compiler) void {
     errdefer exit(1);
 
     const lexeme: []const u8 = self.parser.current.lexeme;
-    const str_obj: *Obj = try mem.copyString(lexeme[1..(lexeme.len - 1)]);
+    const str_obj: *Obj = try copyString(lexeme[1..(lexeme.len - 1)]);
 
     self.emitConstant(.Object(str_obj));
 }
@@ -315,4 +317,36 @@ fn emitOp3(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void
 /// the constants array offset of the given `value`.
 fn emitConstant(self: *Compiler, value: Value) void {
     self.emitOp1(.constant, self.makeConstant(value));
+}
+
+// Object creation methods ====================================================
+
+/// Allocate a new `Obj` of the given `type` with the given `body`.
+///
+/// Returns a pointer to the allocated `Obj`. The caller owns the returned pointer
+/// and is responsible for freeing it.
+pub fn createObj(comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
+    const obj: *Obj = try .createConstant(@"type", body);
+
+    // Pre-hash string values.
+    if (@"type" == .string) {
+        obj.as.string.hash = Fnv1a_32.hash(body.chars);
+    }
+
+    return obj;
+}
+
+/// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
+/// allocated lox string `Obj`.
+///
+/// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
+/// pointer and is responsible for freeing it.
+pub fn copyString(chars: []const u8) !*Obj {
+    const copy: []u8 = try mem.alloc(u8, chars.len);
+    @memcpy(copy.ptr, chars);
+
+    return try createObj(
+        .string,
+        Obj.String{ .chars = copy },
+    );
 }

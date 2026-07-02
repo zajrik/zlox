@@ -44,6 +44,11 @@ pub fn destroy(self: *Chunk) void {
     defer mem.destroy(self);
     self.instructions.deinit(mem.allocator());
     self.lines.deinit(mem.allocator());
+
+    // Free compile-time constant objs
+    for (self.constants.items) |constant| {
+        if (constant.is(.obj)) constant.obj.destroy();
+    }
     self.constants.deinit(mem.allocator());
 }
 
