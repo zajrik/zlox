@@ -83,6 +83,6 @@ pub fn isNot(self: *const Obj, @"type": Type) bool {
 /// Custom formatter for `Obj` values.
 pub fn format(self: *const Obj, writer: *Writer) Writer.Error!void {
     switch (self.type) {
-        .string => try writer.print("{s}", .{self.as.string.chars}),
+        .string => try writer.print("{f}", .{self.as.string}),
     }
 }

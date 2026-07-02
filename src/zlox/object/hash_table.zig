@@ -19,7 +19,7 @@ const HashTable: type = @This();
 const max_load: f32 = 0.75;
 
 /// An entry within a hash-table.
-pub const Entry = struct {
+const Entry = struct {
     /// The key associated with this entry.
     ///
     /// An entry with a `null` key is either unused, or a tombstone for a
@@ -30,10 +30,10 @@ pub const Entry = struct {
     val: Value,
 
     /// An empty `Entry` struct.
-    pub const empty: Entry = .{ .key = null, .val = .Nil };
+    const empty: Entry = .{ .key = null, .val = .Nil };
 
     /// A tombstone `Entry` value, inserted in place of deleted entries.
-    pub const tombstone: Entry = .{ .key = null, .val = .Bool(true) };
+    const tombstone: Entry = .{ .key = null, .val = .Bool(true) };
 
     /// Custom formatter for `Entry` values.
     pub fn format(self: Entry, writer: *Writer) Writer.Error!void {
@@ -78,7 +78,7 @@ pub fn destroy(self: *HashTable) void {
 /// are moved in this case is technically deterministic because of the hashing
 /// algorithm for string keys and the open addressing method of entry insertion,
 /// but I certainly couldn't prove it mathmatically 🤡
-pub fn resize(self: *HashTable, capacity: usize) !void {
+fn resize(self: *HashTable, capacity: usize) !void {
     // Allocate and pre-populate new entries array
     const entries: []Entry = try mem.alloc(Entry, capacity);
     for (entries) |*entry| entry.* = .empty;
@@ -101,6 +101,8 @@ pub fn resize(self: *HashTable, capacity: usize) !void {
 
 /// Find an `Entry` with the given `key` in this table.
 fn findEntry(self: *HashTable, key: *Obj) *Entry {
+    if (key.isNot(.string)) @panic("HashTable only supports string keys");
+
     var index: usize = key.as.string.hash % self.entries.len;
     var tombstone: ?*Entry = null;
 
@@ -136,8 +138,9 @@ fn findEntry(self: *HashTable, key: *Obj) *Entry {
 pub fn set(self: *HashTable, key: *Obj, val: Value) bool {
     errdefer exit(1);
 
-    const max_load_capacity: f32 = @as(f32, @floatFromInt(self.entries.len)) * max_load;
-    const new_count: f32 = @as(f32, @floatFromInt(self.count + 1));
+    const new_count: f64 = @as(f64, @floatFromInt(self.count + 1));
+    const max_load_capacity: f64 = @as(f64, @floatFromInt(self.entries.len)) * max_load;
+
     if (new_count > max_load_capacity) {
         try self.resize(mem.growCapacity(self.entries.len));
     }

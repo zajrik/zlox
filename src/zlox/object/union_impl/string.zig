@@ -1,4 +1,10 @@
 //! A lox string `Obj` union struct.
+
+const std = @import("std");
+const Writer = std.Io.Writer;
+
+// ============================================================================
+
 const String: type = @This();
 
 /// Slice of characters within this lox string.
@@ -9,3 +15,8 @@ chars: []const u8,
 
 /// Pre-calculated hash for this string.
 hash: u32 = 0,
+
+/// Custom formatter for `Obj.String` values.
+pub fn format(self: *const String, writer: *Writer) Writer.Error!void {
+    try writer.print("{s}", .{self.chars});
+}

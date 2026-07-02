@@ -48,14 +48,13 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("{any}\n", .{table.entries});
     std.debug.print("{any}\n", .{table.entries.len});
 
-    try table.resize(20);
     _ = table.set(str_2, .Number(420));
     _ = table.set(str_1, .Number(69));
 
     std.debug.print("{?f} {?f}\n", .{ table.get(str_1), table.get(str_2) });
 
-    std.debug.print("{any}\n", .{table.entries});
-    std.debug.print("{any}\n", .{table.entries.len});
+    for (table.entries) |entry| std.debug.print("{f}, ", .{entry});
+    std.debug.print("{d}\n", .{table.entries.len});
 }
 
 /// Read the contents of the file at the given `path` using the given `Io` implementation.
