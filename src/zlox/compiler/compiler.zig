@@ -77,7 +77,7 @@ pub fn create(parser: *Parser, interned_strings: *HashTable) !*Compiler {
 }
 
 /// Destroy this `Compiler`, freeing its owned resources.
-pub fn destroy(self: *Compiler) void {
+pub fn destroy(self: *const Compiler) void {
     mem.destroy(self);
 }
 
@@ -101,7 +101,7 @@ pub fn compile(self: *Compiler) !?*Chunk {
 }
 
 /// Return the compiled chunk, ending compilation.
-fn endCompilation(self: *Compiler) ?*Chunk {
+fn endCompilation(self: *const Compiler) ?*Chunk {
     if (self.chunk) |chunk| {
         self.emitOp(.@"return");
         if ((comptime debug.dump_chunk) and self.parser.had_error) {
@@ -127,7 +127,7 @@ fn popScope(self: *Compiler) void {
 /// Execute the given statement rule within a new scope.
 ///
 /// The scope will be popped when the rule completes.
-fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
+fn scope(self: *Compiler, rule: fn (*const Compiler) void) void {
     self.pushScope();
     rule(self);
     self.popScope();
@@ -136,7 +136,7 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
 // Statement compilation methods ==============================================
 
 /// Compile a declaration from source tokens.
-fn declaration(self: *Compiler) void {
+fn declaration(self: *const Compiler) void {
     switch (self.parser.next.type) {
         .keyword_var => do(self.parser.advance(), self.variableDeclaration()),
         else => self.statement(),
@@ -146,8 +146,8 @@ fn declaration(self: *Compiler) void {
 }
 
 /// Compile a variable declaration statement from source tokens.
-fn variableDeclaration(self: *Compiler) void {
-    const ident_offset: u8 = self.variableIdentifier("Expected variable name");
+fn variableDeclaration(self: *const Compiler) void {
+    const ident_offset: u8 = self.variableIdentifier("Expected variable name.");
 
     if (self.parser.nextMatches(.equal)) self.expression() else self.emitOp(.nil);
     self.parser.consume(.semicolon, "Expected ';' after variable declaration.");
@@ -156,7 +156,7 @@ fn variableDeclaration(self: *Compiler) void {
 }
 
 /// Compile a statement from source tokens.
-fn statement(self: *Compiler) void {
+fn statement(self: *const Compiler) void {
     switch (self.parser.next.type) {
         .keyword_print => do(self.parser.advance(), self.printStmt()),
         else => self.expressionStmt(),
@@ -164,14 +164,14 @@ fn statement(self: *Compiler) void {
 }
 
 /// Compile a print statement from source tokens.
-fn printStmt(self: *Compiler) void {
+fn printStmt(self: *const Compiler) void {
     self.expression();
     self.parser.consume(.semicolon, "Expected ';' after value.");
     self.emitOp(.print);
 }
 
 /// Compile an expression statement from source tokens.
-fn expressionStmt(self: *Compiler) void {
+fn expressionStmt(self: *const Compiler) void {
     self.expression();
     self.parser.consume(.semicolon, "Expected ';' after expression.");
     self.emitOp(.pop);
@@ -219,12 +219,12 @@ fn mapRule(rule: ?Rule) ?ExprFn {
 }
 
 /// Compile an expression from source tokens.
-fn expression(self: *Compiler) void {
+fn expression(self: *const Compiler) void {
     self.expr(.assignment);
 }
 
 /// Compile an expression from source tokens with the given `precedence`.
-fn expr(self: *Compiler, precedence: Precedence) void {
+fn expr(self: *const Compiler, precedence: Precedence) void {
     self.parser.advance();
 
     // Start with a prefix rule to parse/compile the first expression. The first token
@@ -259,13 +259,13 @@ fn expr(self: *Compiler, precedence: Precedence) void {
 }
 
 /// Compile a parenthesized grouping expression from source tokens.
-fn grouping(self: *Compiler) void {
+fn grouping(self: *const Compiler) void {
     self.expression();
     self.parser.consume(.paren_right, "Expected ')' after expression.");
 }
 
 /// Compile a string expression from the current source token.
-fn string(self: *Compiler) void {
+fn string(self: *const Compiler) void {
     errdefer exit(1);
 
     const lexeme: []const u8 = self.parser.current.lexeme;
@@ -275,7 +275,7 @@ fn string(self: *Compiler) void {
 }
 
 /// Compile a number expression from the current source token.
-fn number(self: *Compiler) void {
+fn number(self: *const Compiler) void {
     const value: f32 = parseFloat(f32, self.parser.current.lexeme) catch {
         return self.parser.@"error"("Invalid number literal.");
     };
@@ -283,7 +283,7 @@ fn number(self: *Compiler) void {
 }
 
 /// Compile a literal expression from the current source token.
-fn literal(self: *Compiler) void {
+fn literal(self: *const Compiler) void {
     switch (self.parser.current.type) {
         .keyword_nil => self.emitOp(.nil),
         .keyword_true => self.emitOp(.true),
@@ -293,7 +293,7 @@ fn literal(self: *Compiler) void {
 }
 
 /// Compile a unary expression from source tokens.
-fn unary(self: *Compiler) void {
+fn unary(self: *const Compiler) void {
     const operator_type: TokenType = self.parser.current.type;
 
     self.expr(.unary);
@@ -306,7 +306,7 @@ fn unary(self: *Compiler) void {
 }
 
 /// Compile a binary expression from source tokens.
-fn binary(self: *Compiler) void {
+fn binary(self: *const Compiler) void {
     const operator: Token = self.parser.current;
     const strategy: ParseStrategy = .forToken(operator);
 
@@ -336,7 +336,7 @@ fn binary(self: *Compiler) void {
 /// for the variable's identifier in the compiling chunk's constants array.
 ///
 /// If the variable identifier cannot be parsed, errors with message `expect`.
-fn variableIdentifier(self: *Compiler, expect: []const u8) u8 {
+fn variableIdentifier(self: *const Compiler, expect: []const u8) u8 {
     self.parser.consume(.identifier, expect);
     return self.makeIdentConstant(&self.parser.current);
 }
@@ -350,8 +350,8 @@ fn variableIdentifier(self: *Compiler, expect: []const u8) u8 {
 /// If we're in the global scope, emit bytecode to define the global variable,
 /// passing the offset of the global variable's constant identifier string as
 /// the operand.
-fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
     self.emitOp1(.define_global, ident_const_offset);
+fn defineVariable(self: *const Compiler, ident_const_offset: u8) void {
 }
 
 // Chunk-writing methods ======================================================
@@ -359,7 +359,7 @@ fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
 /// Add the given `value` to the constants in the chunk being compiled.
 ///
 /// Returns the offset of the added constant.
-fn makeConstant(self: *Compiler, value: Value) u8 {
+fn makeConstant(self: *const Compiler, value: Value) u8 {
     // Check for existing constant matching this value and return its offset if
     // it already exists.
     if (self.chunk.?.findConstant(value)) |offset| return offset;
@@ -376,7 +376,7 @@ fn makeConstant(self: *Compiler, value: Value) u8 {
 
 /// Push an identifier's string to the current chunk's constants array, returning
 /// the offset of the added constant string.
-fn makeIdentConstant(self: *Compiler, token: *Token) u8 {
+fn makeIdentConstant(self: *const Compiler, token: *const Token) u8 {
     return self.makeConstant(
         .Object(
             self.copyString(token.lexeme) catch {
@@ -388,30 +388,30 @@ fn makeIdentConstant(self: *Compiler, token: *Token) u8 {
 }
 
 /// Write the given `byte` to the chunk currently being compiled.
-fn emitByte(self: *Compiler, byte: u8) void {
+fn emitByte(self: *const Compiler, byte: u8) void {
     self.chunk.?.writeByte(byte, self.parser.current.line);
 }
 
 /// Write the given `op` to the chunk currently being compiled.
-fn emitOp(self: *Compiler, op: OpCode) void {
+fn emitOp(self: *const Compiler, op: OpCode) void {
     self.emitByte(op.toByte());
 }
 
 /// Write the two given `OpCode` values to the chunk currently being compiled.
-fn emitOps(self: *Compiler, op_1: OpCode, op_2: OpCode) void {
+fn emitOps(self: *const Compiler, op_1: OpCode, op_2: OpCode) void {
     self.emitOp1(op_1, op_2.toByte());
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by a single
 /// byte operand.
-fn emitOp1(self: *Compiler, op: OpCode, byte: u8) void {
+fn emitOp1(self: *const Compiler, op: OpCode, byte: u8) void {
     self.emitOp(op);
     self.emitByte(byte);
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by two
 /// byte operands.
-fn emitOp2(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
+fn emitOp2(self: *const Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
     self.emitOp(op);
     self.emitByte(byte_1);
     self.emitByte(byte_2);
@@ -419,7 +419,7 @@ fn emitOp2(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
 
 /// Write the given `op` to the chunk currently being compiled, followed by three
 /// byte operands.
-fn emitOp3(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void {
+fn emitOp3(self: *const Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void {
     self.emitOp(op);
     self.emitByte(byte_1);
     self.emitByte(byte_2);
@@ -428,7 +428,7 @@ fn emitOp3(self: *Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void
 
 /// Write `OpCode.constant` to the chunk currently being compiled, followed by
 /// the constants array offset of the given `value`.
-fn emitConstant(self: *Compiler, value: Value) void {
+fn emitConstant(self: *const Compiler, value: Value) void {
     self.emitOp1(.constant, self.makeConstant(value));
 }
 
@@ -438,7 +438,11 @@ fn emitConstant(self: *Compiler, value: Value) void {
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns the returned pointer
 /// and is responsible for freeing it.
-pub fn createObj(self: *Compiler, comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
+pub fn createObj(
+    self: *const Compiler,
+    comptime @"type": Obj.Type,
+    body: Obj.Body(@"type"),
+) !*Obj {
     const obj: *Obj = try .createConstant(@"type", body);
 
     // Pre-hash and intern string objects
@@ -464,7 +468,7 @@ pub fn createObj(self: *Compiler, comptime @"type": Obj.Type, body: Obj.Body(@"t
 ///
 /// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
 /// pointer and is responsible for freeing it.
-pub fn copyString(self: *Compiler, chars: []const u8) !*Obj {
+pub fn copyString(self: *const Compiler, chars: []const u8) !*Obj {
     const copy: []u8 = try mem.alloc(u8, chars.len);
     @memcpy(copy.ptr, chars);
 

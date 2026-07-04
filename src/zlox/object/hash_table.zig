@@ -101,7 +101,7 @@ fn resize(self: *HashTable, capacity: usize) !void {
 }
 
 /// Find an `Entry` with the given `key` in this table.
-fn findEntry(self: *HashTable, key: *Obj) *Entry {
+fn findEntry(self: *const HashTable, key: *Obj) *Entry {
     if (key.isNot(.string)) @panic("HashTable only supports string keys");
 
     var index: usize = key.as.string.hash % self.entries.len;
@@ -131,7 +131,7 @@ fn findEntry(self: *HashTable, key: *Obj) *Entry {
 /// Find a string key object in this table matching the given `chars` and `hash`.
 ///
 /// Returns a pointer to the string key object, or `null` if no key was found.
-pub fn findString(self: *HashTable, chars: []const u8, hash: u32) ?*Obj {
+pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj {
     if (self.count == 0 or self.entries.len == 0) return null;
 
     var index: usize = hash % self.entries.len;
@@ -160,7 +160,7 @@ pub fn findString(self: *HashTable, chars: []const u8, hash: u32) ?*Obj {
 
 /// Set a value in this table under the given `key`.
 ///
-/// Returns whether an existing entry was overwritten.
+/// Returns whether the entry was empty before the given value was set.
 pub fn set(self: *HashTable, key: *Obj, val: Value) bool {
     errdefer exit(1);
 
@@ -193,7 +193,7 @@ pub fn addAll(self: *HashTable, other: *HashTable) void {
 }
 
 /// Get the value from this table at the given `key`, if it exists.
-pub fn get(self: *HashTable, key: *Obj) ?Value {
+pub fn get(self: *const HashTable, key: *Obj) ?Value {
     if (self.count == 0) return null;
 
     const entry: *Entry = self.findEntry(key);
@@ -203,7 +203,7 @@ pub fn get(self: *HashTable, key: *Obj) ?Value {
 }
 
 /// Returns whether this table has an existing entry for the given `key`.
-pub fn hasKey(self: *HashTable, key: *Obj) bool {
+pub fn hasKey(self: *const HashTable, key: *Obj) bool {
     return self.count != 0 and self.findEntry(key).key != null;
 }
 

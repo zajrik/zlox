@@ -53,22 +53,22 @@ pub fn destroy(self: *Chunk) void {
 }
 
 /// Returns whether this chunk has any instructions to execute.
-pub fn isEmpty(self: *Chunk) bool {
+pub fn isEmpty(self: *const Chunk) bool {
     return self.instructions.items.len == 0;
 }
 
 /// Returns the instruction at the given offset.
-pub inline fn instructionAt(self: *Chunk, offset: usize) u8 {
+pub inline fn instructionAt(self: *const Chunk, offset: usize) u8 {
     return self.instructions.items[offset];
 }
 
 /// Returns the line number at the given offset.
-pub inline fn lineAt(self: *Chunk, offset: usize) u16 {
+pub inline fn lineAt(self: *const Chunk, offset: usize) u16 {
     return self.lines.items[offset];
 }
 
 /// Returns the constant value at the given offset.
-pub inline fn constantAt(self: *Chunk, offset: usize) Value {
+pub inline fn constantAt(self: *const Chunk, offset: usize) Value {
     return self.constants.items[offset];
 }
 
@@ -91,7 +91,7 @@ pub fn addConstant(self: *Chunk, value: Value) u8 {
 /// constants array.
 ///
 /// Returns `null` if the constant does not already exist.
-pub fn findConstant(self: *Chunk, value: Value) ?u8 {
+pub fn findConstant(self: *const Chunk, value: Value) ?u8 {
     for (self.constants.items, 0..) |constant, offset| {
         if (constant.equals(value)) return @as(u8, @truncate(offset));
     }

@@ -94,13 +94,13 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 }
 
 /// Print the values on the given `stack`.
-pub fn printStack(stack: *Stack(Value)) void {
+pub fn printStack(stack: *const Stack(Value)) void {
     // If stack is empty, don't print anything
     if (stack.isEmpty()) return;
 
     printf("           ", .{});
 
-    var slot: [*]Value = &stack.values;
+    var slot: [*]const Value = &stack.values;
     while (@intFromPtr(slot) < @intFromPtr(stack.top)) : (slot += 1) {
         printf("[ {f} ]", .{slot[0]});
     }

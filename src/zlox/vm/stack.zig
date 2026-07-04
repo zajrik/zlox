@@ -58,12 +58,12 @@ pub fn Stack(comptime T: type) type {
         }
 
         /// Returns whether this stack is empty.
-        pub fn isEmpty(self: *Stack(T)) bool {
+        pub fn isEmpty(self: *const Stack(T)) bool {
             return self.top == &self.values;
         }
 
         /// Returns whether this stack has at least one item on it.
-        pub fn isNotEmpty(self: *Stack(T)) bool {
+        pub fn isNotEmpty(self: *const Stack(T)) bool {
             return self.top > &self.values;
         }
 
@@ -87,7 +87,7 @@ pub fn Stack(comptime T: type) type {
 
         /// Peek at a value in the stack, offset by `distance` from the top of this
         /// stack.
-        pub fn peek(self: *Stack(T), distance: usize) T {
+        pub fn peek(self: *const Stack(T), distance: usize) T {
             return (self.top - 1 - distance)[0];
         }
 

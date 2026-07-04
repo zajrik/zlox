@@ -49,6 +49,11 @@ pub fn isDiscard(self: Token) bool {
     return self.lexeme.len == 1 and self.lexeme[0] == '_';
 }
 
+/// Returns whether this token's lexeme is equal to the lexeme of `other`.
+pub fn lexemeEquals(self: Token, other: Token) void {
+    return std.mem.eql(u8, self.lexeme, other.lexeme);
+}
+
 /// Custom formatter for `Token` values.
 pub fn format(self: Token, writer: *Writer) Writer.Error!void {
     try writer.writeAll("Token { ");

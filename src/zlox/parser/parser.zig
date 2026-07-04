@@ -96,11 +96,6 @@ pub fn nextMatches(self: *Parser, @"type": TokenType) bool {
     return true;
 }
 
-/// Returns whether the given tokens have the same identifier lexemes.
-pub fn identifiersEqual(a: Token, b: Token) bool {
-    return std.mem.eql(u8, a.lexeme, b.lexeme);
-}
-
 // Error management ===========================================================
 
 /// Output error `msg` at the given `token`.
