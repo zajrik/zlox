@@ -266,10 +266,10 @@ fn consumeNumber(self: *Tokenizer) Token {
 /// Returns the tokenized string literal.
 fn consumeString(self: *Tokenizer) Token {
     while (self.peek() != '"' and !self.isAtEnd()) {
-        // Increment line count and reset column after advancing on new line
+        // Increment line count and reset column on new line
         if (self.peek() == '\n') {
-            defer self.line += 1;
-            defer self.column = 1;
+            self.line += 1;
+            self.column = 1;
         }
 
         self.advance();

@@ -35,6 +35,7 @@ const Value = zlox.object.Value;
 const Fnv1a_32 = std.hash.Fnv1a_32;
 
 const exit = std.process.exit;
+const parseFloat = std.fmt.parseFloat;
 
 // ============================================================================
 
@@ -90,8 +91,8 @@ pub fn compile(self: *Compiler) !?*Chunk {
     self.parser.consume(.eof, "Expect end of expression.");
 
     if (self.parser.had_error) {
-        defer self.chunk = null;
-        defer self.chunk.?.destroy();
+        self.chunk.?.destroy();
+        self.chunk = null;
     }
 
     return self.endCompilation();
@@ -213,7 +214,9 @@ fn string(self: *Compiler) void {
 
 /// Compile a number expression from the current source token.
 fn number(self: *Compiler) void {
-    const value: f32 = std.fmt.parseFloat(f32, self.parser.current.lexeme) catch return;
+    const value: f32 = parseFloat(f32, self.parser.current.lexeme) catch {
+        return self.parser.@"error"("Invalid number literal.");
+    };
     self.emitConstant(.Number(value));
 }
 
