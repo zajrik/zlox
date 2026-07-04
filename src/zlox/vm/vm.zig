@@ -41,6 +41,9 @@ stack: Stack(Value),
 /// Contains all runtime-interned strings.
 strings: *HashTable,
 
+/// Contains all runtime global variables.
+globals: *HashTable,
+
 /// Linked list of heap-allocated `Obj` values.
 ///
 /// Contains all lox objects created by the VM at runtime, to be used by the
@@ -55,6 +58,7 @@ pub fn create() !*Vm {
     const vm: *Vm = try mem.create(Vm);
     vm.stack.reset();
     vm.strings = try .create();
+    vm.globals = try .create();
     vm.root_obj = null;
     return vm;
 }
@@ -62,6 +66,7 @@ pub fn create() !*Vm {
 /// Destroy this `Vm`, freeing its owned resources.
 pub fn destroy(self: *Vm) void {
     self.strings.destroy();
+    self.globals.destroy();
     self.freeObjects();
     mem.destroy(self);
 }
@@ -222,7 +227,13 @@ fn run(self: *Vm) ExecutionResult {
                 self.stack.push(a);
             },
 
-            .print => printf("{any}\n", .{self.stack.pop()}),
+            .print => printf("{f}\n", .{self.stack.pop()}),
+
+            .define_global => {
+                const ident: *Obj = self.readString();
+                _ = self.globals.set(ident, self.stack.peek(0));
+                _ = self.stack.pop();
+            },
 
             .@"return" => return .ok,
 
@@ -249,6 +260,11 @@ fn readShort(self: *Vm) u16 {
 /// value within the currently loaded chunk's constants array.
 fn readConstant(self: *Vm) Value {
     return self.chunk.constantAt(self.readByte());
+}
+
+/// Read the string constant value at the offset obtained by reading the next byte.
+fn readString(self: *Vm) *Obj {
+    return self.readConstant().obj;
 }
 
 // Object management functions ================================================

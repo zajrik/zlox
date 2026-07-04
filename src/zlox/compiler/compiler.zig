@@ -37,6 +37,8 @@ const Fnv1a_32 = std.hash.Fnv1a_32;
 const exit = std.process.exit;
 const parseFloat = std.fmt.parseFloat;
 
+const do = zlox.common.do;
+
 // ============================================================================
 
 const Compiler: type = @This();
@@ -86,9 +88,9 @@ pub fn destroy(self: *Compiler) void {
 pub fn compile(self: *Compiler) !?*Chunk {
     self.chunk = try Chunk.create();
 
-    self.expression();
-
-    self.parser.consume(.eof, "Expect end of expression.");
+    while (!self.parser.nextMatches(.eof)) {
+        self.declaration();
+    }
 
     if (self.parser.had_error) {
         self.chunk.?.destroy();
@@ -132,6 +134,48 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
 }
 
 // Statement compilation methods ==============================================
+
+/// Compile a declaration from source tokens.
+fn declaration(self: *Compiler) void {
+    switch (self.parser.next.type) {
+        .keyword_var => do(self.parser.advance(), self.variableDeclaration()),
+        else => self.statement(),
+    }
+
+    if (self.parser.panic_mode) self.parser.synchronize();
+}
+
+/// Compile a variable declaration statement from source tokens.
+fn variableDeclaration(self: *Compiler) void {
+    const ident_offset: u8 = self.variableIdentifier("Expected variable name");
+
+    if (self.parser.nextMatches(.equal)) self.expression() else self.emitOp(.nil);
+    self.parser.consume(.semicolon, "Expected ';' after variable declaration.");
+
+    self.defineVariable(ident_offset);
+}
+
+/// Compile a statement from source tokens.
+fn statement(self: *Compiler) void {
+    switch (self.parser.next.type) {
+        .keyword_print => do(self.parser.advance(), self.printStmt()),
+        else => self.expressionStmt(),
+    }
+}
+
+/// Compile a print statement from source tokens.
+fn printStmt(self: *Compiler) void {
+    self.expression();
+    self.parser.consume(.semicolon, "Expected ';' after value.");
+    self.emitOp(.print);
+}
+
+/// Compile an expression statement from source tokens.
+fn expressionStmt(self: *Compiler) void {
+    self.expression();
+    self.parser.consume(.semicolon, "Expected ';' after expression.");
+    self.emitOp(.pop);
+}
 
 // Expression compilation methods =============================================
 
@@ -182,10 +226,28 @@ fn expression(self: *Compiler) void {
 /// Compile an expression from source tokens with the given `precedence`.
 fn expr(self: *Compiler, precedence: Precedence) void {
     self.parser.advance();
+
+    // Start with a prefix rule to parse/compile the first expression. The first token
+    // will always start a prefix expression. It may end up nested as an operand inside
+    // one or more infix expressions, but it always starts with a prefix expression.
+    //
+    // 1 + 1;   // number is a prefix rule
+    // foo + 1; // identifier is a prefix rule
+    // (1 + 1); // grouping is a prefix rule
+    // -1 + 1); // unary minus is a prefix rule
+
     const prefix_rule: ExprFn = getStrategy(self.parser.current).prefix orelse {
         return self.parser.@"error"("Expected expression");
     };
     prefix_rule(self);
+
+    // If the precedence of the next token is too low, we stop here. This indicates
+    // that it is impossible for the next token to be an infix operator that can
+    // continue the expression because that would violate the order of operations
+    // dictated by the precedence rules.
+    //
+    // Otherwise, we continue parsing infix expressions until hitting a token with
+    // too low precedence.
 
     while (precedence.lte(getStrategy(self.parser.next).precedence)) {
         self.parser.advance();
@@ -268,12 +330,40 @@ fn binary(self: *Compiler) void {
     }
 }
 
+// Variable parse/compilation/management functions ============================
+
+/// Compile a variable identifier, returning the offset to the constant string
+/// for the variable's identifier in the compiling chunk's constants array.
+///
+/// If the variable identifier cannot be parsed, errors with message `expect`.
+fn variableIdentifier(self: *Compiler, expect: []const u8) u8 {
+    self.parser.consume(.identifier, expect);
+    return self.makeIdentConstant(&self.parser.current);
+}
+
+/// Define a variable.
+///
+/// If we are in a local scope, the current local will be marked as defined. The
+/// value lives on the stack and is modified on the stack when the variable is
+/// modified so we don't need to do anything more for it. (not yet implemented)
+///
+/// If we're in the global scope, emit bytecode to define the global variable,
+/// passing the offset of the global variable's constant identifier string as
+/// the operand.
+fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
+    self.emitOp1(.define_global, ident_const_offset);
+}
+
 // Chunk-writing methods ======================================================
 
 /// Add the given `value` to the constants in the chunk being compiled.
 ///
 /// Returns the offset of the added constant.
 fn makeConstant(self: *Compiler, value: Value) u8 {
+    // Check for existing constant matching this value and return its offset if
+    // it already exists.
+    if (self.chunk.?.findConstant(value)) |offset| return offset;
+
     const offset: u8 = self.chunk.?.addConstant(value);
 
     if (offset > cmn.U8_MAX) {
@@ -282,6 +372,19 @@ fn makeConstant(self: *Compiler, value: Value) u8 {
     }
 
     return offset;
+}
+
+/// Push an identifier's string to the current chunk's constants array, returning
+/// the offset of the added constant string.
+fn makeIdentConstant(self: *Compiler, token: *Token) u8 {
+    return self.makeConstant(
+        .Object(
+            self.copyString(token.lexeme) catch {
+                self.parser.@"error"("Error copying identifier string.");
+                return 0;
+            },
+        ),
+    );
 }
 
 /// Write the given `byte` to the chunk currently being compiled.

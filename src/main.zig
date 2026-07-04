@@ -54,6 +54,8 @@ pub fn main(init: std.process.Init) !void {
 
     for (table.entries) |entry| std.debug.print("{f}, ", .{entry});
     std.debug.print("{d}\n", .{table.entries.len});
+
+    for (vm.globals.entries) |entry| std.debug.print("{f}, ", .{entry});
 }
 
 /// Read the contents of the file at the given `path` using the given `Io` implementation.

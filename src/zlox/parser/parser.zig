@@ -28,6 +28,7 @@ const printf = std.debug.print;
 
 const Parser: type = @This();
 
+/// Tokenizer instance. Not owned by the parser.
 tokenizer: *Tokenizer,
 
 /// The token currently being parsed for compilation.
@@ -137,7 +138,7 @@ pub fn synchronize(self: *Parser) void {
         if (self.current.is(.semicolon)) return;
 
         // zig fmt: off
-        switch (self.nextType()) {
+        switch (self.next.type) {
             .keyword_class,
             .keyword_fun,
             .keyword_var,

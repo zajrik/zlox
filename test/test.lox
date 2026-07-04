@@ -1,1 +1,4 @@
-("foo" + "bar" + "!") == "foobar!"
+print ("foo" + "foo" + "bar" + "!") == "foobar!";
+print "ew";
+print "ew";
+var foo = "aaaaaa";

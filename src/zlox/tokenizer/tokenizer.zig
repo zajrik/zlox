@@ -7,6 +7,8 @@ const zlox = @import("../.lib.zig");
 const Token = zlox.tokenizer.Token;
 const TokenType = zlox.tokenizer.TokenType;
 
+const do = zlox.common.do;
+
 // ============================================================================
 
 const Tokenizer: type = @This();
@@ -354,12 +356,4 @@ fn isAlpha(char: u8) bool {
 /// Return whether the given `char` is an alphanumeric character.
 fn isAlphaNumeric(char: u8) bool {
     return isAlpha(char) or isDigit(char);
-}
-
-/// Inline block expression to clean up switch cases that return a value but
-/// also need to evaluate an additional expression for its side-effects.
-///
-/// Discards the first given expression, returns the second.
-inline fn do(_: anytype, result: anytype) @TypeOf(result) {
-    return result;
 }

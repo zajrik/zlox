@@ -86,3 +86,14 @@ pub fn addConstant(self: *Chunk, value: Value) u8 {
     self.constants.append(mem.allocator(), value) catch exit(1);
     return @as(u8, @truncate(self.constants.items.len)) - 1;
 }
+
+/// Find the constant offset of the given `value` if it exists within this chunk's
+/// constants array.
+///
+/// Returns `null` if the constant does not already exist.
+pub fn findConstant(self: *Chunk, value: Value) ?u8 {
+    for (self.constants.items, 0..) |constant, offset| {
+        if (constant.equals(value)) return @as(u8, @truncate(offset));
+    }
+    return null;
+}
