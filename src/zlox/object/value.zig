@@ -76,17 +76,7 @@ pub const Value: type = union(Value.Type) {
             .nil => true,
             .bool => self.bool == other.bool,
             .number => self.number == other.number,
-            .obj => switch (self.obj.type) {
-                // Compare string character equality
-                .string => std.mem.eql(
-                    u8,
-                    self.obj.as.string.chars,
-                    other.obj.as.string.chars,
-                ),
-
-                // Compare reference equality
-                // else => self.obj == other.obj,
-            },
+            .obj => self.obj == other.obj,
         };
     }
 
