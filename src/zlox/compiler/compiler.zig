@@ -204,7 +204,7 @@ fn mapRule(rule: ?Rule) ?ExprFn {
         .string => string,
         .number => number,
         .literal => literal,
-        // .variable => variable,
+        .variable => variable,
         .unary => unary,
         .binary => binary,
         // .orExpr => orExpr,
@@ -227,6 +227,9 @@ fn expression(self: *const Compiler) void {
 fn expr(self: *const Compiler, precedence: Precedence) void {
     self.parser.advance();
 
+    // Check if this expression is allowed to be treated as an assignment expression
+    const can_assign: bool = precedence.lte(.assignment);
+
     // Start with a prefix rule to parse/compile the first expression. The first token
     // will always start a prefix expression. It may end up nested as an operand inside
     // one or more infix expressions, but it always starts with a prefix expression.
@@ -239,7 +242,7 @@ fn expr(self: *const Compiler, precedence: Precedence) void {
     const prefix_rule: ExprFn = getStrategy(self.parser.current).prefix orelse {
         return self.parser.@"error"("Expected expression");
     };
-    prefix_rule(self);
+    prefix_rule(self, can_assign);
 
     // If the precedence of the next token is too low, we stop here. This indicates
     // that it is impossible for the next token to be an infix operator that can
@@ -254,18 +257,24 @@ fn expr(self: *const Compiler, precedence: Precedence) void {
         const infix_rule: ExprFn = getStrategy(self.parser.current).infix orelse {
             return self.parser.@"error"("Expected expression");
         };
-        infix_rule(self);
+        infix_rule(self, can_assign);
+    }
+
+    // `.equal` should have been consumed by the variable prefix rule at this point
+    // if assignment was allowed, so we should error if we see `=`
+    if (can_assign and self.parser.nextMatches(.equal)) {
+        self.parser.@"error"("Invalid assignment target.");
     }
 }
 
 /// Compile a parenthesized grouping expression from source tokens.
-fn grouping(self: *const Compiler) void {
+fn grouping(self: *const Compiler, _: bool) void {
     self.expression();
     self.parser.consume(.paren_right, "Expected ')' after expression.");
 }
 
 /// Compile a string expression from the current source token.
-fn string(self: *const Compiler) void {
+fn string(self: *const Compiler, _: bool) void {
     errdefer exit(1);
 
     const lexeme: []const u8 = self.parser.current.lexeme;
@@ -275,7 +284,7 @@ fn string(self: *const Compiler) void {
 }
 
 /// Compile a number expression from the current source token.
-fn number(self: *const Compiler) void {
+fn number(self: *const Compiler, _: bool) void {
     const value: f32 = parseFloat(f32, self.parser.current.lexeme) catch {
         return self.parser.@"error"("Invalid number literal.");
     };
@@ -283,7 +292,7 @@ fn number(self: *const Compiler) void {
 }
 
 /// Compile a literal expression from the current source token.
-fn literal(self: *const Compiler) void {
+fn literal(self: *const Compiler, _: bool) void {
     switch (self.parser.current.type) {
         .keyword_nil => self.emitOp(.nil),
         .keyword_true => self.emitOp(.true),
@@ -292,8 +301,26 @@ fn literal(self: *const Compiler) void {
     }
 }
 
+/// Compile a variable/identifier get/set expression from the current source token.
+fn variable(self: *const Compiler, can_assign: bool) void {
+    self.variableGetSet(self.parser.current, can_assign);
+}
+
+/// Compile a variable/identifier get/set expression, emitting bytecode to get/set
+/// the value for that variable/identifier.
+fn variableGetSet(self: *const Compiler, identifier: Token, can_assign: bool) void {
+    const offset: u8 = self.makeIdentConstant(&identifier);
+
+    if (can_assign and self.parser.nextMatches(.equal)) {
+        self.expression();
+        self.emitOp1(.global_set, offset);
+    } else {
+        self.emitOp1(.global_get, offset);
+    }
+}
+
 /// Compile a unary expression from source tokens.
-fn unary(self: *const Compiler) void {
+fn unary(self: *const Compiler, _: bool) void {
     const operator_type: TokenType = self.parser.current.type;
 
     self.expr(.unary);
@@ -306,7 +333,7 @@ fn unary(self: *const Compiler) void {
 }
 
 /// Compile a binary expression from source tokens.
-fn binary(self: *const Compiler) void {
+fn binary(self: *const Compiler, _: bool) void {
     const operator: Token = self.parser.current;
     const strategy: ParseStrategy = .forToken(operator);
 
@@ -350,8 +377,8 @@ fn variableIdentifier(self: *const Compiler, expect: []const u8) u8 {
 /// If we're in the global scope, emit bytecode to define the global variable,
 /// passing the offset of the global variable's constant identifier string as
 /// the operand.
-    self.emitOp1(.define_global, ident_const_offset);
 fn defineVariable(self: *const Compiler, ident_const_offset: u8) void {
+    self.emitOp1(.global_define, ident_const_offset);
 }
 
 // Chunk-writing methods ======================================================

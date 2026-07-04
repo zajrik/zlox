@@ -82,7 +82,9 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 
         .print => simpleInstruction(".print", offset),
 
-        .define_global => constantInstruction(".define_global", chunk, offset),
+        .global_define => constantInstruction(".global_define", chunk, offset),
+        .global_set => constantInstruction(".global_set", chunk, offset),
+        .global_get => constantInstruction(".global_get", chunk, offset),
 
         .@"return" => simpleInstruction(".return", offset),
 

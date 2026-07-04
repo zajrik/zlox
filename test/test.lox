@@ -1,4 +1,5 @@
-print ("foo" + "foo" + "bar" + "!") == "foobar!";
-print "ew";
-print "ew";
-var foo = "aaaaaa";
+var breakfast = "beignets";
+var beverage = "cafe au lait";
+breakfast = breakfast + " with " + beverage;
+
+print breakfast;

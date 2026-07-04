@@ -25,8 +25,8 @@ pub fn main(init: std.process.Init) !void {
     const lox_code: []u8 = try readFile(init.io, "test/test.lox");
     defer mem.free(lox_code);
 
-    var tokenizer: Tokenizer = .init(lox_code);
-    while (tokenizer.next()) |token| std.debug.print("{f}\n", .{token});
+    // var tokenizer: Tokenizer = .init(lox_code);
+    // while (tokenizer.next()) |token| std.debug.print("{f}\n", .{token});
 
     const vm: *Vm = try .create();
     defer vm.destroy();
@@ -34,28 +34,28 @@ pub fn main(init: std.process.Init) !void {
     const result: ExecutionResult = vm.interpret(lox_code);
     std.debug.print("{}\n", .{result});
 
-    const table = try HashTable.create();
-    const str_1 = try vm.copyString("aaa");
-    const str_2 = try vm.copyString("bbb");
-    defer table.destroy();
+    // const table = try HashTable.create();
+    // const str_1 = try vm.copyString("aaa");
+    // const str_2 = try vm.copyString("bbb");
+    // defer table.destroy();
 
-    _ = table.set(str_1, .Number(420));
-    _ = table.set(str_2, .Number(69));
+    // _ = table.set(str_1, .Number(420));
+    // _ = table.set(str_2, .Number(69));
 
-    std.debug.print("{?f} {?f}\n", .{ table.get(str_1), table.get(str_2) });
+    // std.debug.print("{?f} {?f}\n", .{ table.get(str_1), table.get(str_2) });
 
-    std.debug.print("{any}\n", .{table.entries});
-    std.debug.print("{any}\n", .{table.entries.len});
+    // std.debug.print("{any}\n", .{table.entries});
+    // std.debug.print("{any}\n", .{table.entries.len});
 
-    _ = table.set(str_2, .Number(420));
-    _ = table.set(str_1, .Number(69));
+    // _ = table.set(str_2, .Number(420));
+    // _ = table.set(str_1, .Number(69));
 
-    std.debug.print("{?f} {?f}\n", .{ table.get(str_1), table.get(str_2) });
+    // std.debug.print("{?f} {?f}\n", .{ table.get(str_1), table.get(str_2) });
 
-    for (table.entries) |entry| std.debug.print("{f}, ", .{entry});
-    std.debug.print("{d}\n", .{table.entries.len});
+    // for (table.entries) |entry| std.debug.print("{f}, ", .{entry});
+    // std.debug.print("{d}\n", .{table.entries.len});
 
-    for (vm.globals.entries) |entry| std.debug.print("{f}, ", .{entry});
+    // for (vm.globals.entries) |entry| std.debug.print("{f}, ", .{entry});
 }
 
 /// Read the contents of the file at the given `path` using the given `Io` implementation.

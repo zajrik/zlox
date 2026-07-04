@@ -103,10 +103,21 @@ pub const OpCode = enum(u8) {
     /// - Pops the value at the top of the stack and prints it.
     print,
 
-    /// ### `OpCode.define_global(offset: constant_offset)
+    /// ### `OpCode.global_define(offset: constant_offset)
     /// - Pops the top value off of the stack, assigning it to a global variable
     ///   with the name obtained from the constant offset operand.
-    define_global,
+    global_define,
+
+    /// ### `OpCode.global_set(offset: constant_offset)
+    /// - Set the value of the global variable with the name obtained from the
+    ///   constant offset operand to the value at the top of the stack, popping
+    ///   the value from the stack.
+    global_set,
+
+    /// ### `OpCode.global_get(offset: constant_offset)
+    /// - Push the value of the global variable with the name obtained from the
+    ///   constant offset operand to the top of the stack.
+    global_get,
 
     /// ### `OpCode.return()`
     /// - Returns the value at the top of the stack from whatever call frame

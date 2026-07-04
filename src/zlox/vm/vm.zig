@@ -229,10 +229,29 @@ fn run(self: *Vm) ExecutionResult {
 
             .print => printf("{f}\n", .{self.stack.pop()}),
 
-            .define_global => {
+            .global_define => {
                 const ident: *Obj = self.readString();
                 _ = self.globals.set(ident, self.stack.peek(0));
                 _ = self.stack.pop();
+            },
+            .global_set => {
+                const ident: *Obj = self.readString();
+
+                // If the global variable isn't defined before setting, throw a
+                // runtime error and delete the entry from the globals table
+                if (self.globals.set(ident, self.stack.peek(0))) {
+                    _ = self.globals.delete(ident);
+                    self.runtimeError("Undefined variable '{f}'", .{ident});
+                    return .runtime_error;
+                }
+            },
+            .global_get => {
+                const ident: *Obj = self.readString();
+                const value: Value = self.globals.get(ident) orelse {
+                    self.runtimeError("Undefined variable '{f}'.", .{ident});
+                    return .runtime_error;
+                };
+                self.stack.push(value);
             },
 
             .@"return" => return .ok,
