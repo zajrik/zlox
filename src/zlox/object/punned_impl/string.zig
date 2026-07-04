@@ -1,8 +1,10 @@
 //! A lox string `Obj` struct.
 
-const zlox = @import("../../.lib.zig");
+const std = @import("std");
 
 const Obj = @import("obj.zig");
+
+const Writer = std.Io.Writer;
 
 // ============================================================================
 
@@ -16,3 +18,11 @@ obj: Obj = undefined,
 /// This slice is owned by the lox string obj and must be freed when the obj
 /// is destroyed.
 chars: []const u8,
+
+/// Pre-calculated hash for this string.
+hash: u32 = 0,
+
+/// Custom formatter for `Obj.String` values.
+pub fn format(self: *const String, writer: *Writer) Writer.Error!void {
+    try writer.print("{s}", .{self.chars});
+}

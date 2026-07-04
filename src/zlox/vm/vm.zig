@@ -237,7 +237,7 @@ fn readByte(self: *Vm) u8 {
     return self.ip[0];
 }
 
-/// Read the next two bytes from the currenty loaded chunk's instructions array,
+/// Read the next two bytes from the currently loaded chunk's instructions array,
 /// treating them as a single 16-bit value.
 fn readShort(self: *Vm) u16 {
     defer self.ip += 2;

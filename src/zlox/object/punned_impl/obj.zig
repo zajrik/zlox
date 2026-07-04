@@ -48,6 +48,11 @@ fn Body(comptime @"type": Type) type {
 /// The type tag of this lox object.
 type: Type,
 
+/// Whether this object is a constant object value. Constant objects are compiled
+/// and owned by the chunk they are compiled into. They should not be freed by
+/// the garbage collector.
+is_constant: bool = false,
+
 /// Pointer to the next lox object on the heap, forming a linked list of objects
 /// at runtime for the garbage collector to trace.
 next: ?*Obj = null,
@@ -56,6 +61,11 @@ next: ?*Obj = null,
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns this obj and
 /// is responsible for freeing it.
+///
+/// Note: Objects created directly with this function are not able to be traced
+/// by the garbage collector unless reachable through some other traceable structure.
+///
+/// Use `Vm.createObj()` when creating objects that need to be garbage-collectable.
 pub fn create(comptime @"type": Type, body: Body(@"type")) !*Obj {
     const obj: *Body(@"type") = try mem.create(Body(@"type"));
     obj.* = body;
@@ -63,8 +73,25 @@ pub fn create(comptime @"type": Type, body: Body(@"type")) !*Obj {
     return &obj.obj;
 }
 
+/// Allocate a new constant `Obj` of the given `type` with the given `body`.
+///
+/// Returns a pointer to the allocated `Obj`.
+///
+/// This should only be called at compile time and any created constant objects
+/// should be owned and cleaned up by the chunk they're compiled to.
+pub fn createConstant(comptime @"type": Type, body: Body(@"type")) !*Obj {
+    const obj: *Obj = try create(@"type", body);
+    obj.is_constant = true;
+    return obj;
+}
+
 /// Destroy this `Obj`, freeing its owned resources.
 pub fn destroy(self: *const Obj) void {
+    // std.debug.print(
+    //     "freeing {s}obj {*} {f}\n",
+    //     .{ if (self.is_constant) "const " else "", self, self },
+    // );
+
     // Free data owned by the object
     switch (self.type) {
         .string => mem.free(self.as(.string).chars),
