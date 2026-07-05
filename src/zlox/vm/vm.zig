@@ -144,6 +144,9 @@ fn concatenate(self: *Vm) !void {
 
 /// Run instructions from the currently loaded chunk.
 fn run(self: *Vm) ExecutionResult {
+    debug.disassembleChunk(self.chunk, "chunk");
+    printf("\n== begin execution ==\n", .{});
+
     while (true) {
         if (comptime debug.trace_execution) {
             if (debug.print_stack) debug.printStack(&self.stack);
@@ -257,6 +260,23 @@ fn run(self: *Vm) ExecutionResult {
             .local_set => self.stack.values[self.readByte()] = self.stack.peek(0),
             .local_get => self.stack.push(self.stack.values[self.readByte()]),
 
+            .jump_if_false => {
+                const offset: u16 = self.readShort();
+                if (self.stack.peek(0).isFalsey()) self.ip += offset;
+            },
+            .jump_if_true => {
+                const offset: u16 = self.readShort();
+                if (!self.stack.peek(0).isFalsey()) self.ip += offset;
+            },
+            .jump_if_not_nil => {
+                const offset: u16 = self.readShort();
+                if (self.stack.peek(0).isNot(.nil)) self.ip += offset;
+            },
+            .jump => {
+                const offset: u16 = self.readShort();
+                self.ip += offset;
+            },
+
             .@"return" => return .ok,
 
             _ => return .runtime_error,
@@ -274,7 +294,7 @@ fn readByte(self: *Vm) u8 {
 /// treating them as a single 16-bit value.
 fn readShort(self: *Vm) u16 {
     defer self.ip += 2;
-    return self.ip[0] << 8 | self.ip[1];
+    return @as(u16, self.ip[0]) << 8 | self.ip[1];
 }
 
 /// Read a constant value from the currently loaded chunk's instructions array by

@@ -172,10 +172,39 @@ fn variableDeclaration(self: *Compiler) void {
 /// Compile a statement from source tokens.
 fn statement(self: *Compiler) void {
     switch (self.parser.next.type) {
+        .keyword_if => do(self.parser.advance(), self.ifStmt()),
         .keyword_print => do(self.parser.advance(), self.printStmt()),
         .brace_left => do(self.parser.advance(), self.scope(block)),
         else => self.expressionStmt(),
     }
+}
+
+/// Compile an if-statement from source tokens.
+fn ifStmt(self: *Compiler) void {
+    self.parser.consume(.paren_left, "Expected '(' after 'if'.");
+    self.expression();
+    self.parser.consume(.paren_right, "Expected ')' after expression.");
+
+    // Emit .jump_if_false to jump over then-branch if condition is false. We emit
+    // a .pop to pop the value left on the stack by the condition expression and
+    // then compile the then-branch statement. These will be executed if the condition
+    // is not false
+    const then_jump: usize = self.emitJump(.jump_if_false);
+    self.emitOp(.pop);
+    self.statement();
+
+    // Emit .jump to jump over else-branch if we reach this instruction. This keeps
+    // the then-branch from falling through to the else-branch. We then patch then_jump
+    // to jump over the .jump, followed by a .pop for the else-branch to pop the value
+    // left on the stack by the condition expression if the then-branch was jumped over
+    const else_jump: usize = self.emitJump(.jump);
+    self.patchJump(then_jump);
+    self.emitOp(.pop);
+
+    if (self.parser.nextMatches(.keyword_else)) self.statement();
+
+    // Patch else_jump to the end of the if-statement bytecode
+    self.patchJump(else_jump);
 }
 
 /// Compile a print statement from source tokens.
@@ -578,6 +607,39 @@ fn emitOp3(self: *const Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8
 /// the constants array offset of the given `value`.
 fn emitConstant(self: *const Compiler, value: Value) void {
     self.emitOp1(.constant, self.makeConstant(value));
+}
+
+/// Returns the offset at which the next instruction will be inserted.
+///
+/// Shortcut for `self.chunk.?.instructions.items.len`.
+fn instructionOffset(self: *const Compiler) usize {
+    return self.chunk.?.instructions.items.len;
+}
+
+/// Write a jump `op` followed by placeholder bytes for the jump offset operand.
+///
+/// Must be patched with `patchJump()` to wire up the accompanying jump offset.
+///
+/// Returns the instruction offset of the operand to be patched.
+fn emitJump(self: *const Compiler, op: OpCode) usize {
+    self.emitOp2(op, 0xff, 0xff);
+    return self.instructionOffset() - 2;
+}
+
+/// Patches the jump instruction operand at `offset` to the current instruction
+/// offset.
+fn patchJump(self: *const Compiler, offset: usize) void {
+    const jump_offset: usize = self.instructionOffset() - offset - 2;
+
+    if (jump_offset > cmn.U16_MAX) {
+        self.parser.@"error"("Jump offset is too large.");
+    }
+
+    // Patch first and second bytes of 2-byte jump instruction operand
+    const jump_byte_1: u8 = @as(u8, @truncate(jump_offset >> 8));
+    const jump_byte_2: u8 = @as(u8, @truncate(jump_offset));
+    self.chunk.?.instructions.items[offset] = jump_byte_1;
+    self.chunk.?.instructions.items[offset + 1] = jump_byte_2;
 }
 
 // Object creation methods ====================================================

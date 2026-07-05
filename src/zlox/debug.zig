@@ -89,6 +89,11 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .local_set => byteInstruction(".local_set", chunk, offset),
         .local_get => byteInstruction(".local_get", chunk, offset),
 
+        .jump_if_false => jumpInstruction(".jump_if_false", 1, chunk, offset),
+        .jump_if_true => jumpInstruction(".jump_if_true", 1, chunk, offset),
+        .jump_if_not_nil => jumpInstruction(".jump_if_not_nil", 1, chunk, offset),
+        .jump => jumpInstruction(".jump", 1, chunk, offset),
+
         .@"return" => simpleInstruction(".return", offset),
 
         _ => {
@@ -137,4 +142,19 @@ fn byteInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {
     const byte: u8 = chunk.instructionAt(offset + 1);
     printf("{s:<16} {d:4}\n", .{ name, byte });
     return offset + 2;
+}
+
+/// Print the `name` of a jump instruction, followed by the current offset and the
+/// offset after the jump is executed.
+fn jumpInstruction(name: []const u8, sign: i2, chunk: *const Chunk, offset: usize) usize {
+    var jump: i32 = @as(u16, chunk.instructionAt(offset + 1)) << 8;
+    jump |= chunk.instructionAt(offset + 2);
+    jump *= sign;
+
+    printf(
+        "{s:<16} {d:4} -> {d}\n",
+        .{ name, offset, @as(i32, @intCast(offset)) + 3 + jump },
+    );
+
+    return offset + 3;
 }

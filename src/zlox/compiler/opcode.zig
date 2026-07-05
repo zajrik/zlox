@@ -16,6 +16,9 @@
 /// - `stack_offset`: An integer pointing to a value on the stack, offset from the
 ///   top of the stack. A stack offset of `0` points to the top of the stack, `1`
 ///   to the item below that, etc.
+///
+/// - `jump_offset`: A 2-byte integer indicating a number of instructions for a
+///   jump instruction to jump over.
 pub const OpCode = enum(u8) {
     /// ### `OpCode.constant(offset: constant_offset)`
     /// - Loads a constant value at the given `offset` onto the stack.
@@ -137,6 +140,25 @@ pub const OpCode = enum(u8) {
     ///   result of a variable get expression and will be consumed by the enclosing
     ///   expression (or discarded at the end of a statement)
     local_get,
+
+    /// ### `OpCode.jump_if_false(offset: jump_offset)`
+    /// - Jump over a number of instructions obtained from the operand if the value
+    ///   at the top of the stack is `false`.
+    jump_if_false,
+
+    /// ### `OpCode.jump_if_true(offset: jump_offset)`
+    /// - Jump over a number of instructions obtained from the operand if the value
+    ///   at the top of the stack is `true`.
+    jump_if_true,
+
+    /// ### `OpCode.jump_if_not_nil(offset: jump_offset)`
+    /// - Jump over a number of instructions obtained from the operand if the value
+    ///   at the top of the stack is not `nil`.
+    jump_if_not_nil,
+
+    /// ### `OpCode.jump(offset: jump_offset)`
+    /// - Jump unconditionally over a number of instructions obtained from the operand.
+    jump,
 
     /// ### `OpCode.return()`
     /// - Returns the value at the top of the stack from whatever call frame
