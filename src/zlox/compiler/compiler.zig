@@ -259,8 +259,8 @@ fn mapRule(rule: ?Rule) ?ExprFn {
         .variable => variable,
         .unary => unary,
         .binary => binary,
-        // .orExpr => orExpr,
-        // .andExpr => andExpr,
+        .orExpr => orExpr,
+        .andExpr => andExpr,
         // .call => call,
         // .dot => dot,
         // .nilish => nilish,
@@ -418,6 +418,34 @@ fn binary(self: *const Compiler, _: bool) void {
 
         else => return,
     }
+}
+
+/// Compile an `and` operator expression.
+///
+/// The left-hand operand of the `and` expression has already been compiled to
+/// the chunk at the point this will be executed.
+fn andExpr(self: *const Compiler, _: bool) void {
+    // The left-hand operand will be on the stack for this jump
+    const end: usize = self.emitJump(.jump_if_false);
+
+    self.emitOp(.pop);
+    self.expr(.@"and");
+
+    self.patchJump(end);
+}
+
+/// Compile an `or` operator expression.
+///
+/// The left-hand operand of the `or` expression has already been compiled to
+/// the chunk at the point this will be executed.
+fn orExpr(self: *const Compiler, _: bool) void {
+    // The left-hand operand will be on the stack for this jump
+    const end: usize = self.emitJump(.jump_if_true);
+
+    self.emitOp(.pop);
+    self.expr(.@"or");
+
+    self.patchJump(end);
 }
 
 // Variable compilation/management functions ==================================
