@@ -254,6 +254,9 @@ fn run(self: *Vm) ExecutionResult {
                 self.stack.push(value);
             },
 
+            .local_set => self.stack.values[self.readByte()] = self.stack.peek(0),
+            .local_get => self.stack.push(self.stack.values[self.readByte()]),
+
             .@"return" => return .ok,
 
             _ => return .runtime_error,

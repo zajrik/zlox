@@ -50,7 +50,7 @@ pub fn isDiscard(self: Token) bool {
 }
 
 /// Returns whether this token's lexeme is equal to the lexeme of `other`.
-pub fn lexemeEquals(self: Token, other: Token) void {
+pub fn lexemeEquals(self: Token, other: Token) bool {
     return std.mem.eql(u8, self.lexeme, other.lexeme);
 }
 

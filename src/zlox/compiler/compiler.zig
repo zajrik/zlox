@@ -17,6 +17,7 @@ const debug = zlox.debug;
 const Chunk = zlox.compiler.Chunk;
 const CompileStrategy = zlox.compiler.CompileStrategy;
 const ExprFn = zlox.compiler.ExprFn;
+const Local = zlox.compiler.Local;
 const OpCode = zlox.compiler.OpCode;
 
 const Parser = zlox.parser.Parser;
@@ -48,9 +49,6 @@ const Compiler: type = @This();
 /// Not owned by the compiler.
 parser: *Parser,
 
-/// Current scope depth at a given point during compilation.
-scope_depth: u16 = 0,
-
 /// Currently-compiling chunk.
 ///
 /// This is null if compilation failed, or if `compile()` has not been called yet.
@@ -66,11 +64,21 @@ chunk: ?*Chunk = null,
 /// compiler is freed.
 strings: *HashTable,
 
+/// Local variables tracked during compilation.
+locals: [cmn.U8_SIZE]Local,
+
+/// The number of local variables in scope at a given point during compilation.
+local_count: u16 = 0,
+
+/// Current scope depth at a given point during compilation.
+scope_depth: u16 = 0,
+
 /// Allocate a new `Compiler` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(parser: *Parser, interned_strings: *HashTable) !*Compiler {
     return try mem.createStruct(Compiler, .{
+        .locals = undefined,
         .parser = parser,
         .strings = interned_strings,
     });
@@ -122,12 +130,18 @@ fn pushScope(self: *Compiler) void {
 /// End the current scope.
 fn popScope(self: *Compiler) void {
     self.scope_depth -= 1;
+
+    // Pop local variables at end of scope
+    while (self.local_count > 0 and self.lastLocal().depth > self.scope_depth) {
+        self.emitOp(.pop);
+        self.local_count -= 1;
+    }
 }
 
 /// Execute the given statement rule within a new scope.
 ///
 /// The scope will be popped when the rule completes.
-fn scope(self: *Compiler, rule: fn (*const Compiler) void) void {
+fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
     self.pushScope();
     rule(self);
     self.popScope();
@@ -136,7 +150,7 @@ fn scope(self: *Compiler, rule: fn (*const Compiler) void) void {
 // Statement compilation methods ==============================================
 
 /// Compile a declaration from source tokens.
-fn declaration(self: *const Compiler) void {
+fn declaration(self: *Compiler) void {
     switch (self.parser.next.type) {
         .keyword_var => do(self.parser.advance(), self.variableDeclaration()),
         else => self.statement(),
@@ -146,7 +160,7 @@ fn declaration(self: *const Compiler) void {
 }
 
 /// Compile a variable declaration statement from source tokens.
-fn variableDeclaration(self: *const Compiler) void {
+fn variableDeclaration(self: *Compiler) void {
     const ident_offset: u8 = self.variableIdentifier("Expected variable name.");
 
     if (self.parser.nextMatches(.equal)) self.expression() else self.emitOp(.nil);
@@ -156,9 +170,10 @@ fn variableDeclaration(self: *const Compiler) void {
 }
 
 /// Compile a statement from source tokens.
-fn statement(self: *const Compiler) void {
+fn statement(self: *Compiler) void {
     switch (self.parser.next.type) {
         .keyword_print => do(self.parser.advance(), self.printStmt()),
+        .brace_left => do(self.parser.advance(), self.scope(block)),
         else => self.expressionStmt(),
     }
 }
@@ -175,6 +190,14 @@ fn expressionStmt(self: *const Compiler) void {
     self.expression();
     self.parser.consume(.semicolon, "Expected ';' after expression.");
     self.emitOp(.pop);
+}
+
+/// Compile a block statement from source tokens.
+fn block(self: *Compiler) void {
+    while (self.parser.next.isNot(.brace_right) and self.parser.next.isNot(.eof)) {
+        self.declaration();
+    }
+    self.parser.consume(.brace_right, "Expected '}' after block.");
 }
 
 // Expression compilation methods =============================================
@@ -309,13 +332,24 @@ fn variable(self: *const Compiler, can_assign: bool) void {
 /// Compile a variable/identifier get/set expression, emitting bytecode to get/set
 /// the value for that variable/identifier.
 fn variableGetSet(self: *const Compiler, identifier: Token, can_assign: bool) void {
-    const offset: u8 = self.makeIdentConstant(&identifier);
+    var set_op: OpCode = undefined;
+    var get_op: OpCode = undefined;
+
+    var var_offset: i32 = self.resolveLocal(identifier);
+    if (var_offset != -1) {
+        set_op = .local_set;
+        get_op = .local_get;
+    } else {
+        var_offset = self.makeIdentConstant(identifier);
+        set_op = .global_set;
+        get_op = .global_get;
+    }
 
     if (can_assign and self.parser.nextMatches(.equal)) {
         self.expression();
-        self.emitOp1(.global_set, offset);
+        self.emitOp1(set_op, @intCast(var_offset));
     } else {
-        self.emitOp1(.global_get, offset);
+        self.emitOp1(get_op, @intCast(var_offset));
     }
 }
 
@@ -357,15 +391,101 @@ fn binary(self: *const Compiler, _: bool) void {
     }
 }
 
-// Variable parse/compilation/management functions ============================
+// Variable compilation/management functions ==================================
 
 /// Compile a variable identifier, returning the offset to the constant string
 /// for the variable's identifier in the compiling chunk's constants array.
 ///
 /// If the variable identifier cannot be parsed, errors with message `expect`.
-fn variableIdentifier(self: *const Compiler, expect: []const u8) u8 {
+fn variableIdentifier(self: *Compiler, expect: []const u8) u8 {
     self.parser.consume(.identifier, expect);
-    return self.makeIdentConstant(&self.parser.current);
+
+    // Declare local if we're in a local scope. We just return 0 if so since locals
+    // are resolved by identifier tokens while global variables are resolved by
+    // their runtime-constant identifier strings loaded into the VM before the
+    // lox bytecode is executed
+    if (self.scope_depth > 0) {
+        self.declareLocal();
+        return 0;
+    }
+
+    return self.makeIdentConstant(self.parser.current);
+}
+
+/// Declare a variable in the current scope with the current token as its identifier.
+///
+/// Does nothing if we're currently in the global scope. Global variables are declared
+/// and defined separately from local variables.
+///
+/// The local will be considered uninitialized/undefined until `markDefined()`
+/// is called.
+fn declareLocal(self: *Compiler) void {
+    if (self.scope_depth == 0) return;
+
+    const identifier: Token = self.parser.current;
+
+    // Check for existing variable with this identifier in this scope
+    var i: i32 = @as(i32, self.local_count) - 1;
+    while (i >= 0) : (i -= 1) {
+        const local: Local = self.locals[@intCast(i)];
+
+        if (local.depth != -1 and local.depth < self.scope_depth) break;
+        if (identifier.lexemeEquals(local.identifier)) {
+            self.parser.@"error"(
+                "A variable with this name already exists in this scope.",
+            );
+        }
+    }
+
+    if (self.local_count == cmn.U8_SIZE) {
+        return self.parser.@"error"("Too many local variables in function.");
+    }
+
+    defer self.local_count += 1;
+
+    // Add declared local to locals array
+    self.locals[self.local_count] = Local{
+        .identifier = identifier,
+        .depth = -1,
+        .is_captured = false,
+    };
+}
+
+/// Returns a pointer to the most recently defined local variable.
+fn lastLocal(self: *Compiler) *Local {
+    return &self.locals[self.local_count - 1];
+}
+
+/// Mark the most recently declared local as defined/ready for use.
+///
+/// Does nothing if we're currently in the global scope. Global variables are declared
+/// and defined separately from local variables.
+fn markDefined(self: *Compiler) void {
+    if (self.scope_depth == 0) return;
+    self.lastLocal().depth = self.scope_depth;
+}
+
+/// Walks down scoped locals array until locating the local variable with the given
+/// `identifier`, returning the offset within the locals array of that local.
+///
+/// Returns `-1` if it does not exist.
+///
+/// Because of the way the stack behaves with statements popping their stack values
+/// when complete, the only values on the stack when a local is declared are the
+/// values of other locals in scope. This means the offset of the local in the
+/// locals array directly reflects its location in the stack.
+fn resolveLocal(self: *const Compiler, identifier: Token) i32 {
+    var i: usize = self.local_count;
+    while (i >= 0) : (i -= 1) {
+        const local: Local = self.locals[i];
+
+        if (identifier.lexemeEquals(local.identifier)) {
+            if (local.depth != -1) return @intCast(i);
+            self.parser.@"error"("Can't read local variable in its own initializer.");
+        }
+    }
+
+    return -1;
 }
 
 /// Define a variable.
@@ -377,7 +497,8 @@ fn variableIdentifier(self: *const Compiler, expect: []const u8) u8 {
 /// If we're in the global scope, emit bytecode to define the global variable,
 /// passing the offset of the global variable's constant identifier string as
 /// the operand.
-fn defineVariable(self: *const Compiler, ident_const_offset: u8) void {
+fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
+    if (self.scope_depth > 0) return self.markDefined();
     self.emitOp1(.global_define, ident_const_offset);
 }
 
@@ -403,7 +524,7 @@ fn makeConstant(self: *const Compiler, value: Value) u8 {
 
 /// Push an identifier's string to the current chunk's constants array, returning
 /// the offset of the added constant string.
-fn makeIdentConstant(self: *const Compiler, token: *const Token) u8 {
+fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
     return self.makeConstant(
         .Object(
             self.copyString(token.lexeme) catch {

@@ -103,21 +103,40 @@ pub const OpCode = enum(u8) {
     /// - Pops the value at the top of the stack and prints it.
     print,
 
-    /// ### `OpCode.global_define(offset: constant_offset)
+    /// ### `OpCode.global_define(offset: constant_offset)`
     /// - Pops the top value off of the stack, assigning it to a global variable
     ///   with the name obtained from the constant offset operand.
     global_define,
 
-    /// ### `OpCode.global_set(offset: constant_offset)
+    /// ### `OpCode.global_set(offset: constant_offset)`
     /// - Set the value of the global variable with the name obtained from the
-    ///   constant offset operand to the value at the top of the stack, popping
-    ///   the value from the stack.
+    ///   constant offset operand to the value at the top of the stack.
     global_set,
 
-    /// ### `OpCode.global_get(offset: constant_offset)
+    /// ### `OpCode.global_get(offset: constant_offset)`
     /// - Push the value of the global variable with the name obtained from the
     ///   constant offset operand to the top of the stack.
     global_get,
+
+    /// ### `OpCode.local_set(offset: stack_offset)`
+    /// - Set the value of the local variable at the stack offset obtained from
+    ///   the operand to the value at the top of the stack.
+    ///
+    ///   The value stays at the top of the stack as the result of the assignment.
+    local_set,
+
+    /// ### `OpCode.local_get(offset: stack_offset)`
+    /// - Get the value of the local variable at the stack offset obtained from
+    ///   the operand, pushing it to the top of the stack.
+    ///
+    ///   The variable's value already exists on the stack in the slot from when it
+    ///   was declared, which will be modified in-place by `.local_set` and will stay
+    ///   on the stack until the local goes out of scope.
+    ///
+    ///   In contrast, the value we're pushing to the top of the stack here is the
+    ///   result of a variable get expression and will be consumed by the enclosing
+    ///   expression (or discarded at the end of a statement)
+    local_get,
 
     /// ### `OpCode.return()`
     /// - Returns the value at the top of the stack from whatever call frame
