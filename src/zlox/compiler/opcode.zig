@@ -19,6 +19,9 @@
 ///
 /// - `jump_offset`: A 2-byte integer indicating a number of instructions for a
 ///   jump instruction to jump over.
+///
+/// - `loop_offset`: A 2-byte integer indicating a number of instructions for a
+///   loop instruction to jump back by.
 pub const OpCode = enum(u8) {
     /// ### `OpCode.constant(offset: constant_offset)`
     /// - Loads a constant value at the given `offset` onto the stack.
@@ -159,6 +162,10 @@ pub const OpCode = enum(u8) {
     /// ### `OpCode.jump(offset: jump_offset)`
     /// - Jump unconditionally over a number of instructions obtained from the operand.
     jump,
+
+    /// ### `OpCode.loop(offset: loop_offset)`
+    /// - Jump backwards a number of instructions obtained from the operand.
+    loop,
 
     /// ### `OpCode.return()`
     /// - Returns the value at the top of the stack from whatever call frame

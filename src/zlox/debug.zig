@@ -93,6 +93,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .jump_if_true => jumpInstruction(".jump_if_true", 1, chunk, offset),
         .jump_if_not_nil => jumpInstruction(".jump_if_not_nil", 1, chunk, offset),
         .jump => jumpInstruction(".jump", 1, chunk, offset),
+        .loop => jumpInstruction(".loop", -1, chunk, offset),
 
         .@"return" => simpleInstruction(".return", offset),
 

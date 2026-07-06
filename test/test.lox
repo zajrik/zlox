@@ -1,4 +1,6 @@
-print true and "foo";
-print false and "bar";
-print true or "baz";
-print false or "boo";
+var i = 0;
+
+while (i < 10) {
+    print i;
+    i = i + 1;
+}

@@ -173,6 +173,7 @@ fn variableDeclaration(self: *Compiler) void {
 fn statement(self: *Compiler) void {
     switch (self.parser.next.type) {
         .keyword_if => do(self.parser.advance(), self.ifStmt()),
+        .keyword_while => do(self.parser.advance(), self.whileStmt()),
         .keyword_print => do(self.parser.advance(), self.printStmt()),
         .brace_left => do(self.parser.advance(), self.scope(block)),
         else => self.expressionStmt(),
@@ -205,6 +206,24 @@ fn ifStmt(self: *Compiler) void {
 
     // Patch else_jump to the end of the if-statement bytecode
     self.patchJump(else_jump);
+}
+
+/// Compile a while-loop statement from source tokens.
+fn whileStmt(self: *Compiler) void {
+    const loop_start: usize = self.instructionOffset();
+
+    self.parser.consume(.paren_left, "Expected '(' after 'while'.");
+    self.expression();
+    self.parser.consume(.paren_right, "Expected ')' after expression.");
+
+    const exit_jump: usize = self.emitJump(.jump_if_false);
+
+    self.emitOp(.pop);
+    self.statement();
+
+    self.emitLoop(loop_start);
+    self.patchJump(exit_jump);
+    self.emitOp(.pop);
 }
 
 /// Compile a print statement from source tokens.
@@ -532,12 +551,12 @@ fn markDefined(self: *Compiler) void {
 /// values of other locals in scope. This means the offset of the local in the
 /// locals array directly reflects its location in the stack.
 fn resolveLocal(self: *const Compiler, identifier: Token) i32 {
-    var i: usize = self.local_count;
+    var i: i32 = self.local_count;
     while (i >= 0) : (i -= 1) {
-        const local: Local = self.locals[i];
+        const local: Local = self.locals[@intCast(i)];
 
         if (identifier.lexemeEquals(local.identifier)) {
-            if (local.depth != -1) return @intCast(i);
+            if (local.depth != -1) return i;
             self.parser.@"error"("Can't read local variable in its own initializer.");
         }
     }
@@ -582,14 +601,12 @@ fn makeConstant(self: *const Compiler, value: Value) u8 {
 /// Push an identifier's string to the current chunk's constants array, returning
 /// the offset of the added constant string.
 fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
-    return self.makeConstant(
-        .Object(
-            self.copyString(token.lexeme) catch {
-                self.parser.@"error"("Error copying identifier string.");
-                return 0;
-            },
-        ),
-    );
+    const ident: *Obj = self.copyString(token.lexeme) catch {
+        self.parser.@"error"("Error copying identifier string.");
+        return 0;
+    };
+
+    return self.makeConstant(.Object(ident));
 }
 
 /// Write the given `byte` to the chunk currently being compiled.
@@ -668,6 +685,20 @@ fn patchJump(self: *const Compiler, offset: usize) void {
     const jump_byte_2: u8 = @as(u8, @truncate(jump_offset));
     self.chunk.?.instructions.items[offset] = jump_byte_1;
     self.chunk.?.instructions.items[offset + 1] = jump_byte_2;
+}
+
+/// Write `OpCode.loop` to the chunk currently being compiled, followed by loop
+/// offset operands to loop back to the given instruction `offset`.
+fn emitLoop(this: *const Compiler, offset: usize) void {
+    const loop_offset: usize = this.instructionOffset() - offset + 3;
+
+    if (loop_offset > cmn.U16_MAX) {
+        this.parser.@"error"("Loop body is too large.");
+    }
+
+    const loop_byte_1: u8 = @as(u8, @truncate(loop_offset >> 8));
+    const loop_byte_2: u8 = @as(u8, @truncate(loop_offset));
+    this.emitOp2(.loop, loop_byte_1, loop_byte_2);
 }
 
 // Object creation methods ====================================================

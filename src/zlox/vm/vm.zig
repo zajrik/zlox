@@ -276,6 +276,10 @@ fn run(self: *Vm) ExecutionResult {
                 const offset: u16 = self.readShort();
                 self.ip += offset;
             },
+            .loop => {
+                const offset: u16 = self.readShort();
+                self.ip -= offset;
+            },
 
             .@"return" => return .ok,
 
