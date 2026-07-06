@@ -172,15 +172,27 @@ fn variableDeclaration(self: *Compiler) void {
 /// Compile a statement from source tokens.
 fn statement(self: *Compiler) void {
     switch (self.parser.next.type) {
+        .keyword_print => do(self.parser.advance(), self.printStmt()),
         .keyword_if => do(self.parser.advance(), self.ifStmt()),
         .keyword_while => do(self.parser.advance(), self.whileStmt()),
-        .keyword_print => do(self.parser.advance(), self.printStmt()),
+        .keyword_for => do(self.parser.advance(), self.scope(forStmt)),
         .brace_left => do(self.parser.advance(), self.scope(block)),
         else => self.expressionStmt(),
     }
 }
 
+/// Compile a print statement from source tokens.
+///
+/// printStmt := "print" exprStmt ";" ;
+fn printStmt(self: *const Compiler) void {
+    self.expression();
+    self.parser.consume(.semicolon, "Expected ';' after value.");
+    self.emitOp(.print);
+}
+
 /// Compile an if-statement from source tokens.
+///
+/// ifStmt := "if" "(" expression ")" statement ( "else" statement )? ;
 fn ifStmt(self: *Compiler) void {
     self.parser.consume(.paren_left, "Expected '(' after 'if'.");
     self.expression();
@@ -209,6 +221,8 @@ fn ifStmt(self: *Compiler) void {
 }
 
 /// Compile a while-loop statement from source tokens.
+///
+/// whileStmt := "while" "(" expression ")" statement ;
 fn whileStmt(self: *Compiler) void {
     const loop_start: usize = self.instructionOffset();
 
@@ -226,18 +240,62 @@ fn whileStmt(self: *Compiler) void {
     self.emitOp(.pop);
 }
 
-/// Compile a print statement from source tokens.
-fn printStmt(self: *const Compiler) void {
-    self.expression();
-    self.parser.consume(.semicolon, "Expected ';' after value.");
-    self.emitOp(.print);
-}
+/// Compiles a for-loop statement from source tokens.
+///
+/// forStmt := "for" "(" ( varDecl | expression? ";" )
+///            expression? ";" expression? ")" statement ;
+fn forStmt(self: *Compiler) void {
+    self.parser.consume(.paren_left, "Expected '(' after 'for'.");
 
-/// Compile an expression statement from source tokens.
-fn expressionStmt(self: *const Compiler) void {
-    self.expression();
-    self.parser.consume(.semicolon, "Expected ';' after expression.");
-    self.emitOp(.pop);
+    // Compile initializer clause
+    switch (self.parser.next.type) {
+        .keyword_var => do(self.parser.advance(), self.variableDeclaration()),
+        .semicolon => self.parser.advance(),
+        else => self.expressionStmt(),
+    }
+
+    // Set loop start before condition expression. If we have an increment expression,
+    // this will be updated so that the final loop instruction jumps to the increment
+    // expression which will then jump back here after executing
+    var loop_start: usize = self.instructionOffset();
+
+    var exit_jump: ?usize = null;
+
+    // Compile loop condition if present and set exit jump placeholder
+    if (!self.parser.nextMatches(.semicolon)) {
+        self.expression();
+        self.parser.consume(.semicolon, "Expected ';' after loop condition.");
+
+        exit_jump = self.emitJump(.jump_if_false);
+        self.emitOp(.pop);
+    }
+
+    // Compile increment expression if present
+    if (!self.parser.nextMatches(.paren_right)) {
+        const increment_jump: usize = self.emitJump(.jump);
+        const increment_start: usize = self.instructionOffset();
+
+        self.expression();
+        self.emitOp(.pop);
+        self.parser.consume(.paren_right, "Expected ')' after for-clauses.");
+
+        // Loop back to start after executing increment expression, update loop_start
+        // to point to the increment so the body loops back here after executing
+        self.emitLoop(loop_start);
+        loop_start = increment_start;
+
+        self.patchJump(increment_jump);
+    }
+
+    // Compile loop body, emit loop to loop back to start (or to increment clause)
+    self.statement();
+    self.emitLoop(loop_start);
+
+    // If a loop condition was provided, patch exit jump and pop condition
+    if (exit_jump) |j| {
+        self.patchJump(j);
+        self.emitOp(.pop);
+    }
 }
 
 /// Compile a block statement from source tokens.
@@ -246,6 +304,15 @@ fn block(self: *Compiler) void {
         self.declaration();
     }
     self.parser.consume(.brace_right, "Expected '}' after block.");
+}
+
+/// Compile an expression statement from source tokens.
+///
+/// exprStmt := expression ";" ;
+fn expressionStmt(self: *const Compiler) void {
+    self.expression();
+    self.parser.consume(.semicolon, "Expected ';' after expression.");
+    self.emitOp(.pop);
 }
 
 // Expression compilation methods =============================================
@@ -707,7 +774,7 @@ fn emitLoop(this: *const Compiler, offset: usize) void {
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns the returned pointer
 /// and is responsible for freeing it.
-pub fn createObj(
+fn createObj(
     self: *const Compiler,
     comptime @"type": Obj.Type,
     body: Obj.Body(@"type"),
@@ -737,7 +804,7 @@ pub fn createObj(
 ///
 /// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
 /// pointer and is responsible for freeing it.
-pub fn copyString(self: *const Compiler, chars: []const u8) !*Obj {
+fn copyString(self: *const Compiler, chars: []const u8) !*Obj {
     const copy: []u8 = try mem.alloc(u8, chars.len);
     @memcpy(copy.ptr, chars);
 
