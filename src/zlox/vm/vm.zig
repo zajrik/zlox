@@ -128,8 +128,8 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
 /// Pop the top two strings off of the stack, concatenate them, and push the resulting
 /// string to the stack.
 fn concatenate(self: *Vm) !void {
-    const b: []const u8 = self.stack.pop().obj.as.string.chars;
-    const a: []const u8 = self.stack.pop().obj.as.string.chars;
+    const b: []const u8 = self.stack.pop().obj.as(.string).chars;
+    const a: []const u8 = self.stack.pop().obj.as(.string).chars;
 
     const new_len: usize = a.len + b.len;
     const new_chars: []u8 = try mem.alloc(u8, new_len);
@@ -137,9 +137,9 @@ fn concatenate(self: *Vm) !void {
     @memcpy(new_chars.ptr, a);
     @memcpy(new_chars.ptr + a.len, b);
 
-    const new_string: *Obj = try self.takeString(new_chars);
+    const new_string: *Obj.String = try self.takeString(new_chars);
 
-    self.stack.push(.Object(new_string));
+    self.stack.push(.Object(&new_string.obj));
 }
 
 /// Run instructions from the currently loaded chunk.
@@ -233,12 +233,12 @@ fn run(self: *Vm) ExecutionResult {
             .print => printf("{f}\n", .{self.stack.pop()}),
 
             .global_define => {
-                const ident: *Obj = self.readString();
+                const ident: *Obj.String = self.readString();
                 _ = self.globals.set(ident, self.stack.peek(0));
                 _ = self.stack.pop();
             },
             .global_set => {
-                const ident: *Obj = self.readString();
+                const ident: *Obj.String = self.readString();
 
                 // If the global variable isn't defined before setting, throw a
                 // runtime error and delete the entry from the globals table
@@ -249,7 +249,7 @@ fn run(self: *Vm) ExecutionResult {
                 }
             },
             .global_get => {
-                const ident: *Obj = self.readString();
+                const ident: *Obj.String = self.readString();
                 const value: Value = self.globals.get(ident) orelse {
                     self.runtimeError("Undefined variable '{f}'.", .{ident});
                     return .runtime_error;
@@ -309,8 +309,8 @@ fn readConstant(self: *Vm) Value {
 }
 
 /// Read the string constant value at the offset obtained by reading the next byte.
-fn readString(self: *Vm) *Obj {
-    return self.readConstant().obj;
+fn readString(self: *Vm) *Obj.String {
+    return self.readConstant().obj.as(.string);
 }
 
 // Object management functions ================================================
@@ -327,16 +327,16 @@ pub fn createObj(self: *Vm, comptime @"type": Obj.Type, body: Obj.Body(@"type"))
     // Pre-hash and intern string objects
     if (@"type" == .string) {
         const hash: u32 = Fnv1a_32.hash(body.chars);
-        const interned_string: ?*Obj = self.strings.findString(body.chars, hash);
+        const interned_string: ?*Obj.String = self.strings.findString(body.chars, hash);
 
         // Return interned string if it exists
         if (interned_string) |str| {
             obj.destroy();
-            return str;
+            return &str.obj;
         }
 
-        obj.as.string.hash = hash;
-        _ = self.strings.set(obj, .Nil);
+        obj.as(.string).hash = hash;
+        _ = self.strings.set(obj.as(.string), .Nil);
     }
 
     // Link object for GC tracing
@@ -355,11 +355,13 @@ pub fn createObj(self: *Vm, comptime @"type": Obj.Type, body: Obj.Body(@"type"))
 ///
 /// Objects created this way are managed by the garbage collector, or cleaned up
 /// when the VM is freed if they live until the end of the program.
-pub fn takeString(self: *Vm, string: []const u8) !*Obj {
-    return try self.createObj(
+pub fn takeString(self: *Vm, string: []const u8) !*Obj.String {
+    const obj: *Obj = try self.createObj(
         .string,
         Obj.String{ .chars = string },
     );
+
+    return obj.as(.string);
 }
 
 /// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
@@ -369,7 +371,7 @@ pub fn takeString(self: *Vm, string: []const u8) !*Obj {
 ///
 /// Objects created this way are managed by the garbage collector, or cleaned up
 /// when the VM is freed if they live until the end of the program.
-pub fn copyString(self: *Vm, string: []const u8) !*Obj {
+pub fn copyString(self: *Vm, string: []const u8) !*Obj.String {
     const copy: []u8 = try mem.alloc(u8, string.len);
     @memcpy(copy.ptr, string);
     return try self.takeString(copy);

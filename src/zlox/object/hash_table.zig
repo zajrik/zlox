@@ -25,7 +25,7 @@ const Entry = struct {
     ///
     /// An entry with a `null` key is either unused, or a tombstone for a
     /// deleted entry.
-    key: ?*Obj,
+    key: ?*Obj.String,
 
     /// The value associated with this entry.
     val: Value,
@@ -101,10 +101,8 @@ fn resize(self: *HashTable, capacity: usize) !void {
 }
 
 /// Find an `Entry` with the given `key` in this table.
-fn findEntry(self: *const HashTable, key: *Obj) *Entry {
-    if (key.isNot(.string)) @panic("HashTable only supports string keys");
-
-    var index: usize = key.as.string.hash % self.entries.len;
+fn findEntry(self: *const HashTable, key: *Obj.String) *Entry {
+    var index: usize = key.hash % self.entries.len;
     var tombstone: ?*Entry = null;
 
     while (true) {
@@ -131,7 +129,7 @@ fn findEntry(self: *const HashTable, key: *Obj) *Entry {
 /// Find a string key object in this table matching the given `chars` and `hash`.
 ///
 /// Returns a pointer to the string key object, or `null` if no key was found.
-pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj {
+pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj.String {
     if (self.count == 0 or self.entries.len == 0) return null;
 
     var index: usize = hash % self.entries.len;
@@ -142,10 +140,9 @@ pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj {
         // If entry key isn't null, check that it's the one we're looking for
         // and return it if so
         if (entry.key) |key| {
-            const key_str: Obj.String = key.as.string;
-            const key_match: bool = key_str.chars.len == chars.len and
-                key_str.hash == hash and
-                eql(u8, key_str.chars, chars);
+            const key_match: bool = key.chars.len == chars.len and
+                key.hash == hash and
+                eql(u8, key.chars, chars);
 
             if (key_match) return key;
         }
@@ -161,7 +158,7 @@ pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj {
 /// Set a value in this table under the given `key`.
 ///
 /// Returns whether the entry was empty before the given value was set.
-pub fn set(self: *HashTable, key: *Obj, val: Value) bool {
+pub fn set(self: *HashTable, key: *Obj.String, val: Value) bool {
     errdefer exit(1);
 
     const new_count: f64 = @as(f64, @floatFromInt(self.count + 1));
@@ -193,7 +190,7 @@ pub fn addAll(self: *HashTable, other: *HashTable) void {
 }
 
 /// Get the value from this table at the given `key`, if it exists.
-pub fn get(self: *const HashTable, key: *Obj) ?Value {
+pub fn get(self: *const HashTable, key: *Obj.String) ?Value {
     if (self.count == 0) return null;
 
     const entry: *Entry = self.findEntry(key);
@@ -203,14 +200,14 @@ pub fn get(self: *const HashTable, key: *Obj) ?Value {
 }
 
 /// Returns whether this table has an existing entry for the given `key`.
-pub fn hasKey(self: *const HashTable, key: *Obj) bool {
+pub fn hasKey(self: *const HashTable, key: *Obj.String) bool {
     return self.count != 0 and self.findEntry(key).key != null;
 }
 
 /// Remove the entry with the given `key` from this table, if it exists.
 ///
 /// Returns whether an entry was removed.
-pub fn delete(self: *HashTable, key: *Obj) bool {
+pub fn delete(self: *HashTable, key: *Obj.String) bool {
     const entry: *Entry = self.findEntry(key);
     if (entry.key == null) return false;
 

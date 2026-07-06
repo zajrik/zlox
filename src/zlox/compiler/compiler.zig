@@ -482,9 +482,9 @@ fn string(self: *const Compiler, _: bool) void {
     errdefer exit(1);
 
     const lexeme: []const u8 = self.parser.current.lexeme;
-    const str_obj: *Obj = try self.copyString(lexeme[1..(lexeme.len - 1)]);
+    const str: *Obj.String = try self.copyString(lexeme[1..(lexeme.len - 1)]);
 
-    self.emitConstant(.Object(str_obj));
+    self.emitConstant(.Object(&str.obj));
 }
 
 /// Compile a number expression from the current source token.
@@ -790,12 +790,12 @@ fn makeConstant(self: *const Compiler, value: Value) u8 {
 /// Push an identifier's string to the current chunk's constants array, returning
 /// the offset of the added constant string.
 fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
-    const ident: *Obj = self.copyString(token.lexeme) catch {
+    const ident: *Obj.String = self.copyString(token.lexeme) catch {
         self.parser.@"error"("Error copying identifier string.");
         return 0;
     };
 
-    return self.makeConstant(.Object(ident));
+    return self.makeConstant(.Object(&ident.obj));
 }
 
 /// Write the given `byte` to the chunk currently being compiled.
@@ -921,16 +921,16 @@ fn createObj(
     // Pre-hash and intern string objects
     if (@"type" == .string) {
         const hash: u32 = Fnv1a_32.hash(body.chars);
-        const interned_string: ?*Obj = self.strings.findString(body.chars, hash);
+        const interned_string: ?*Obj.String = self.strings.findString(body.chars, hash);
 
         // Return interned string if it exists
         if (interned_string) |str| {
             obj.destroy();
-            return str;
+            return &str.obj;
         }
 
-        obj.as.string.hash = hash;
-        _ = self.strings.set(obj, .Nil);
+        obj.as(.string).hash = hash;
+        _ = self.strings.set(obj.as(.string), .Nil);
     }
 
     return obj;
@@ -941,12 +941,14 @@ fn createObj(
 ///
 /// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
 /// pointer and is responsible for freeing it.
-fn copyString(self: *const Compiler, chars: []const u8) !*Obj {
+fn copyString(self: *const Compiler, chars: []const u8) !*Obj.String {
     const copy: []u8 = try mem.alloc(u8, chars.len);
     @memcpy(copy.ptr, chars);
 
-    return try self.createObj(
+    const obj: *Obj = try self.createObj(
         .string,
         Obj.String{ .chars = copy },
     );
+
+    return obj.as(.string);
 }

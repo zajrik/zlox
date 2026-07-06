@@ -3,14 +3,6 @@
 //! Implemented with the closest safe approximation to C-like type punning/struct
 //! inheritance I can manage in zig without just using extern structs. There might
 //! be a better way of doing this, but I haven't found one yet.
-//!
-//! This is mostly a proof-of-concept in case the union implementation is too bulky
-//! since all objects, even smaller ones, will have the size of the largest object
-//! type in the union (plus the base obj fields and any alignment padding).
-//!
-//! I'll be moving forward with the union implementation for now, but this can be
-//! swapped in easily, it just requires updating all `obj.as.type` references from
-//! union field access to `obj.as(.type)` method calls. Light work with find/replace.
 
 const std = @import("std");
 const zlox = @import("../../.lib.zig");
@@ -29,7 +21,7 @@ const Obj: type = @This();
 pub const Type = enum(u1) { string };
 
 /// Object body payload type for the given object `type`.
-fn Body(comptime @"type": Type) type {
+pub fn Body(comptime @"type": Type) type {
     const obj_type: type = switch (@"type") {
         .string => String,
     };
@@ -67,10 +59,10 @@ next: ?*Obj = null,
 ///
 /// Use `Vm.createObj()` when creating objects that need to be garbage-collectable.
 pub fn create(comptime @"type": Type, body: Body(@"type")) !*Obj {
-    const obj: *Body(@"type") = try mem.create(Body(@"type"));
-    obj.* = body;
-    obj.obj = Obj{ .type = @"type" };
-    return &obj.obj;
+    const object: *Body(@"type") = try mem.create(Body(@"type"));
+    object.* = body;
+    object.obj = Obj{ .type = @"type" };
+    return &object.obj;
 }
 
 /// Allocate a new constant `Obj` of the given `type` with the given `body`.
@@ -86,38 +78,35 @@ pub fn createConstant(comptime @"type": Type, body: Body(@"type")) !*Obj {
 }
 
 /// Destroy this `Obj`, freeing its owned resources.
-pub fn destroy(self: *const Obj) void {
+pub fn destroy(self: *Obj) void {
     // std.debug.print(
     //     "freeing {s}obj {*} {f}\n",
     //     .{ if (self.is_constant) "const " else "", self, self },
     // );
 
-    // Free data owned by the object
     switch (self.type) {
-        .string => mem.free(self.as(.string).chars),
+        inline else => |t| self.as(t).destroy(),
     }
-
-    // Free the object itself
     mem.destroy(self);
 }
 
 /// Returns whether this obj is of the given `type`.
-pub fn is(self: *const Obj, @"type": Type) bool {
+pub fn is(self: *Obj, @"type": Type) bool {
     return self.type == @"type";
 }
 
 /// Returns whether this obj is not of the given `type`.
-pub fn isNot(self: *const Obj, @"type": Type) bool {
+pub fn isNot(self: *Obj, @"type": Type) bool {
     return self.type != @"type";
 }
 
 /// Cast this `Obj` to an obj of the given `type`.
-pub fn as(self: *const Obj, comptime @"type": Type) *const Body(@"type") {
+pub fn as(self: *Obj, comptime @"type": Type) *Body(@"type") {
     return @alignCast(@fieldParentPtr("obj", self));
 }
 
 /// Custom formatter for `Obj` values.
-pub fn format(self: *const Obj, writer: *Writer) Writer.Error!void {
+pub fn format(self: *Obj, writer: *Writer) Writer.Error!void {
     switch (self.type) {
         .string => try writer.print("{s}", .{self.as(.string).chars}),
     }
