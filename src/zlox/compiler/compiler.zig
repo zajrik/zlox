@@ -410,8 +410,9 @@ fn mapRule(rule: ?Rule) ?ExprFn {
         .variable => variable,
         .unary => unary,
         .binary => binary,
-        .orExpr => orExpr,
-        .andExpr => andExpr,
+        .@"or" => orExpr,
+        .@"and" => andExpr,
+        .@"switch" => switchExpr,
         // .call => call,
         // .dot => dot,
         // .nilish => nilish,
@@ -597,6 +598,62 @@ fn orExpr(self: *const Compiler, _: bool) void {
     self.expr(.@"or");
 
     self.patchJump(end);
+}
+
+/// Compile a switch expression from source tokens.
+///
+/// switchExpr := "switch" "(" expression ")" "{" caseExpr* "}" ;
+/// caseExpr   := ( expression | "_" ) "=>" expression ;
+fn switchExpr(self: *const Compiler, _: bool) void {
+    self.parser.consume(.paren_left, "Expected '(' after 'switch'.");
+    self.expression();
+    self.parser.consume(.paren_right, "Expected ')' after expression.");
+    self.parser.consume(.brace_left, "Expected '{' after switch value.");
+
+    var wildcard_found: bool = false;
+
+    const exit_jumps: *JumpList = JumpList.create() catch {
+        self.parser.@"error"("Error allocating switch jump list. Out of memory?");
+        return;
+    };
+    defer exit_jumps.destroy();
+
+    while (!self.parser.nextMatches(.brace_right) and !self.parser.nextMatches(.eof)) {
+        // Compile expression case
+        if (self.parser.next.isNot(.identifier) or !self.parser.next.isDiscard()) {
+            self.emitOp(.copy);
+            self.expression();
+            self.emitOp(.equal);
+        }
+
+        // Compile wildcard case
+        else {
+            if (wildcard_found) self.parser.@"error"(
+                "A switch expression may only have a single wildcard case.",
+            );
+            wildcard_found = true;
+            self.parser.advance();
+            self.emitOp(.true);
+        }
+
+        self.parser.consume(.arrow, "Expected '=>'.");
+
+        const case_jump: usize = self.emitJump(.jump_if_false);
+
+        // Pop case expression and switch input expression from stack
+        self.emitOp1(.pop_n, 2);
+
+        self.expression();
+        self.addJump(exit_jumps);
+        self.patchJump(case_jump);
+        self.emitOp(.pop);
+    }
+
+    // If we didn't find a wildcard case then we need to pop switch input expression
+    // from the stack and return nil from the switch expression
+    if (!wildcard_found) self.emitOps(.pop, .nil);
+
+    self.patchJumpList(exit_jumps);
 }
 
 // Variable compilation/management functions ==================================

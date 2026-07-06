@@ -79,7 +79,7 @@ const strategies: [token_count]ParseStrategy = .{
     .strat(.number,          .number,    null,     .none       ),
 
     // Keywords
-    .strat(.keyword_and,     null,       .andExpr, .@"and"     ),
+    .strat(.keyword_and,     null,       .@"and",  .@"and"     ),
     .strat(.keyword_case,    null,       null,     .none       ),
     .strat(.keyword_class,   null,       null,     .none       ),
     .strat(.keyword_default, null,       null,     .none       ),
@@ -89,11 +89,11 @@ const strategies: [token_count]ParseStrategy = .{
     .strat(.keyword_fun,     null,       null,     .none       ),
     .strat(.keyword_if,      null,       null,     .none       ),
     .strat(.keyword_nil,     .literal,   null,     .none       ),
-    .strat(.keyword_or,      null,       .orExpr,  .@"or"      ),
+    .strat(.keyword_or,      null,       .@"or",   .@"or"      ),
     .strat(.keyword_print,   null,       null,     .none       ),
     .strat(.keyword_return,  null,       null,     .none       ),
     .strat(.keyword_super,   null,       null,     .none       ),
-    .strat(.keyword_switch,  null,       null,     .none       ),
+    .strat(.keyword_switch,  .@"switch", null,     .none       ),
     .strat(.keyword_this,    null,       null,     .none       ),
     .strat(.keyword_true,    .literal,   null,     .none       ),
     .strat(.keyword_var,     null,       null,     .none       ),

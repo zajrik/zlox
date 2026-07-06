@@ -1,7 +1,7 @@
-var a = 5;
+var a = 2;
 
-switch (a) {
-    case 1: print "foo";
-    case 2: print "bar";
-    default: print "baz";
-}
+print switch (a) {
+    1 => "foo"
+    2 => "bar"
+    _ => "baz"
+};
