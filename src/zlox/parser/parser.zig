@@ -105,7 +105,7 @@ pub fn errorAt(self: *Parser, token: Token, msg: []const u8) void {
     if (token.is(.eof)) {
         printf(" at end", .{});
     } else if (token.is(.@"error")) {
-        // No extra message needed for errors
+        // No extra message needed for error tokens
     } else {
         printf(" at '{s}'", .{token.lexeme});
     }

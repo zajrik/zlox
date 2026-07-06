@@ -1,3 +1,7 @@
-for (var i = 0; i < 10; i = i + 1) {
-    print i;
+var a = 5;
+
+switch (a) {
+    case 1: print "foo";
+    case 2: print "bar";
+    default: print "baz";
 }

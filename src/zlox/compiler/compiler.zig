@@ -17,6 +17,7 @@ const debug = zlox.debug;
 const Chunk = zlox.compiler.Chunk;
 const CompileStrategy = zlox.compiler.CompileStrategy;
 const ExprFn = zlox.compiler.ExprFn;
+const JumpList = zlox.compiler.JumpList;
 const Local = zlox.compiler.Local;
 const OpCode = zlox.compiler.OpCode;
 
@@ -174,6 +175,7 @@ fn statement(self: *Compiler) void {
     switch (self.parser.next.type) {
         .keyword_print => do(self.parser.advance(), self.printStmt()),
         .keyword_if => do(self.parser.advance(), self.ifStmt()),
+        .keyword_switch => do(self.parser.advance(), self.switchStmt()),
         .keyword_while => do(self.parser.advance(), self.whileStmt()),
         .keyword_for => do(self.parser.advance(), self.scope(forStmt)),
         .brace_left => do(self.parser.advance(), self.scope(block)),
@@ -218,6 +220,69 @@ fn ifStmt(self: *Compiler) void {
 
     // Patch else_jump to the end of the if-statement bytecode
     self.patchJump(else_jump);
+}
+
+/// Compile a switch-statement from source tokens.
+///
+/// switchStmt  := "switch" "(" expression ")" "{" switchCase* defaultCase? "}" ;
+/// switchCase  := "case" ":" statement ;
+/// defaultCase := "default" ":" statement ;
+fn switchStmt(self: *Compiler) void {
+    // Alias parser here because self.parser is getting too long in this function
+    const p: *Parser = self.parser;
+
+    p.consume(.paren_left, "Expected '(' after 'switch'.");
+    self.expression();
+    p.consume(.paren_right, "Expected ')' after expression.");
+    p.consume(.brace_left, "Expected '{' after switch value.");
+
+    var default_found: bool = false;
+
+    const exit_jumps: *JumpList = JumpList.create() catch {
+        p.@"error"("Error allocating switch jump list. Out of memory?");
+        return;
+    };
+    defer exit_jumps.destroy();
+
+    while (!p.nextMatches(.brace_right) and !p.nextMatches(.eof)) {
+        if (!p.nextMatches(.keyword_case) and !p.nextMatches(.keyword_default)) {
+            p.@"error"("Expected 'case' or 'default'.");
+        }
+
+        // Compile non-default case expression
+        if (p.current.isNot(.keyword_default)) {
+            // Copy condition value on stack to compare condition and case expression
+            // without popping the original condition value from the stack
+            self.emitOp(.copy);
+
+            self.expression();
+            self.emitOp(.equal);
+        }
+
+        // Compile default case
+        else {
+            if (default_found) p.@"error"(
+                "A switch statement may only have a single 'default' case.",
+            );
+            default_found = true;
+            self.emitOp(.true);
+        }
+
+        p.consume(.colon, "Expected ':'.");
+
+        const case_jump: usize = self.emitJump(.jump_if_false);
+        self.emitOp(.pop);
+        self.statement();
+
+        self.addJump(exit_jumps);
+        self.patchJump(case_jump);
+        self.emitOp(.pop);
+    }
+
+    self.patchJumpList(exit_jumps);
+
+    // Pop condition value
+    self.emitOp(.pop);
 }
 
 /// Compile a while-loop statement from source tokens.
@@ -756,16 +821,31 @@ fn patchJump(self: *const Compiler, offset: usize) void {
 
 /// Write `OpCode.loop` to the chunk currently being compiled, followed by loop
 /// offset operands to loop back to the given instruction `offset`.
-fn emitLoop(this: *const Compiler, offset: usize) void {
-    const loop_offset: usize = this.instructionOffset() - offset + 3;
+fn emitLoop(self: *const Compiler, offset: usize) void {
+    const loop_offset: usize = self.instructionOffset() - offset + 3;
 
     if (loop_offset > cmn.U16_MAX) {
-        this.parser.@"error"("Loop body is too large.");
+        self.parser.@"error"("Loop body is too large.");
     }
 
     const loop_byte_1: u8 = @as(u8, @truncate(loop_offset >> 8));
     const loop_byte_2: u8 = @as(u8, @truncate(loop_offset));
-    this.emitOp2(.loop, loop_byte_1, loop_byte_2);
+    self.emitOp2(.loop, loop_byte_1, loop_byte_2);
+}
+
+/// Emit a `.jump` op beginning at the current instruction offset, adding it to
+/// the given `jump_list` to be resolved later via `patchJumpList()`.
+fn addJump(self: *const Compiler, jump_list: *JumpList) void {
+    jump_list.addJump(self.emitJump(.jump));
+}
+
+/// Patch all jumps in the given `jump_list`.
+fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
+    var next: ?*JumpList.Jump = jump_list.head;
+    while (next) |jump| {
+        next = jump.next;
+        self.patchJump(jump.offset);
+    }
 }
 
 // Object creation methods ====================================================
