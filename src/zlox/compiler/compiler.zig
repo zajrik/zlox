@@ -392,46 +392,6 @@ fn expressionStmt(self: *const Compiler) void {
 
 // Expression compilation methods =============================================
 
-/// Get the strategy for compiling the given expression `token` from the parser.
-fn getStrategy(token: Token) CompileStrategy {
-    // This is a really pointless level of indirection in hindsight but I consider
-    // determining how the expression should be compiled to be a part of the parsing
-    // phase so I want to keep the pratt parser table in the parser namespace.
-    //
-    // An alternative could be to make the expression methods pub so they can just
-    // be referenced directly in the parser. I'll consider it if this becomes a
-    // compilation bottleneck
-
-    const strategy: ParseStrategy = .forToken(token);
-    return .{
-        .prefix = mapRule(strategy.prefix),
-        .infix = mapRule(strategy.infix),
-        .precedence = strategy.precedence,
-    };
-}
-
-/// Map the given parser `Rule` into its matching expression compilation function.
-fn mapRule(rule: ?Rule) ?ExprFn {
-    return if (rule) |r| switch (r) {
-        .grouping => grouping,
-        .string => string,
-        .number => number,
-        .literal => literal,
-        .variable => variable,
-        .unary => unary,
-        .binary => binary,
-        .@"or" => orExpr,
-        .@"and" => andExpr,
-        .@"switch" => switchExpr,
-        // .call => call,
-        // .dot => dot,
-        // .nilish => nilish,
-        // .funExpr => funExpr,
-        // .thisExpr => thisExpr,
-        else => null,
-    } else null;
-}
-
 /// Compile an expression from source tokens.
 fn expression(self: *const Compiler) void {
     self.expr(.assignment);
@@ -439,7 +399,9 @@ fn expression(self: *const Compiler) void {
 
 /// Compile an expression from source tokens with the given `precedence`.
 fn expr(self: *const Compiler, precedence: Precedence) void {
-    self.parser.advance();
+    const p: *Parser = self.parser;
+
+    p.advance();
 
     // Check if this expression is allowed to be treated as an assignment expression
     const can_assign: bool = precedence.lte(.assignment);
@@ -453,8 +415,8 @@ fn expr(self: *const Compiler, precedence: Precedence) void {
     // (1 + 1); // grouping is a prefix rule
     // -1 + 1); // unary minus is a prefix rule
 
-    const prefix_rule: ExprFn = getStrategy(self.parser.current).prefix orelse {
-        return self.parser.@"error"("Expected expression");
+    const prefix_rule: ExprFn = p.strategy(p.current).prefix orelse {
+        return p.@"error"("Expected expression.");
     };
     prefix_rule(self, can_assign);
 
@@ -466,29 +428,29 @@ fn expr(self: *const Compiler, precedence: Precedence) void {
     // Otherwise, we continue parsing infix expressions until hitting a token with
     // too low precedence.
 
-    while (precedence.lte(getStrategy(self.parser.next).precedence)) {
-        self.parser.advance();
-        const infix_rule: ExprFn = getStrategy(self.parser.current).infix orelse {
-            return self.parser.@"error"("Expected expression");
+    while (precedence.lte(p.strategy(p.next).precedence)) {
+        p.advance();
+        const infix_rule: ExprFn = p.strategy(p.current).infix orelse {
+            return p.@"error"("Expected expression.");
         };
         infix_rule(self, can_assign);
     }
 
     // `.equal` should have been consumed by the variable prefix rule at this point
     // if assignment was allowed, so we should error if we see `=`
-    if (can_assign and self.parser.nextMatches(.equal)) {
-        self.parser.@"error"("Invalid assignment target.");
+    if (can_assign and p.nextMatches(.equal)) {
+        p.@"error"("Invalid assignment target.");
     }
 }
 
 /// Compile a parenthesized grouping expression from source tokens.
-fn grouping(self: *const Compiler, _: bool) void {
+pub fn grouping(self: *const Compiler, _: bool) void {
     self.expression();
     self.parser.consume(.paren_right, "Expected ')' after expression.");
 }
 
 /// Compile a string expression from the current source token.
-fn string(self: *const Compiler, _: bool) void {
+pub fn string(self: *const Compiler, _: bool) void {
     errdefer exit(1);
 
     const lexeme: []const u8 = self.parser.current.lexeme;
@@ -498,7 +460,7 @@ fn string(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a number expression from the current source token.
-fn number(self: *const Compiler, _: bool) void {
+pub fn number(self: *const Compiler, _: bool) void {
     const value: f32 = parseFloat(f32, self.parser.current.lexeme) catch {
         return self.parser.@"error"("Invalid number literal.");
     };
@@ -506,7 +468,7 @@ fn number(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a literal expression from the current source token.
-fn literal(self: *const Compiler, _: bool) void {
+pub fn literal(self: *const Compiler, _: bool) void {
     switch (self.parser.current.type) {
         .keyword_nil => self.emitOp(.nil),
         .keyword_true => self.emitOp(.true),
@@ -516,7 +478,7 @@ fn literal(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a variable/identifier get/set expression from the current source token.
-fn variable(self: *const Compiler, can_assign: bool) void {
+pub fn variable(self: *const Compiler, can_assign: bool) void {
     self.variableGetSet(self.parser.current, can_assign);
 }
 
@@ -545,7 +507,7 @@ fn variableGetSet(self: *const Compiler, identifier: Token, can_assign: bool) vo
 }
 
 /// Compile a unary expression from source tokens.
-fn unary(self: *const Compiler, _: bool) void {
+pub fn unary(self: *const Compiler, _: bool) void {
     const operator_type: TokenType = self.parser.current.type;
 
     self.expr(.unary);
@@ -558,7 +520,7 @@ fn unary(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a binary expression from source tokens.
-fn binary(self: *const Compiler, _: bool) void {
+pub fn binary(self: *const Compiler, _: bool) void {
     const operator: Token = self.parser.current;
     const strategy: ParseStrategy = .forToken(operator);
 
@@ -586,7 +548,7 @@ fn binary(self: *const Compiler, _: bool) void {
 ///
 /// The left-hand operand of the `and` expression has already been compiled to
 /// the chunk at the point this will be executed.
-fn andExpr(self: *const Compiler, _: bool) void {
+pub fn andExpr(self: *const Compiler, _: bool) void {
     // The left-hand operand will be on the stack for this jump
     const end: usize = self.emitJump(.jump_if_false);
 
@@ -600,7 +562,7 @@ fn andExpr(self: *const Compiler, _: bool) void {
 ///
 /// The left-hand operand of the `or` expression has already been compiled to
 /// the chunk at the point this will be executed.
-fn orExpr(self: *const Compiler, _: bool) void {
+pub fn orExpr(self: *const Compiler, _: bool) void {
     // The left-hand operand will be on the stack for this jump
     const end: usize = self.emitJump(.jump_if_true);
 
@@ -614,7 +576,7 @@ fn orExpr(self: *const Compiler, _: bool) void {
 ///
 /// switchExpr := "switch" "(" expression ")" "{" caseExpr* "}" ;
 /// caseExpr   := ( expression | "_" ) "=>" expression ;
-fn switchExpr(self: *const Compiler, _: bool) void {
+pub fn switchExpr(self: *const Compiler, _: bool) void {
     self.parser.consume(.paren_left, "Expected '(' after 'switch'.");
     self.expression();
     self.parser.consume(.paren_right, "Expected ')' after expression.");

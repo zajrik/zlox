@@ -16,7 +16,6 @@ const mem = zlox.mem;
 
 const ParseStrategy = zlox.parser.ParseStrategy;
 const Precedence = zlox.parser.Precedence;
-const Rule = zlox.parser.Rule;
 
 const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
@@ -94,6 +93,11 @@ pub fn nextMatches(self: *Parser, @"type": TokenType) bool {
     if (self.next.isNot(@"type")) return false;
     self.advance();
     return true;
+}
+
+/// Returns the strategy for how the given `token` is parsed/compiled.
+pub fn strategy(_: *const Parser, token: Token) ParseStrategy {
+    return ParseStrategy.forToken(token);
 }
 
 // Error management ===========================================================
