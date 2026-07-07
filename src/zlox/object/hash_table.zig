@@ -37,7 +37,7 @@ const Entry = struct {
     const tombstone: Entry = .{ .key = null, .val = .Bool(true) };
 
     /// Custom formatter for `Entry` values.
-    pub fn format(self: Entry, writer: *Writer) Writer.Error!void {
+    pub fn format(self: Entry, writer: *Writer) !void {
         try writer.print(
             "HashTable.Entry {{ .key = {?f}, .val = {f} }}",
             .{ self.key, self.val },
@@ -88,7 +88,7 @@ fn resize(self: *HashTable, capacity: usize) !void {
 
     // Move existing entries to new entries array
     for (self.entries) |entry| if (entry.key) |key| {
-        const dest_entry: *Entry = self.findEntry(key);
+        const dest_entry: *Entry = findEntry(entries, key);
         dest_entry.key = key;
         dest_entry.val = entry.val;
         self.count += 1;
@@ -100,13 +100,13 @@ fn resize(self: *HashTable, capacity: usize) !void {
     self.entries = entries;
 }
 
-/// Find an `Entry` with the given `key` in this table.
-fn findEntry(self: *const HashTable, key: *Obj.String) *Entry {
-    var index: usize = key.hash % self.entries.len;
+/// Find an `Entry` with the given `key` in the given `entries` slice.
+fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
+    var index: usize = key.hash % entries.len;
     var tombstone: ?*Entry = null;
 
     while (true) {
-        const entry: *Entry = &self.entries[index];
+        const entry: *Entry = &entries[index];
 
         // If entry key is null but value is nil, it's an empty slot. If the value
         // isn't nil then it's a tombstone, and we'll set that aside and move to
@@ -122,7 +122,7 @@ fn findEntry(self: *const HashTable, key: *Obj.String) *Entry {
         // Otherwise check if key matches and move on to the next slot if not.
         else if (entry.key == key) return entry;
 
-        index = (index + 1) % self.entries.len;
+        index = (index + 1) % entries.len;
     }
 }
 
@@ -168,7 +168,7 @@ pub fn set(self: *HashTable, key: *Obj.String, val: Value) bool {
         try self.resize(mem.growCapacity(self.entries.len));
     }
 
-    const entry: *Entry = self.findEntry(key);
+    const entry: *Entry = findEntry(self.entries, key);
     const is_open: bool = entry.key == null;
 
     // Only increase count if we're not overwriting a tombstone
@@ -193,7 +193,7 @@ pub fn addAll(self: *HashTable, other: *HashTable) void {
 pub fn get(self: *const HashTable, key: *Obj.String) ?Value {
     if (self.count == 0) return null;
 
-    const entry: *Entry = self.findEntry(key);
+    const entry: *Entry = findEntry(self.entries, key);
     if (entry.key == null) return null;
 
     return entry.val;
@@ -201,14 +201,14 @@ pub fn get(self: *const HashTable, key: *Obj.String) ?Value {
 
 /// Returns whether this table has an existing entry for the given `key`.
 pub fn hasKey(self: *const HashTable, key: *Obj.String) bool {
-    return self.count != 0 and self.findEntry(key).key != null;
+    return self.count != 0 and findEntry(self.entries, key).key != null;
 }
 
 /// Remove the entry with the given `key` from this table, if it exists.
 ///
 /// Returns whether an entry was removed.
 pub fn delete(self: *HashTable, key: *Obj.String) bool {
-    const entry: *Entry = self.findEntry(key);
+    const entry: *Entry = findEntry(self.entries, key);
     if (entry.key == null) return false;
 
     // Replace entry with tombstone
