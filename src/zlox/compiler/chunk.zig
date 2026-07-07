@@ -1,4 +1,8 @@
 //! A chunk of compiled lox instructions and constant values.
+//!
+//! Initialize a new chunk on the stack by calling `Chunk.init()`. A chunk owns
+//! allocated memory that must be released at the end of its lifecycle by calling
+//! `Chunk.deinit()`.
 
 const std = @import("std");
 const zlox = @import("../.lib.zig");
@@ -28,28 +32,28 @@ lines: ArrayList(u16),
 /// Compiled constant values in this chunk.
 constants: ArrayList(Value),
 
-/// Allocate a new `Chunk` instance on the heap, returning a pointer to it.
+/// Initialize a `Chunk` instance on the stack.
 ///
-/// The caller owns the returned pointer and is responsible for freeing it.
-pub fn create() !*Chunk {
-    return try mem.createStruct(Chunk, .{
+/// A chunk owns allocated memory that must be released by calling `Chunk.deinit()`
+/// at the end of the chunk's lifecycle.
+pub fn init() Chunk {
+    return .{
         .instructions = .empty,
         .lines = .empty,
         .constants = .empty,
-    });
+    };
 }
 
-/// Destroy this `Chunk`, freeing its owned resources.
-pub fn destroy(self: *Chunk) void {
-    defer mem.destroy(self);
-    self.instructions.deinit(mem.allocator());
-    self.lines.deinit(mem.allocator());
+/// Release all allocated memory owned by this chunk.
+pub fn deinit(self: Chunk) void {
+    @constCast(&self.instructions).deinit(mem.allocator());
+    @constCast(&self.lines).deinit(mem.allocator());
 
     // Free compile-time constant objs
     for (self.constants.items) |constant| {
         if (constant.is(.obj)) constant.obj.destroy();
     }
-    self.constants.deinit(mem.allocator());
+    @constCast(&self.constants).deinit(mem.allocator());
 }
 
 /// Returns whether this chunk has any instructions to execute.
@@ -93,7 +97,8 @@ pub fn addConstant(self: *Chunk, value: Value) u8 {
 /// Returns `null` if the constant does not already exist.
 pub fn findConstant(self: *const Chunk, value: Value) ?u8 {
     for (self.constants.items, 0..) |constant, offset| {
-        if (constant.equals(value)) return @as(u8, @truncate(offset));
+        if (constant.equals(value)) return @truncate(offset);
     }
+
     return null;
 }

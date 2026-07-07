@@ -85,16 +85,16 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     var tokenizer: Tokenizer = .init(source);
     const parser: *Parser = try .create(&tokenizer);
     const compiler: *Compiler = try .create(parser, self.strings);
-    const chunk: *Chunk = try compiler.compile() orelse return .compile_error;
+    const script: *Obj.Function = try compiler.compile() orelse return .compile_error;
 
     defer parser.destroy();
     defer compiler.destroy();
-    defer chunk.destroy();
+    defer script.destroy();
 
-    if (chunk.isEmpty()) return .ok;
+    if (script.chunk.isEmpty()) return .ok;
 
-    self.chunk = chunk;
-    self.ip = chunk.instructions.items.ptr;
+    self.chunk = &script.chunk;
+    self.ip = script.chunk.instructions.items.ptr;
 
     return self.run();
 }
@@ -397,7 +397,7 @@ fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
     printf("\n", .{});
 
     // Get current erroring instruction line
-    const instruction: usize = @intFromPtr(self.ip) - @intFromPtr(self.chunk.instructions.items.ptr) - 1;
+    const instruction: usize = self.ip - self.chunk.instructions.items.ptr - 1;
     const line: u16 = self.chunk.lineAt(instruction);
 
     // TODO: Add stack trace printing when callframes are ported

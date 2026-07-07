@@ -50,14 +50,13 @@ const Compiler: type = @This();
 /// Not owned by the compiler.
 parser: *Parser,
 
-/// Currently-compiling chunk.
+/// The currently-compiling function object.
 ///
 /// This is null if compilation failed, or if `compile()` has not been called yet.
-/// If compilation failed, the chunk will be freed so no need to worry about freeing
-/// it manually on failure.
 ///
-/// TODO: Chunks will be encapsulated by function objects after objects are implemented
-chunk: ?*Chunk = null,
+/// If compilation failed, the allocated function will be freed so no need to worry
+/// about freeing it manually on failure.
+function: ?*Obj.Function = null,
 
 /// Table for interning strings at compile time.
 ///
@@ -90,35 +89,46 @@ pub fn destroy(self: *const Compiler) void {
     mem.destroy(self);
 }
 
+/// Returns a pointer to the `Chunk` of the currently-compiling function object.
+///
+/// This will panic if called after compilation finishes and any compilation errors
+/// were emitted.
+fn chunk(self: *const Compiler) *Chunk {
+    return &self.function.?.chunk;
+}
+
 /// Begin compilation.
 ///
 /// Returns a pointer to the compiled `Chunk`. The caller owns the returned pointer
 /// and is responsible for freeing it.
-pub fn compile(self: *Compiler) !?*Chunk {
-    self.chunk = try Chunk.create();
+pub fn compile(self: *Compiler) !?*Obj.Function {
+    self.function = try self.createObj(
+        .function,
+        Obj.Function{ .type = .script, .arity = 0, .chunk = .init() },
+    );
 
+    // Compile declarations from source until reaching end of input.
     while (!self.parser.nextMatches(.eof)) {
         self.declaration();
     }
 
+    // Dump chunk and destroy compiling function if there were any errors
     if (self.parser.had_error) {
-        self.chunk.?.destroy();
-        self.chunk = null;
+        if (comptime debug.dump_chunk) debug.disassembleChunk(
+            &self.function.?.chunk,
+            "code",
+        );
+        self.function.?.destroy();
+        self.function = null;
     }
 
     return self.endCompilation();
 }
 
 /// Return the compiled chunk, ending compilation.
-fn endCompilation(self: *const Compiler) ?*Chunk {
-    if (self.chunk) |chunk| {
-        self.emitOp(.@"return");
-        if ((comptime debug.dump_chunk) and self.parser.had_error) {
-            debug.disassembleChunk(chunk, "code");
-        }
-    }
-
-    return self.chunk;
+fn endCompilation(self: *const Compiler) ?*Obj.Function {
+    if (self.function) |_| self.emitOp(.@"return");
+    return self.function;
 }
 
 // Scope management methods ===================================================
@@ -757,7 +767,7 @@ fn resolveLocal(self: *const Compiler, identifier: Token) i32 {
 ///
 /// If we are in a local scope, the current local will be marked as defined. The
 /// value lives on the stack and is modified on the stack when the variable is
-/// modified so we don't need to do anything more for it. (not yet implemented)
+/// modified so we don't need to do anything more for it.
 ///
 /// If we're in the global scope, emit bytecode to define the global variable,
 /// passing the offset of the global variable's constant identifier string as
@@ -775,9 +785,9 @@ fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
 fn makeConstant(self: *const Compiler, value: Value) u8 {
     // Check for existing constant matching this value and return its offset if
     // it already exists.
-    if (self.chunk.?.findConstant(value)) |offset| return offset;
+    if (self.chunk().findConstant(value)) |offset| return offset;
 
-    const offset: u8 = self.chunk.?.addConstant(value);
+    const offset: u8 = self.chunk().addConstant(value);
 
     if (offset > cmn.U8_MAX) {
         self.parser.@"error"("Too many constants in one chunk.");
@@ -800,7 +810,7 @@ fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
 
 /// Write the given `byte` to the chunk currently being compiled.
 fn emitByte(self: *const Compiler, byte: u8) void {
-    self.chunk.?.writeByte(byte, self.parser.current.line);
+    self.chunk().writeByte(byte, self.parser.current.line);
 }
 
 /// Write the given `op` to the chunk currently being compiled.
@@ -847,7 +857,7 @@ fn emitConstant(self: *const Compiler, value: Value) void {
 ///
 /// Shortcut for `self.chunk.?.instructions.items.len`.
 fn instructionOffset(self: *const Compiler) usize {
-    return self.chunk.?.instructions.items.len;
+    return self.chunk().instructions.items.len;
 }
 
 /// Write a jump `op` followed by placeholder bytes for the jump offset operand.
@@ -872,8 +882,8 @@ fn patchJump(self: *const Compiler, offset: usize) void {
     // Patch first and second bytes of 2-byte jump instruction operand
     const jump_byte_1: u8 = @as(u8, @truncate(jump_offset >> 8));
     const jump_byte_2: u8 = @as(u8, @truncate(jump_offset));
-    self.chunk.?.instructions.items[offset] = jump_byte_1;
-    self.chunk.?.instructions.items[offset + 1] = jump_byte_2;
+    self.chunk().instructions.items[offset] = jump_byte_1;
+    self.chunk().instructions.items[offset + 1] = jump_byte_2;
 }
 
 /// Write `OpCode.loop` to the chunk currently being compiled, followed by loop
