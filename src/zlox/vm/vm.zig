@@ -315,35 +315,39 @@ fn readString(self: *Vm) *Obj.String {
 
 // Object management functions ================================================
 
-/// Allocate a new `Obj` of the given `type` with the given `body`.
+/// Allocate a new `Obj` of the given `type` with the given `variant` payload.
 ///
 /// Returns a pointer to the allocated `Obj`.
 ///
 /// Objects created this way are managed by the garbage collector, or cleaned up
 /// when the VM is freed if they live until the end of the program.
-pub fn createObj(self: *Vm, comptime @"type": Obj.Type, body: Obj.Body(@"type")) !*Obj {
-    const obj: *Obj = try .create(@"type", body);
+pub fn createObj(
+    self: *Vm,
+    comptime @"type": Obj.Type,
+    variant: Obj.Variant(@"type"),
+) !*Obj.Variant(@"type") {
+    const object: *Obj.Variant(@"type") = try Obj.create(@"type", variant);
 
     // Pre-hash and intern string objects
     if (@"type" == .string) {
-        const hash: u32 = Fnv1a_32.hash(body.chars);
-        const interned_string: ?*Obj.String = self.strings.findString(body.chars, hash);
+        const hash: u32 = Fnv1a_32.hash(variant.chars);
+        const interned: ?*Obj.String = self.strings.findString(variant.chars, hash);
 
         // Return interned string if it exists
-        if (interned_string) |str| {
-            obj.destroy();
-            return &str.obj;
+        if (interned) |str| {
+            object.destroy();
+            return str;
         }
 
-        obj.as(.string).hash = hash;
-        _ = self.strings.set(obj.as(.string), .Nil);
+        object.hash = hash;
+        _ = self.strings.set(object, .Nil);
     }
 
     // Link object for GC tracing
-    obj.next = self.root_obj;
-    self.root_obj = obj;
+    object.obj.next = self.root_obj;
+    self.root_obj = &object.obj;
 
-    return obj;
+    return object;
 }
 
 /// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
@@ -356,12 +360,12 @@ pub fn createObj(self: *Vm, comptime @"type": Obj.Type, body: Obj.Body(@"type"))
 /// Objects created this way are managed by the garbage collector, or cleaned up
 /// when the VM is freed if they live until the end of the program.
 pub fn takeString(self: *Vm, string: []const u8) !*Obj.String {
-    const obj: *Obj = try self.createObj(
+    const str: *Obj.String = try self.createObj(
         .string,
         Obj.String{ .chars = string },
     );
 
-    return obj.as(.string);
+    return str;
 }
 
 /// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly

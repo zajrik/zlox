@@ -907,33 +907,33 @@ fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
 
 // Object creation methods ====================================================
 
-/// Allocate a new `Obj` of the given `type` with the given `body`.
+/// Allocate a new `Obj` of the given `type` with the given `variant` payload.
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns the returned pointer
 /// and is responsible for freeing it.
 fn createObj(
     self: *const Compiler,
     comptime @"type": Obj.Type,
-    body: Obj.Body(@"type"),
-) !*Obj {
-    const obj: *Obj = try .createConstant(@"type", body);
+    variant: Obj.Variant(@"type"),
+) !*Obj.Variant(@"type") {
+    const object: *Obj.Variant(@"type") = try Obj.createConstant(@"type", variant);
 
     // Pre-hash and intern string objects
     if (@"type" == .string) {
-        const hash: u32 = Fnv1a_32.hash(body.chars);
-        const interned_string: ?*Obj.String = self.strings.findString(body.chars, hash);
+        const hash: u32 = Fnv1a_32.hash(variant.chars);
+        const interned: ?*Obj.String = self.strings.findString(variant.chars, hash);
 
         // Return interned string if it exists
-        if (interned_string) |str| {
-            obj.destroy();
-            return &str.obj;
+        if (interned) |str| {
+            object.destroy();
+            return str;
         }
 
-        obj.as(.string).hash = hash;
-        _ = self.strings.set(obj.as(.string), .Nil);
+        object.hash = hash;
+        _ = self.strings.set(object, .Nil);
     }
 
-    return obj;
+    return object;
 }
 
 /// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
@@ -945,10 +945,10 @@ fn copyString(self: *const Compiler, chars: []const u8) !*Obj.String {
     const copy: []u8 = try mem.alloc(u8, chars.len);
     @memcpy(copy.ptr, chars);
 
-    const obj: *Obj = try self.createObj(
+    const str: *Obj.String = try self.createObj(
         .string,
         Obj.String{ .chars = copy },
     );
 
-    return obj.as(.string);
+    return str;
 }

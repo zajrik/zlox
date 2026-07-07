@@ -9,6 +9,9 @@ const zlox = @import("../../.lib.zig");
 
 const mem = zlox.mem;
 
+pub const Type = @import("type.zig").Type;
+pub const Variant = @import("variant.zig").Variant;
+
 pub const String = @import("string.zig");
 
 const Writer = std.Io.Writer;
@@ -16,26 +19,6 @@ const Writer = std.Io.Writer;
 // ============================================================================
 
 const Obj: type = @This();
-
-/// Represents the different types of heap-allocated lox objects.
-pub const Type = enum(u1) { string };
-
-/// Object body payload type for the given object `type`.
-pub fn Body(comptime @"type": Type) type {
-    const obj_type: type = switch (@"type") {
-        .string => String,
-    };
-
-    // Ensure Obj children have `obj` header field.
-    if (!@hasField(obj_type, "obj")) @compileError(
-        std.fmt.comptimePrint(
-            "Obj child struct '{}' missing 'obj: Obj' header field.",
-            .{obj_type},
-        ),
-    );
-
-    return obj_type;
-}
 
 /// The type tag of this lox object.
 type: Type,
@@ -49,7 +32,7 @@ is_constant: bool = false,
 /// at runtime for the garbage collector to trace.
 next: ?*Obj = null,
 
-/// Allocate a new `Obj` of the given `type` with the given `body`.
+/// Allocate a new `Obj` of the given `type` with the given `variant` payload.
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns this obj and
 /// is responsible for freeing it.
@@ -58,36 +41,43 @@ next: ?*Obj = null,
 /// by the garbage collector unless reachable through some other traceable structure.
 ///
 /// Use `Vm.createObj()` when creating objects that need to be garbage-collectable.
-pub fn create(comptime @"type": Type, body: Body(@"type")) !*Obj {
-    const object: *Body(@"type") = try mem.create(Body(@"type"));
-    object.* = body;
+pub fn create(
+    comptime @"type": Type,
+    variant: Variant(@"type"),
+) !*Variant(@"type") {
+    const object: *Variant(@"type") = try mem.create(Variant(@"type"));
+    object.* = variant;
     object.obj = Obj{ .type = @"type" };
-    return &object.obj;
+    return object;
 }
 
-/// Allocate a new constant `Obj` of the given `type` with the given `body`.
+/// Allocate a new constant `Obj` of the given `type` with the given `variant` payload.
 ///
 /// Returns a pointer to the allocated `Obj`.
 ///
 /// This should only be called at compile time and any created constant objects
 /// should be owned and cleaned up by the chunk they're compiled to.
-pub fn createConstant(comptime @"type": Type, body: Body(@"type")) !*Obj {
-    const obj: *Obj = try create(@"type", body);
-    obj.is_constant = true;
-    return obj;
+pub fn createConstant(
+    comptime @"type": Type,
+    variant: Variant(@"type"),
+) !*Variant(@"type") {
+    const object: *Variant(@"type") = try create(@"type", variant);
+    object.obj.is_constant = true;
+    return object;
 }
 
 /// Destroy this `Obj`, freeing its owned resources.
 pub fn destroy(self: *Obj) void {
+    defer mem.destroy(self);
+
     // std.debug.print(
     //     "freeing {s}obj {*} {f}\n",
     //     .{ if (self.is_constant) "const " else "", self, self },
     // );
 
     switch (self.type) {
-        inline else => |t| self.as(t).destroy(),
+        inline else => |@"type"| self.as(@"type").destroy(),
     }
-    mem.destroy(self);
 }
 
 /// Returns whether this obj is of the given `type`.
@@ -101,13 +91,13 @@ pub fn isNot(self: *Obj, @"type": Type) bool {
 }
 
 /// Cast this `Obj` to an obj of the given `type`.
-pub fn as(self: *Obj, comptime @"type": Type) *Body(@"type") {
+pub fn as(self: *Obj, comptime @"type": Type) *Variant(@"type") {
     return @alignCast(@fieldParentPtr("obj", self));
 }
 
 /// Custom formatter for `Obj` values.
-pub fn format(self: *Obj, writer: *Writer) Writer.Error!void {
+pub fn format(self: *Obj, writer: *Writer) !void {
     switch (self.type) {
-        .string => try writer.print("{s}", .{self.as(.string).chars}),
+        inline else => |@"type"| try writer.print("{f}", .{self.as(@"type")}),
     }
 }

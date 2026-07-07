@@ -31,6 +31,6 @@ pub fn destroy(self: *const String) void {
 }
 
 /// Custom formatter for `Obj.String` values.
-pub fn format(self: *const String, writer: *Writer) Writer.Error!void {
+pub fn format(self: *const String, writer: *Writer) !void {
     try writer.print("{s}", .{self.chars});
 }
