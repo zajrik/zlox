@@ -155,7 +155,7 @@ fn run(self: *Vm) ExecutionResult {
                 self.chunk,
                 // Find next instruction offset by subtracting the address of
                 // the first instruction from the address of the next instruction
-                @intFromPtr(self.ip) - @intFromPtr(self.chunk.instructions.items.ptr),
+                self.ip - self.chunk.instructions.items.ptr,
             );
         }
 

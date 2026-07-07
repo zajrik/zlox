@@ -1,11 +1,11 @@
-//! A lox string `Obj` struct.
+//! A lox string `Obj` struct variant.
 
 const std = @import("std");
 const zlox = @import("../../.lib.zig");
 
 const mem = zlox.mem;
 
-const Obj = @import("obj.zig");
+const Obj = zlox.object.Obj;
 
 const Writer = std.Io.Writer;
 
