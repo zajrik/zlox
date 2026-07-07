@@ -238,7 +238,6 @@ fn ifStmt(self: *Compiler) void {
 /// switchCase  := "case" ":" statement ;
 /// defaultCase := "default" ":" statement ;
 fn switchStmt(self: *Compiler) void {
-    // Alias parser here because self.parser is getting too long in this function
     const p: *Parser = self.parser;
 
     p.consume(.paren_left, "Expected '(' after 'switch'.");
@@ -248,10 +247,9 @@ fn switchStmt(self: *Compiler) void {
 
     var default_found: bool = false;
 
-    const exit_jumps: *JumpList = JumpList.create() catch {
-        p.@"error"("Error allocating switch jump list. Out of memory?");
-        return;
-    };
+    const exit_jumps: *JumpList = JumpList.create() catch return p.@"error"(
+        "Error allocating switch jump list. Out of memory?",
+    );
     defer exit_jumps.destroy();
 
     while (!p.nextMatches(.brace_right) and !p.nextMatches(.eof)) {
@@ -275,6 +273,7 @@ fn switchStmt(self: *Compiler) void {
                 "A switch statement may only have a single 'default' case.",
             );
             default_found = true;
+
             self.emitOp(.true);
         }
 
@@ -320,12 +319,14 @@ fn whileStmt(self: *Compiler) void {
 /// forStmt := "for" "(" ( varDecl | expression? ";" )
 ///            expression? ";" expression? ")" statement ;
 fn forStmt(self: *Compiler) void {
-    self.parser.consume(.paren_left, "Expected '(' after 'for'.");
+    const p: *Parser = self.parser;
+
+    p.consume(.paren_left, "Expected '(' after 'for'.");
 
     // Compile initializer clause
-    switch (self.parser.next.type) {
-        .keyword_var => do(self.parser.advance(), self.variableDeclaration()),
-        .semicolon => self.parser.advance(),
+    switch (p.next.type) {
+        .keyword_var => do(p.advance(), self.variableDeclaration()),
+        .semicolon => p.advance(),
         else => self.expressionStmt(),
     }
 
@@ -337,22 +338,22 @@ fn forStmt(self: *Compiler) void {
     var exit_jump: ?usize = null;
 
     // Compile loop condition if present and set exit jump placeholder
-    if (!self.parser.nextMatches(.semicolon)) {
+    if (!p.nextMatches(.semicolon)) {
         self.expression();
-        self.parser.consume(.semicolon, "Expected ';' after loop condition.");
+        p.consume(.semicolon, "Expected ';' after loop condition.");
 
         exit_jump = self.emitJump(.jump_if_false);
         self.emitOp(.pop);
     }
 
     // Compile increment expression if present
-    if (!self.parser.nextMatches(.paren_right)) {
+    if (!p.nextMatches(.paren_right)) {
         const increment_jump: usize = self.emitJump(.jump);
         const increment_start: usize = self.instructionOffset();
 
         self.expression();
         self.emitOp(.pop);
-        self.parser.consume(.paren_right, "Expected ')' after for-clauses.");
+        p.consume(.paren_right, "Expected ')' after for-clauses.");
 
         // Loop back to start after executing increment expression, update loop_start
         // to point to the increment so the body loops back here after executing
@@ -577,22 +578,23 @@ pub fn orExpr(self: *const Compiler, _: bool) void {
 /// switchExpr := "switch" "(" expression ")" "{" caseExpr* "}" ;
 /// caseExpr   := ( expression | "_" ) "=>" expression ;
 pub fn switchExpr(self: *const Compiler, _: bool) void {
-    self.parser.consume(.paren_left, "Expected '(' after 'switch'.");
+    const p: *Parser = self.parser;
+
+    p.consume(.paren_left, "Expected '(' after 'switch'.");
     self.expression();
-    self.parser.consume(.paren_right, "Expected ')' after expression.");
-    self.parser.consume(.brace_left, "Expected '{' after switch value.");
+    p.consume(.paren_right, "Expected ')' after expression.");
+    p.consume(.brace_left, "Expected '{' after switch value.");
 
     var wildcard_found: bool = false;
 
-    const exit_jumps: *JumpList = JumpList.create() catch {
-        self.parser.@"error"("Error allocating switch jump list. Out of memory?");
-        return;
-    };
+    const exit_jumps: *JumpList = JumpList.create() catch return p.@"error"(
+        "Error allocating switch jump list. Out of memory?",
+    );
     defer exit_jumps.destroy();
 
-    while (!self.parser.nextMatches(.brace_right) and !self.parser.nextMatches(.eof)) {
+    while (!p.nextMatches(.brace_right) and !p.nextMatches(.eof)) {
         // Compile expression case
-        if (self.parser.next.isNot(.identifier) or !self.parser.next.isDiscard()) {
+        if (p.next.isNot(.identifier) or !p.next.isDiscard()) {
             self.emitOp(.copy);
             self.expression();
             self.emitOp(.equal);
@@ -600,15 +602,16 @@ pub fn switchExpr(self: *const Compiler, _: bool) void {
 
         // Compile wildcard case
         else {
-            if (wildcard_found) self.parser.@"error"(
+            if (wildcard_found) p.@"error"(
                 "A switch expression may only have a single wildcard case.",
             );
             wildcard_found = true;
-            self.parser.advance();
+
+            p.advance();
             self.emitOp(.true);
         }
 
-        self.parser.consume(.arrow, "Expected '=>'.");
+        p.consume(.arrow, "Expected '=>'.");
 
         const case_jump: usize = self.emitJump(.jump_if_false);
 
@@ -667,16 +670,14 @@ fn declareLocal(self: *Compiler) void {
         const local: Local = self.locals[@intCast(i)];
 
         if (local.depth != -1 and local.depth < self.scope_depth) break;
-        if (identifier.lexemeEquals(local.identifier)) {
-            self.parser.@"error"(
-                "A variable with this name already exists in this scope.",
-            );
-        }
+        if (identifier.lexemeEquals(local.identifier)) self.parser.@"error"(
+            "A variable with this name already exists in this scope.",
+        );
     }
 
-    if (self.local_count == cmn.U8_SIZE) {
-        return self.parser.@"error"("Too many local variables in function.");
-    }
+    if (self.local_count == cmn.U8_SIZE) return self.parser.@"error"(
+        "Too many local variables in function.",
+    );
 
     defer self.local_count += 1;
 
