@@ -8,6 +8,7 @@ const std = @import("std");
 const zlox = @import("../../.lib.zig");
 
 const mem = zlox.mem;
+const debug = zlox.debug;
 
 pub const Type = @import("type.zig").Type;
 pub const Variant = @import("variant.zig").Variant;
@@ -64,15 +65,14 @@ pub fn createConstant(comptime T: Type, variant: Variant(T)) !*Variant(T) {
 /// Destroy this `Obj`, freeing its owned resources.
 pub fn destroy(self: *Obj) void {
     defer mem.destroy(self);
-
-    // std.debug.print(
-    //     "freeing {s}obj {*} {f}\n",
-    //     .{ if (self.is_constant) "const " else "", self, self },
-    // );
-
-    switch (self.type) {
+    defer switch (self.type) {
         inline else => |T| self.as(T).destroy(),
-    }
+    };
+
+    if (comptime debug.obj_free) std.debug.print(
+        "freeing {s}obj [{*}] {f}\n",
+        .{ if (self.is_constant) "const " else "", self, self },
+    );
 }
 
 /// Returns whether this obj is of the given `type`.
@@ -93,6 +93,6 @@ pub fn as(self: *Obj, comptime T: Type) *Variant(T) {
 /// Custom formatter for `Obj` values.
 pub fn format(self: *Obj, writer: *Writer) !void {
     switch (self.type) {
-        inline else => |T| try writer.print("{f}", .{self.as(T)}),
+        inline else => |T| try self.as(T).format(writer),
     }
 }

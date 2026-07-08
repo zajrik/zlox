@@ -25,6 +25,9 @@ pub const print_stack: bool = is_debug_mode and true;
 /// Whether the vm should dump the compiled chunk when there were errors.
 pub const dump_chunk: bool = is_debug_mode and true;
 
+/// Whether Obj memory being released should be logged.
+pub const obj_free: bool = is_debug_mode and false;
+
 /// Print the contents (instructions, values, etc.) of the chunk at address `chunk`.
 pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {
     printf("== {s} ==\n", .{name});
