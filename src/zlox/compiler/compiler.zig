@@ -74,17 +74,38 @@ scope_depth: u16 = 0,
 /// Allocate a new `Compiler` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
-pub fn create(parser: *Parser, interned_strings: *HashTable) !*Compiler {
+pub fn create(
+    /// The type of function to compiled.
+    @"type": Obj.Function.Type,
+    /// Parser instance primed with source input to compile.
+    parser: *Parser,
+    /// Table for interning strings at compile time.
+    interned_strings: *HashTable,
+) !*Compiler {
     const compiler: *Compiler = try mem.createStruct(Compiler, .{
         .locals = undefined,
         .parser = parser,
         .strings = interned_strings,
     });
 
+    // Initialize compiled function object
+    compiler.function = try compiler.createObj(
+        .function,
+        Obj.Function{ .type = @"type", .arity = 0, .chunk = .init() },
+    );
+
+    // If the function type is not `script` and the current token is an identifier,
+    // capture its lexeme to use as the function identifier string
+    if (@"type" != .script and parser.current.is(.identifier)) {
+        compiler.function.?.identifier = try compiler.copyString(
+            parser.current.lexeme,
+        );
+    }
+
     // Reserve local slot 0 for the compiled function itself
     defer compiler.local_count += 1;
     compiler.locals[compiler.local_count] = Local{
-        .identifier = .init(.identifier, "", 0, 0),
+        .identifier = Token.init(.identifier, "", 0, 0),
         .depth = 0,
     };
 
@@ -104,16 +125,14 @@ fn chunk(self: *const Compiler) *Chunk {
     return &self.function.?.chunk;
 }
 
-/// Begin compilation.
+/// Compile the entirety of the source input into a function object to be executed
+/// by the VM.
 ///
-/// Returns a pointer to the compiled `Chunk`. The caller owns the returned pointer
-/// and is responsible for freeing it.
+/// Returns a pointer to the compiled `Obj.Function`. The caller owns the returned
+/// pointer and is responsible for freeing it.
+///
+/// Returns `null` if compilation failed for any reason.
 pub fn compile(self: *Compiler) !?*Obj.Function {
-    self.function = try self.createObj(
-        .function,
-        Obj.Function{ .type = .script, .arity = 0, .chunk = .init() },
-    );
-
     // Compile declarations from source until reaching end of input.
     while (!self.parser.nextMatches(.eof)) {
         self.declaration();
@@ -121,10 +140,9 @@ pub fn compile(self: *Compiler) !?*Obj.Function {
 
     // Dump chunk and destroy compiling function if there were any errors
     if (self.parser.had_error) {
-        if (comptime debug.dump_chunk) debug.disassembleChunk(
-            &self.function.?.chunk,
-            "code",
-        );
+        if (comptime debug.dump_chunk) {
+            debug.disassembleChunk(self.chunk(), "code");
+        }
         self.function.?.destroy();
         self.function = null;
     }
@@ -170,15 +188,27 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
 /// Compile a declaration from source tokens.
 fn declaration(self: *Compiler) void {
     switch (self.parser.next.type) {
-        .keyword_var => do(self.parser.advance(), self.variableDeclaration()),
+        .keyword_fun => do(self.parser.advance(), self.funDeclaration()),
+        .keyword_var => do(self.parser.advance(), self.varDeclaration()),
         else => self.statement(),
     }
 
     if (self.parser.panic_mode) self.parser.synchronize();
 }
 
+/// Compile a function declaration from source tokens.
+fn funDeclaration(self: *Compiler) void {
+    const ident_offset: u8 = self.variableIdentifier("Expected function name.");
+
+    // Mark function identifier as defined so it can refer to itself
+    self.markDefined();
+
+    self.compileFun(Obj.Function.Type.function, false);
+    self.defineVariable(ident_offset);
+}
+
 /// Compile a variable declaration statement from source tokens.
-fn variableDeclaration(self: *Compiler) void {
+fn varDeclaration(self: *Compiler) void {
     const ident_offset: u8 = self.variableIdentifier("Expected variable name.");
 
     if (self.parser.nextMatches(.equal)) self.expression() else self.emitOp(.nil);
@@ -332,7 +362,7 @@ fn forStmt(self: *Compiler) void {
 
     // Compile initializer clause
     switch (p.next.type) {
-        .keyword_var => do(p.advance(), self.variableDeclaration()),
+        .keyword_var => do(p.advance(), self.varDeclaration()),
         .semicolon => p.advance(),
         else => self.expressionStmt(),
     }
@@ -396,6 +426,69 @@ fn expressionStmt(self: *const Compiler) void {
     self.expression();
     self.parser.consume(.semicolon, "Expected ';' after expression.");
     self.emitOp(.pop);
+}
+
+// Statement/expression compilation overlap functions =========================
+
+/// Compile a function statement or expression of the given `type` from source tokens.
+fn compileFun(self: *const Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
+    const p: *Parser = self.parser;
+
+    // Load identifier into the current token if this is a labeled function expression
+    if (is_expr and p.next.is(.identifier)) p.advance();
+
+    const compiler: *Compiler = Compiler.create(@"type", p, self.strings) catch {
+        return p.@"error"("Error compiling function.");
+    };
+    defer compiler.destroy();
+
+    // Push scope for function to contain arguments and the function body. This
+    // does not need to be closed since the scope will be discarded when the compiler
+    // instance is freed
+    compiler.pushScope();
+
+    p.consume(.paren_left, "Expected '(' after function name.");
+
+    // Compile function parameters, if any
+    if (p.next.isNot(.paren_right)) while (true) {
+        // Allow dangling comma
+        if (p.next.is(.paren_right)) break;
+
+        compiler.function.?.arity += 1;
+        if (compiler.function.?.arity > 255) p.errorAtNext(
+            "A function can't have more than 255 parameters.",
+        );
+
+        const param: u8 = compiler.variableIdentifier("Expected parameter identifier.");
+        compiler.defineVariable(param);
+
+        if (!p.nextMatches(.comma)) break;
+    };
+
+    p.consume(.paren_right, "Expected ')' after parameter list.");
+
+    // Compile block function body if we see an opening brace
+    if (p.nextMatches(.brace_left)) {
+        compiler.block();
+    }
+
+    // Compile expression body if we see `=`
+    else if (p.nextMatches(.equal)) {
+        compiler.expression();
+        compiler.emitOp(.@"return");
+        if (!is_expr) p.consume(.semicolon, "Expected ';' after function body.");
+    }
+
+    // Otherwise emit a compilation error
+    else {
+        p.@"error"("Expected '{' or '=' before function body.");
+    }
+
+    const fun_obj: *Obj.Function = compiler.endCompilation() orelse {
+        return p.@"error"("Error compiling function.");
+    };
+
+    self.emitConstant(.Object(&fun_obj.obj));
 }
 
 // Expression compilation methods =============================================
@@ -636,6 +729,11 @@ pub fn switchExpr(self: *const Compiler, _: bool) void {
     if (!wildcard_found) self.emitOps(.pop, .nil);
 
     self.patchJumpList(exit_jumps);
+}
+
+/// Compile a function expression from source tokens.
+pub fn funExpr(self: *const Compiler, _: bool) void {
+    self.compileFun(.function, true);
 }
 
 // Variable compilation/management functions ==================================

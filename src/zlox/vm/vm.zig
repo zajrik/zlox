@@ -84,7 +84,7 @@ pub fn interpret(self: *Vm, source: []const u8) ExecutionResult {
 fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     var tokenizer: Tokenizer = .init(source);
     const parser: *Parser = try .create(&tokenizer);
-    const compiler: *Compiler = try .create(parser, self.strings);
+    const compiler: *Compiler = try .create(.script, parser, self.strings);
     const script: *Obj.Function = try compiler.compile() orelse return .compile_error;
 
     defer parser.destroy();

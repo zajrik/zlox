@@ -1,7 +1,8 @@
-var a = 2;
+fun areWeHavingItYet(a, b, c) {
+  print "Yes we are!";
+}
 
-print switch (a) {
-    1 => "foo"
-    2 => "bar"
-    _ => "baz"
-};
+var funExpr = fun foo(d, e, f) = "foo";
+
+print areWeHavingItYet;
+print funExpr;
