@@ -36,7 +36,7 @@ chunk: *Chunk,
 ip: [*]u8,
 
 /// Virtual machine value stack.
-stack: Stack(Value),
+stack: Stack(Value, cmn.STACK_MAX),
 
 /// Contains all runtime-interned strings.
 strings: *HashTable,
@@ -149,7 +149,7 @@ fn run(self: *Vm) ExecutionResult {
 
     while (true) {
         if (comptime debug.trace_execution) {
-            if (debug.print_stack) debug.printStack(&self.stack);
+            if (debug.print_stack) printf("{f}", .{&self.stack});
 
             _ = debug.disassembleInstruction(
                 self.chunk,

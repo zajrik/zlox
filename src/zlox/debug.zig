@@ -2,8 +2,6 @@ const std = @import("std");
 const builtin = @import("builtin");
 const zlox = @import(".lib.zig");
 
-const val = zlox.object.val;
-
 const Chunk = zlox.compiler.Chunk;
 const OpCode = zlox.compiler.OpCode;
 const Value = zlox.object.Value;
@@ -105,21 +103,6 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
             return offset + 1;
         },
     };
-}
-
-/// Print the values on the given `stack`.
-pub fn printStack(stack: *const Stack(Value)) void {
-    // If stack is empty, don't print anything
-    if (stack.isEmpty()) return;
-
-    printf("           ", .{});
-
-    var slot: [*]const Value = &stack.values;
-    while (@intFromPtr(slot) < @intFromPtr(stack.top)) : (slot += 1) {
-        printf("[ {f} ]", .{slot[0]});
-    }
-
-    printf("\n", .{});
 }
 
 /// Print the `name` of a simple instruction at `offset` in the instructions array.
