@@ -15,7 +15,6 @@ const cmn = zlox.common;
 const debug = zlox.debug;
 
 const Chunk = zlox.compiler.Chunk;
-const CompileStrategy = zlox.compiler.CompileStrategy;
 const ExprFn = zlox.compiler.ExprFn;
 const JumpList = zlox.compiler.JumpList;
 const Local = zlox.compiler.Local;
@@ -24,7 +23,6 @@ const OpCode = zlox.compiler.OpCode;
 const Parser = zlox.parser.Parser;
 const ParseStrategy = zlox.parser.ParseStrategy;
 const Precedence = zlox.parser.Precedence;
-const Rule = zlox.parser.Rule;
 
 const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
