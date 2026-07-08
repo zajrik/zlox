@@ -323,13 +323,13 @@ fn readString(self: *Vm) *Obj.String {
 /// when the VM is freed if they live until the end of the program.
 pub fn createObj(
     self: *Vm,
-    comptime @"type": Obj.Type,
-    variant: Obj.Variant(@"type"),
-) !*Obj.Variant(@"type") {
-    const object: *Obj.Variant(@"type") = try Obj.create(@"type", variant);
+    comptime T: Obj.Type,
+    variant: Obj.Variant(T),
+) !*Obj.Variant(T) {
+    const object: *Obj.Variant(T) = try Obj.create(T, variant);
 
     // Pre-hash and intern string objects
-    if (@"type" == .string) {
+    if (T == .string) {
         const hash: u32 = Fnv1a_32.hash(variant.chars);
         const interned: ?*Obj.String = self.strings.findString(variant.chars, hash);
 

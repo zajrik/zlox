@@ -9,8 +9,8 @@ const String = zlox.object.Obj.String;
 const comptimePrint = std.fmt.comptimePrint;
 
 /// `Obj` variant payload type for the given object `type`.
-pub fn Variant(comptime @"type": Type) type {
-    const obj_type: type = switch (@"type") {
+pub fn Variant(comptime T: Type) type {
+    const obj_type: type = switch (T) {
         .function => Function,
         .string => String,
     };

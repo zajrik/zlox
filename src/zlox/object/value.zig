@@ -43,18 +43,18 @@ pub const Value: type = union(Value.Type) {
     }
 
     /// Returns whether this value is of the given `type`.
-    pub fn is(self: Value, @"type": Value.Type) bool {
-        return self == @"type";
+    pub fn is(self: Value, comptime T: Value.Type) bool {
+        return self == T;
     }
 
     /// Returns whether this value is not of the given `type`.
-    pub fn isNot(self: Value, @"type": Value.Type) bool {
-        return self != @"type";
+    pub fn isNot(self: Value, comptime T: Value.Type) bool {
+        return self != T;
     }
 
     /// Returns whether this value is an object of the given `type`.
-    pub fn isObj(self: Value, @"type": Obj.Type) bool {
-        return self.is(.obj) and self.obj.is(@"type");
+    pub fn isObj(self: Value, comptime T: Obj.Type) bool {
+        return self.is(.obj) and self.obj.is(T);
     }
 
     /// Returns whether this value is falsey.

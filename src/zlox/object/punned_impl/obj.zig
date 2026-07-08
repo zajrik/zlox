@@ -42,13 +42,10 @@ next: ?*Obj = null,
 /// by the garbage collector unless reachable through some other traceable structure.
 ///
 /// Use `Vm.createObj()` when creating objects that need to be garbage-collectable.
-pub fn create(
-    comptime @"type": Type,
-    variant: Variant(@"type"),
-) !*Variant(@"type") {
-    const object: *Variant(@"type") = try mem.create(Variant(@"type"));
+pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
+    const object: *Variant(T) = try mem.create(Variant(T));
     object.* = variant;
-    object.obj = Obj{ .type = @"type" };
+    object.obj = Obj{ .type = T };
     return object;
 }
 
@@ -58,11 +55,8 @@ pub fn create(
 ///
 /// This should only be called at compile time and any created constant objects
 /// should be owned and cleaned up by the chunk they're compiled to.
-pub fn createConstant(
-    comptime @"type": Type,
-    variant: Variant(@"type"),
-) !*Variant(@"type") {
-    const object: *Variant(@"type") = try create(@"type", variant);
+pub fn createConstant(comptime T: Type, variant: Variant(T)) !*Variant(T) {
+    const object: *Variant(T) = try create(T, variant);
     object.obj.is_constant = true;
     return object;
 }
@@ -77,28 +71,28 @@ pub fn destroy(self: *Obj) void {
     // );
 
     switch (self.type) {
-        inline else => |@"type"| self.as(@"type").destroy(),
+        inline else => |T| self.as(T).destroy(),
     }
 }
 
 /// Returns whether this obj is of the given `type`.
-pub fn is(self: *Obj, @"type": Type) bool {
-    return self.type == @"type";
+pub fn is(self: *Obj, T: Type) bool {
+    return self.type == T;
 }
 
 /// Returns whether this obj is not of the given `type`.
-pub fn isNot(self: *Obj, @"type": Type) bool {
-    return self.type != @"type";
+pub fn isNot(self: *Obj, T: Type) bool {
+    return self.type != T;
 }
 
 /// Cast this `Obj` to an obj of the given `type`.
-pub fn as(self: *Obj, comptime @"type": Type) *Variant(@"type") {
+pub fn as(self: *Obj, comptime T: Type) *Variant(T) {
     return @alignCast(@fieldParentPtr("obj", self));
 }
 
 /// Custom formatter for `Obj` values.
 pub fn format(self: *Obj, writer: *Writer) !void {
     switch (self.type) {
-        inline else => |@"type"| try writer.print("{f}", .{self.as(@"type")}),
+        inline else => |T| try writer.print("{f}", .{self.as(T)}),
     }
 }

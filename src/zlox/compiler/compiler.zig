@@ -886,13 +886,13 @@ fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
 /// and is responsible for freeing it.
 fn createObj(
     self: *const Compiler,
-    comptime @"type": Obj.Type,
-    variant: Obj.Variant(@"type"),
-) !*Obj.Variant(@"type") {
-    const object: *Obj.Variant(@"type") = try Obj.createConstant(@"type", variant);
+    comptime T: Obj.Type,
+    variant: Obj.Variant(T),
+) !*Obj.Variant(T) {
+    const object: *Obj.Variant(T) = try Obj.createConstant(T, variant);
 
     // Pre-hash and intern string objects
-    if (@"type" == .string) {
+    if (T == .string) {
         const hash: u32 = Fnv1a_32.hash(variant.chars);
         const interned: ?*Obj.String = self.strings.findString(variant.chars, hash);
 
