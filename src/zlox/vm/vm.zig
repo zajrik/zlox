@@ -3,6 +3,7 @@
 const std = @import("std");
 const zlox = @import("../.lib.zig");
 
+const cmn = zlox.common;
 const debug = zlox.debug;
 const mem = zlox.mem;
 
@@ -18,6 +19,7 @@ const Value = zlox.object.Value;
 
 const Parser = zlox.parser.Parser;
 
+const CallFrame = zlox.vm.CallFrame;
 const ExecutionResult = zlox.vm.ExecutionResult;
 const Stack = zlox.vm.Stack;
 
@@ -29,11 +31,8 @@ const printf = std.debug.print;
 
 const Vm: type = @This();
 
-/// Chunk of instructions currently being executed.
-chunk: *Chunk,
-
-/// Pointer to the next instruction to be executed.
-ip: [*]u8,
+/// Function call frame stack.
+frame_stack: Stack(CallFrame, cmn.FRAME_MAX),
 
 /// Virtual machine value stack.
 stack: Stack(Value, cmn.STACK_MAX),
@@ -56,6 +55,7 @@ root_obj: ?*Obj,
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create() !*Vm {
     const vm: *Vm = try mem.create(Vm);
+    vm.frame_stack.reset();
     vm.stack.reset();
     vm.strings = try .create();
     vm.globals = try .create();
@@ -93,10 +93,22 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 
     if (script.chunk.isEmpty()) return .ok;
 
-    self.chunk = &script.chunk;
-    self.ip = script.chunk.instructions.items.ptr;
+    // Push script object to stack to match reserved local slot 0
+    self.stack.push(.Object(&script.obj));
+
+    // Push callframe to execute script function
+    self.frame_stack.push(CallFrame{
+        .function = script,
+        .ip = script.chunk.instructions.items.ptr,
+        .slots = &self.stack.values,
+    });
 
     return self.run();
+}
+
+/// Returns the current callframe off of the frame stack.
+fn currentFrame(self: *Vm) *CallFrame {
+    return &(self.frame_stack.top - 1)[0];
 }
 
 /// Perform a binary operation with the top two number values on the stack.
@@ -144,25 +156,28 @@ fn concatenate(self: *Vm) !void {
 
 /// Run instructions from the currently loaded chunk.
 fn run(self: *Vm) ExecutionResult {
-    debug.disassembleChunk(self.chunk, "chunk");
+    debug.disassembleChunk(&self.currentFrame().function.chunk, "chunk");
     printf("\n== begin execution ==\n", .{});
 
     while (true) {
+        // Grab the current frame off of the callframe stack
+        const frame: *CallFrame = self.currentFrame();
+
         if (comptime debug.trace_execution) {
             if (debug.print_stack) printf("{f}", .{&self.stack});
 
             _ = debug.disassembleInstruction(
-                self.chunk,
+                &frame.function.chunk,
                 // Find next instruction offset by subtracting the address of
                 // the first instruction from the address of the next instruction
-                self.ip - self.chunk.instructions.items.ptr,
+                frame.ip - frame.function.chunk.instructions.items.ptr,
             );
         }
 
-        const instruction: OpCode = .fromByte(self.readByte());
+        const instruction: OpCode = .fromByte(frame.readByte());
 
         switch (instruction) {
-            .constant => self.stack.push(self.readConstant()),
+            .constant => self.stack.push(frame.readConstant()),
             .nil => self.stack.push(.Nil),
             .true => self.stack.push(.Bool(true)),
             .false => self.stack.push(.Bool(false)),
@@ -221,7 +236,7 @@ fn run(self: *Vm) ExecutionResult {
             // Stack ops
             // .peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
             .pop => _ = self.stack.pop(),
-            .pop_n => self.stack.popN(self.readByte()),
+            .pop_n => self.stack.popN(frame.readByte()),
             .copy => self.stack.push(self.stack.peek(0)),
             .swap => {
                 const b: Value = self.stack.pop();
@@ -233,12 +248,12 @@ fn run(self: *Vm) ExecutionResult {
             .print => printf("{f}\n", .{self.stack.pop()}),
 
             .global_define => {
-                const ident: *Obj.String = self.readString();
+                const ident: *Obj.String = frame.readString();
                 _ = self.globals.set(ident, self.stack.peek(0));
                 _ = self.stack.pop();
             },
             .global_set => {
-                const ident: *Obj.String = self.readString();
+                const ident: *Obj.String = frame.readString();
 
                 // If the global variable isn't defined before setting, throw a
                 // runtime error and delete the entry from the globals table
@@ -249,7 +264,7 @@ fn run(self: *Vm) ExecutionResult {
                 }
             },
             .global_get => {
-                const ident: *Obj.String = self.readString();
+                const ident: *Obj.String = frame.readString();
                 const value: Value = self.globals.get(ident) orelse {
                     self.runtimeError("Undefined variable '{f}'.", .{ident});
                     return .runtime_error;
@@ -257,28 +272,28 @@ fn run(self: *Vm) ExecutionResult {
                 self.stack.push(value);
             },
 
-            .local_set => self.stack.values[self.readByte()] = self.stack.peek(0),
-            .local_get => self.stack.push(self.stack.values[self.readByte()]),
+            .local_set => frame.slots[frame.readByte()] = self.stack.peek(0),
+            .local_get => self.stack.push(frame.slots[frame.readByte()]),
 
             .jump_if_false => {
-                const offset: u16 = self.readShort();
-                if (self.stack.peek(0).isFalsey()) self.ip += offset;
+                const offset: u16 = frame.readShort();
+                if (self.stack.peek(0).isFalsey()) frame.ip += offset;
             },
             .jump_if_true => {
-                const offset: u16 = self.readShort();
-                if (!self.stack.peek(0).isFalsey()) self.ip += offset;
+                const offset: u16 = frame.readShort();
+                if (!self.stack.peek(0).isFalsey()) frame.ip += offset;
             },
             .jump_if_not_nil => {
-                const offset: u16 = self.readShort();
-                if (self.stack.peek(0).isNot(.nil)) self.ip += offset;
+                const offset: u16 = frame.readShort();
+                if (self.stack.peek(0).isNot(.nil)) frame.ip += offset;
             },
             .jump => {
-                const offset: u16 = self.readShort();
-                self.ip += offset;
+                const offset: u16 = frame.readShort();
+                frame.ip += offset;
             },
             .loop => {
-                const offset: u16 = self.readShort();
-                self.ip -= offset;
+                const offset: u16 = frame.readShort();
+                frame.ip -= offset;
             },
 
             .@"return" => return .ok,
@@ -286,31 +301,6 @@ fn run(self: *Vm) ExecutionResult {
             _ => return .runtime_error,
         }
     }
-}
-
-/// Read the next byte from the currently loaded chunk's instructions array.
-fn readByte(self: *Vm) u8 {
-    defer self.ip += 1;
-    return self.ip[0];
-}
-
-/// Read the next two bytes from the currently loaded chunk's instructions array,
-/// treating them as a single 16-bit value.
-fn readShort(self: *Vm) u16 {
-    defer self.ip += 2;
-    return @as(u16, self.ip[0]) << 8 | self.ip[1];
-}
-
-/// Read a constant value from the currently loaded chunk's instructions array by
-/// reading the next byte, which is expected to be an offset pointing to a constant
-/// value within the currently loaded chunk's constants array.
-fn readConstant(self: *Vm) Value {
-    return self.chunk.constantAt(self.readByte());
-}
-
-/// Read the string constant value at the offset obtained by reading the next byte.
-fn readString(self: *Vm) *Obj.String {
-    return self.readConstant().obj.as(.string);
 }
 
 // Object management functions ================================================
@@ -397,8 +387,9 @@ fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
     printf("\n", .{});
 
     // Get current erroring instruction line
-    const instruction: usize = self.ip - self.chunk.instructions.items.ptr - 1;
-    const line: u16 = self.chunk.lineAt(instruction);
+    const f: *CallFrame = self.currentFrame();
+    const instruction: usize = f.ip - f.function.chunk.instructions.items.ptr - 1;
+    const line: u16 = f.function.chunk.lineAt(instruction);
 
     // TODO: Add stack trace printing when callframes are ported
 

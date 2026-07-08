@@ -16,4 +16,4 @@ identifier: Token,
 depth: i32,
 
 /// Whether this local has been captured in a closure.
-is_captured: bool,
+is_captured: bool = false,

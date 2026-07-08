@@ -75,11 +75,20 @@ scope_depth: u16 = 0,
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(parser: *Parser, interned_strings: *HashTable) !*Compiler {
-    return try mem.createStruct(Compiler, .{
+    const compiler: *Compiler = try mem.createStruct(Compiler, .{
         .locals = undefined,
         .parser = parser,
         .strings = interned_strings,
     });
+
+    // Reserve local slot 0 for the compiled function itself
+    defer compiler.local_count += 1;
+    compiler.locals[compiler.local_count] = Local{
+        .identifier = .init(.identifier, "", 0, 0),
+        .depth = 0,
+    };
+
+    return compiler;
 }
 
 /// Destroy this `Compiler`, freeing its owned resources.

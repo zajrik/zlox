@@ -46,9 +46,10 @@ pub fn destroy(self: *const Function) void {
 
 /// Custom formatter for `Obj.Function` values.
 pub fn format(self: *const Function, writer: *Writer) !void {
-    if (self.identifier) |identifier| {
+    if (self.type == .script) {
+        return try writer.writeAll("<script>");
+    } else if (self.identifier) |identifier| {
         return try writer.print("<fn {f}>", .{identifier});
     }
-
     return try writer.writeAll("<anon fn>");
 }
