@@ -125,6 +125,13 @@ fn chunk(self: *const Compiler) *Chunk {
     return &self.function.?.chunk;
 }
 
+/// Returns the offset at which the next instruction will be inserted.
+///
+/// Shortcut for `self.chunk.?.instructions.items.len`.
+fn instructionOffset(self: *const Compiler) usize {
+    return self.chunk().instructions.items.len;
+}
+
 /// Compile the entirety of the source input into a function object to be executed
 /// by the VM.
 ///
@@ -150,9 +157,12 @@ pub fn compile(self: *Compiler) !?*Obj.Function {
     return self.endCompilation();
 }
 
-/// Return the compiled chunk, ending compilation.
+/// Return the compiled function, ending compilation.
 fn endCompilation(self: *const Compiler) ?*Obj.Function {
-    if (self.function) |_| self.emitOp(.@"return");
+    // Emit nil return to allow functions to return nil by default if they do not
+    // specify a return value of their own
+    if (self.function) |_| self.emitDefaultReturn();
+
     return self.function;
 }
 
@@ -223,6 +233,7 @@ fn statement(self: *Compiler) void {
         .keyword_print => do(self.parser.advance(), self.printStmt()),
         .keyword_if => do(self.parser.advance(), self.ifStmt()),
         .keyword_switch => do(self.parser.advance(), self.switchStmt()),
+        .keyword_return => do(self.parser.advance(), self.returnStmt()),
         .keyword_while => do(self.parser.advance(), self.whileStmt()),
         .keyword_for => do(self.parser.advance(), self.scope(forStmt)),
         .brace_left => do(self.parser.advance(), self.scope(block)),
@@ -329,6 +340,25 @@ fn switchStmt(self: *Compiler) void {
 
     // Pop condition value
     self.emitOp(.pop);
+}
+
+/// Compile a return statement from source tokens.
+fn returnStmt(self: *const Compiler) void {
+    if (self.function.?.type == .script) self.parser.@"error"(
+        "Can't return from top-level code.",
+    );
+
+    // Emit default return on empty return statement
+    if (self.parser.nextMatches(.semicolon)) {
+        self.emitDefaultReturn();
+    }
+
+    // Otherwise compile return value expression
+    else {
+        self.expression();
+        self.parser.consume(.semicolon, "Expected ';' after return value.");
+        self.emitOp(.@"return");
+    }
 }
 
 /// Compile a while-loop statement from source tokens.
@@ -954,11 +984,9 @@ fn emitConstant(self: *const Compiler, value: Value) void {
     self.emitOp1(.constant, self.makeConstant(value));
 }
 
-/// Returns the offset at which the next instruction will be inserted.
-///
-/// Shortcut for `self.chunk.?.instructions.items.len`.
-fn instructionOffset(self: *const Compiler) usize {
-    return self.chunk().instructions.items.len;
+/// Write default return instructions to the chunk currently being compiled.
+fn emitDefaultReturn(self: *const Compiler) void {
+    self.emitOps(.nil, .@"return");
 }
 
 /// Write a jump `op` followed by placeholder bytes for the jump offset operand.

@@ -1,11 +1,6 @@
-fun areWeHavingItYet(a, b, c) {
-fun areWeHavingItYet() {
-  areWeHavingItYet();
+fun fib(n) {
+  if (n < 2) return n;
+  return fib(n - 2) + fib(n - 1);
 }
 
-var funExpr = fun foo() = "foo";
-
-print areWeHavingItYet;
-// print funExpr();
-
-areWeHavingItYet();
+print fib(35);

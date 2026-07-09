@@ -349,7 +349,21 @@ fn run(self: *Vm) ExecutionResult {
                 }
             },
 
-            .@"return" => return .ok,
+            .@"return" => {
+                // Pop return value from value stack
+                const result: Value = self.stack.pop();
+
+                // Pop callframe from frame stack, exiting if it was the root callframe
+                if (self.frame_stack.discard() == 0) {
+                    // Pop script function
+                    _ = self.stack.pop();
+                    return .ok;
+                }
+
+                // Discard callframe value stack slots and push return value to stack
+                self.stack.top = frame.slots;
+                self.stack.push(result);
+            },
 
             _ => return .runtime_error,
         }

@@ -95,6 +95,14 @@ pub fn Stack(comptime T: type, max: comptime_int) type {
             self.top -= n;
         }
 
+        /// Pop a single value off of the top of this stack, discarding it.
+        ///
+        /// Returns the new stack size after discarding the value.
+        pub fn discard(self: *Self) usize {
+            _ = self.pop();
+            return self.size();
+        }
+
         /// Peek at a value in the stack, offset by `distance` from the top of this
         /// stack.
         pub fn peek(self: *const Self, distance: usize) T {
