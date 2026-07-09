@@ -14,6 +14,7 @@ pub const Type = @import("type.zig").Type;
 pub const Variant = @import("variant.zig").Variant;
 
 pub const Function = @import("function.zig");
+pub const Native = @import("native.zig");
 pub const String = @import("string.zig");
 
 const Writer = std.Io.Writer;

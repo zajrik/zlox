@@ -106,6 +106,30 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     return self.run();
 }
 
+/// Print a runtime error and stack trace at the current instruction.
+fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
+    printf(fmt, args);
+    printf("\n", .{});
+
+    // Print stack trace
+    var i: usize = self.frame_stack.size() - 1;
+    while (i >= 0) : (i -= if (i > 0) 1 else break) {
+        const frame: *CallFrame = &self.frame_stack.values[i];
+        const function: *Obj.Function = frame.function;
+        const instruction_offset: usize = frame.ip - function.chunk.instructions.items.ptr - 1;
+
+        printf("[line {d}] in ", .{function.chunk.lineAt(instruction_offset)});
+
+        if (function.identifier) |identifier| {
+            printf("{f}()\n", .{identifier});
+        } else {
+            printf("script\n", .{});
+        }
+    }
+
+    self.stack.reset();
+}
+
 /// Returns the current callframe off of the frame stack.
 fn currentFrame(self: *const Vm) *CallFrame {
     return &(self.frame_stack.top - 1)[0];
@@ -199,6 +223,8 @@ fn callFun(self: *Vm, function: *Obj.Function, arg_count: u8) bool {
 
     return true;
 }
+
+// Instruction loop ===========================================================
 
 /// Run instructions from the currently loaded chunk.
 fn run(self: *Vm) ExecutionResult {
@@ -438,7 +464,7 @@ pub fn copyString(self: *Vm, string: []const u8) !*Obj.String {
     return try self.takeString(copy);
 }
 
-// Free all lox objects allocated by the vm.
+/// Free all lox objects allocated by the vm.
 pub fn freeObjects(self: *Vm) void {
     while (self.root_obj) |obj| {
         self.root_obj = obj.next;
@@ -446,28 +472,33 @@ pub fn freeObjects(self: *Vm) void {
     }
 }
 
-// ============================================================================
+/// Register a native function with the VM.
+fn defineNative(
+    self: *Vm,
+    identifier: []const u8,
+    arity: u8,
+    fn_ptr: Obj.Native.FnPtr,
+) void {
+    const fn_ident: *Obj.String = self.copyString(identifier);
+    const fn_obj: *Obj.Native = self.createObj(
+        .native,
+        Obj.Native{ .arity = arity, .function = fn_ptr },
+    );
 
-/// Print a runtime error and stack trace at the current instruction.
-fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
-    printf(fmt, args);
-    printf("\n", .{});
+    // TODO: Update this after starting GC and implementing some other way of keeping
+    // pending objects safe from the GC until they're acually hitting userland. Bob's
+    // technique of stashing them in the stack won't fly with the route I've taken with
+    // the VM's obj allocation scheme
 
-    // Print stack trace
-    var i: usize = self.frame_stack.size() - 1;
-    while (i >= 0) : (i -= if (i > 0) 1 else break) {
-        const frame: *CallFrame = &self.frame_stack.values[i];
-        const function: *Obj.Function = frame.function;
-        const instruction_offset: usize = frame.ip - function.chunk.instructions.items.ptr - 1;
+    self.globals.set(fn_ident, fn_obj);
+}
 
-        printf("[line {d}] in ", .{function.chunk.lineAt(instruction_offset)});
+// TODO: Move native functions to their own file/dir
 
-        if (function.identifier) |identifier| {
-            printf("{f}()\n", .{identifier});
-        } else {
-            printf("script\n", .{});
-        }
-    }
-
-    self.stack.reset();
+/// Native `clock()` function.
+fn native_clock(_: u8, _: [*]Value) Value {
+    // TODO: Figure out how to get system time in zig without just calling C clock().
+    // Searches are turning up really outdated information. I can call C if needed but
+    // I don't want to if there's some clock function hiding in std somewhere
+    return .Number(0);
 }

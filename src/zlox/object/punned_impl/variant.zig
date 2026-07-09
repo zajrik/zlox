@@ -4,6 +4,7 @@ const zlox = @import("../../.lib.zig");
 const Type = zlox.object.Obj.Type;
 
 const Function = zlox.object.Obj.Function;
+const Native = zlox.object.Obj.Native;
 const String = zlox.object.Obj.String;
 
 const comptimePrint = std.fmt.comptimePrint;
@@ -11,6 +12,7 @@ const comptimePrint = std.fmt.comptimePrint;
 /// `Obj` variant payload type for the given object `type`.
 pub fn Variant(comptime T: Type) type {
     const obj_type: type = switch (T) {
+        .native => Native,
         .function => Function,
         .string => String,
     };
