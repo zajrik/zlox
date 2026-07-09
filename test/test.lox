@@ -1,8 +1,11 @@
 fun areWeHavingItYet(a, b, c) {
-  print "Yes we are!";
+fun areWeHavingItYet() {
+  areWeHavingItYet();
 }
 
-var funExpr = fun foo(d, e, f) = "foo";
+var funExpr = fun foo() = "foo";
 
 print areWeHavingItYet;
-print funExpr;
+// print funExpr();
+
+areWeHavingItYet();

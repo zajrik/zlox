@@ -736,6 +736,12 @@ pub fn funExpr(self: *const Compiler, _: bool) void {
     self.compileFun(.function, true);
 }
 
+/// Compile a function call expression from source tokens.
+pub fn call(self: *const Compiler, _: bool) void {
+    const arg_count: u8 = self.argumentList();
+    self.emitOp1(.call, arg_count);
+}
+
 // Variable compilation/management functions ==================================
 
 /// Compile a variable identifier, returning the offset to the constant string
@@ -843,6 +849,33 @@ fn resolveLocal(self: *const Compiler, identifier: Token) i32 {
 fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
     if (self.scope_depth > 0) return self.markDefined();
     self.emitOp1(.global_define, ident_const_offset);
+}
+
+/// Compile a series of argument expressions for a function call, returning the
+/// number of compiled arguments.
+///
+/// The result of these expressions will be on the stack at runtime and captured
+/// in the called function's callframe stack window.
+fn argumentList(self: *const Compiler) u8 {
+    var count: u8 = 0;
+
+    if (self.parser.next.isNot(.paren_right)) {
+        while (true) : (if (!self.parser.nextMatches(.comma)) break) {
+            // Allow dangling comma
+            if (self.parser.next.is(.paren_right)) break;
+
+            self.expression();
+
+            defer count += 1;
+            if (count == 255) {
+                self.parser.@"error"("A function call may only have up to 255 arguments.");
+            }
+        }
+    }
+
+    self.parser.consume(.paren_right, "Expected ')' after arguments.");
+
+    return count;
 }
 
 // Chunk-writing methods ======================================================

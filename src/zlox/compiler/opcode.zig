@@ -1,3 +1,6 @@
+const std = @import("std");
+const Writer = std.Io.Writer;
+
 /// Enum of instruction opcodes to be executed by the lox virtual machine.
 ///
 /// ## Opcode instruction format documentation syntax:
@@ -167,6 +170,13 @@ pub const OpCode = enum(u8) {
     /// - Jump backwards a number of instructions obtained from the operand.
     loop,
 
+    /// ### `OpCode.call(arg_count: byte)`
+    /// - Call a function on the stack. Must be followed by an operand specifying
+    ///   how many arguments are to be passed to the function.
+    ///
+    ///   The function value will be on the stack, followed by all of its arguments.
+    call,
+
     /// ### `OpCode.return()`
     /// - Returns the value at the top of the stack from whatever call frame
     ///   we're currently inside of.
@@ -182,5 +192,10 @@ pub const OpCode = enum(u8) {
     /// Convert this opcode to its equivalent `u8` byte value.
     pub inline fn toByte(self: OpCode) u8 {
         return @intFromEnum(self);
+    }
+
+    /// Convert this opcode to a string representation.
+    pub inline fn toString(self: OpCode) []const u8 {
+        return std.fmt.comptimePrint("{any}", .{self});
     }
 };

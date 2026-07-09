@@ -21,6 +21,7 @@ const orExpr = Compiler.orExpr;
 const andExpr = Compiler.andExpr;
 const switchExpr = Compiler.switchExpr;
 const funExpr = Compiler.funExpr;
+const call = Compiler.call;
 
 const Token = zlox.tokenizer.Token;
 const TokenType = zlox.tokenizer.TokenType;
@@ -58,7 +59,7 @@ pub fn forToken(token: Token) ParseStrategy {
 // zig fmt: off
 const token_count: u8 = std.enums.values(TokenType).len;
 const strategies: [token_count]ParseStrategy = .{
-    strat(.paren_left,      grouping,   null,     .none      ),
+    strat(.paren_left,      grouping,   call,     .call      ),
     strat(.paren_right,     null,       null,     .none      ),
     strat(.brace_left,      null,       null,     .none      ),
     strat(.brace_right,     null,       null,     .none      ),

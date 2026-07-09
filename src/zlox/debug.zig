@@ -24,7 +24,7 @@ pub const print_stack: bool = is_debug_mode and true;
 pub const dump_chunk: bool = is_debug_mode and true;
 
 /// Whether Obj memory being released should be logged.
-pub const obj_free: bool = is_debug_mode and false;
+pub const obj_free: bool = is_debug_mode and true;
 
 /// Print the contents (instructions, values, etc.) of the chunk at address `chunk`.
 pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {
@@ -54,49 +54,51 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 
     return switch (instruction) {
         // Constant ops
-        .constant => constantInstruction(".constant", chunk, offset),
-        .nil => simpleInstruction(".nil", offset),
-        .true => simpleInstruction(".true", offset),
-        .false => simpleInstruction(".false", offset),
+        .constant => |T| constantInstruction(T, chunk, offset),
+        .nil => |T| simpleInstruction(T, offset),
+        .true => |T| simpleInstruction(T, offset),
+        .false => |T| simpleInstruction(T, offset),
 
         // Comparison ops
-        .equal => simpleInstruction(".equal", offset),
-        .greater => simpleInstruction(".greater", offset),
-        .less => simpleInstruction(".less", offset),
+        .equal => |T| simpleInstruction(T, offset),
+        .greater => |T| simpleInstruction(T, offset),
+        .less => |T| simpleInstruction(T, offset),
 
         // Arithmetic ops
-        .add => simpleInstruction(".add", offset),
-        .subtract => simpleInstruction(".subtract", offset),
-        .multiply => simpleInstruction(".multiply", offset),
-        .divide => simpleInstruction(".divide", offset),
-        .negate => simpleInstruction(".negate", offset),
+        .add => |T| simpleInstruction(T, offset),
+        .subtract => |T| simpleInstruction(T, offset),
+        .multiply => |T| simpleInstruction(T, offset),
+        .divide => |T| simpleInstruction(T, offset),
+        .negate => |T| simpleInstruction(T, offset),
 
         // Logical ops
-        .not => simpleInstruction(".not", offset),
+        .not => |T| simpleInstruction(T, offset),
 
         // Stack ops
-        // .peek => byteInstruction(".peek", chunk, offset),
-        .pop => simpleInstruction(".pop", offset),
-        .pop_n => byteInstruction(".pop_n", chunk, offset),
-        .copy => simpleInstruction(".copy", offset),
-        .swap => simpleInstruction(".swap", offset),
+        // .peek => |op| byteInstruction(op, chunk, offset),
+        .pop => |T| simpleInstruction(T, offset),
+        .pop_n => |T| byteInstruction(T, chunk, offset),
+        .copy => |T| simpleInstruction(T, offset),
+        .swap => |T| simpleInstruction(T, offset),
 
-        .print => simpleInstruction(".print", offset),
+        .print => |T| simpleInstruction(T, offset),
 
-        .global_define => constantInstruction(".global_define", chunk, offset),
-        .global_set => constantInstruction(".global_set", chunk, offset),
-        .global_get => constantInstruction(".global_get", chunk, offset),
+        .global_define => |T| constantInstruction(T, chunk, offset),
+        .global_set => |T| constantInstruction(T, chunk, offset),
+        .global_get => |T| constantInstruction(T, chunk, offset),
 
-        .local_set => byteInstruction(".local_set", chunk, offset),
-        .local_get => byteInstruction(".local_get", chunk, offset),
+        .local_set => |T| byteInstruction(T, chunk, offset),
+        .local_get => |T| byteInstruction(T, chunk, offset),
 
-        .jump_if_false => jumpInstruction(".jump_if_false", 1, chunk, offset),
-        .jump_if_true => jumpInstruction(".jump_if_true", 1, chunk, offset),
-        .jump_if_not_nil => jumpInstruction(".jump_if_not_nil", 1, chunk, offset),
-        .jump => jumpInstruction(".jump", 1, chunk, offset),
-        .loop => jumpInstruction(".loop", -1, chunk, offset),
+        .jump_if_false => |T| jumpInstruction(T, 1, chunk, offset),
+        .jump_if_true => |T| jumpInstruction(T, 1, chunk, offset),
+        .jump_if_not_nil => |T| jumpInstruction(T, 1, chunk, offset),
+        .jump => |T| jumpInstruction(T, 1, chunk, offset),
+        .loop => |T| jumpInstruction(T, -1, chunk, offset),
 
-        .@"return" => simpleInstruction(".return", offset),
+        .call => |T| byteInstruction(T, chunk, offset),
+
+        .@"return" => |T| simpleInstruction(T, offset),
 
         _ => {
             printf("Unknown opcode {d}\n", .{offset});
@@ -105,42 +107,42 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
     };
 }
 
-/// Print the `name` of a simple instruction at `offset` in the instructions array.
+/// Print the given `OpCode` without operands.
 ///
 /// Returns the offset of the next instruction.
-fn simpleInstruction(name: []const u8, offset: usize) usize {
-    printf("{s}\n", .{name});
+fn simpleInstruction(comptime op: OpCode, offset: usize) usize {
+    printf("{s}\n", .{op.toString()});
     return offset + 1;
 }
 
-/// Print the `name` of a constant instruction at `offset` in the instructions
-/// array, as well the value of the constant operand following the instruction.
+/// Print the given `OpCode`, followed by the value of the constant operand following
+/// it in the compiled instructions of the given `chunk`.
 ///
 /// Returns the offset of the next instruction (skipping over the constant operand).
-fn constantInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {
+fn constantInstruction(comptime op: OpCode, chunk: *Chunk, offset: usize) usize {
     const constant: u8 = chunk.instructionAt(offset + 1);
-    printf("{s:<16} {d:4} '{f}'\n", .{ name, constant, chunk.constantAt(constant) });
+    printf("{s:<16} {d:4} '{f}'\n", .{ op.toString(), constant, chunk.constantAt(constant) });
     return offset + 2;
 }
 
-/// Print the `name` of an instruction accepting a single operand, along with the
-/// raw byte value of its operand.
-fn byteInstruction(name: []const u8, chunk: *Chunk, offset: usize) usize {
+/// Print the given `OpCode`, followed by the raw byte operand following it in the
+/// compiled instructions of the given `chunk`.
+fn byteInstruction(comptime op: OpCode, chunk: *Chunk, offset: usize) usize {
     const byte: u8 = chunk.instructionAt(offset + 1);
-    printf("{s:<16} {d:4}\n", .{ name, byte });
+    printf("{s:<16} {d:4}\n", .{ op.toString(), byte });
     return offset + 2;
 }
 
-/// Print the `name` of a jump instruction, followed by the current offset and the
-/// offset after the jump is executed.
-fn jumpInstruction(name: []const u8, sign: i2, chunk: *const Chunk, offset: usize) usize {
+/// Print the given `OpCode`, followed by the jump offset operand following it in
+/// the compiled instructions of the given `chunk`.
+fn jumpInstruction(comptime op: OpCode, sign: i2, chunk: *const Chunk, offset: usize) usize {
     var jump: i32 = @as(u16, chunk.instructionAt(offset + 1)) << 8;
     jump |= chunk.instructionAt(offset + 2);
     jump *= sign;
 
     printf(
         "{s:<16} {d:4} -> {d}\n",
-        .{ name, offset, @as(i32, @intCast(offset)) + 3 + jump },
+        .{ op.toString(), offset, @as(i32, @intCast(offset)) + 3 + jump },
     );
 
     return offset + 3;

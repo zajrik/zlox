@@ -107,7 +107,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 }
 
 /// Returns the current callframe off of the frame stack.
-fn currentFrame(self: *Vm) *CallFrame {
+fn currentFrame(self: *const Vm) *CallFrame {
     return &(self.frame_stack.top - 1)[0];
 }
 
@@ -152,6 +152,52 @@ fn concatenate(self: *Vm) !void {
     const new_string: *Obj.String = try self.takeString(new_chars);
 
     self.stack.push(.Object(&new_string.obj));
+}
+
+/// Attempt to call the given `callee` as a function using the top `arg_count` values
+/// from the stack as its arguments.
+///
+/// Emits a runtime error if `callee` is not a callable function, method, or class
+/// initializer.
+///
+/// Returns whether the `callee` is able to be called (no errors emitted).
+fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
+    if (callee.is(.obj)) {
+        switch (callee.obj.type) {
+            .function => return self.callFun(callee.obj.as(.function), arg_count),
+            else => {},
+        }
+    }
+
+    self.runtimeError("Can only call functions, methods, and class initializers.", .{});
+    return false;
+}
+
+/// Call the given `function`, using the top `arg_count` stack values as arguments.
+///
+/// Returns whether the function's instructions are able to begin executing.
+fn callFun(self: *Vm, function: *Obj.Function, arg_count: u8) bool {
+    if (arg_count != function.arity) {
+        self.runtimeError(
+            "Expected {d} arguments, got {d}",
+            .{ function.arity, arg_count },
+        );
+        return false;
+    }
+
+    if (self.frame_stack.size() == cmn.FRAME_MAX) {
+        self.runtimeError("Stack overflow.", .{});
+        return false;
+    }
+
+    // Push callframe for the given function
+    self.frame_stack.push(CallFrame{
+        .function = function,
+        .ip = function.chunk.instructions.items.ptr,
+        .slots = @ptrCast(self.stack.top - 1 - arg_count),
+    });
+
+    return true;
 }
 
 /// Run instructions from the currently loaded chunk.
@@ -296,6 +342,13 @@ fn run(self: *Vm) ExecutionResult {
                 frame.ip -= offset;
             },
 
+            .call => {
+                const arg_count: u8 = frame.readByte();
+                if (!self.callValue(self.stack.peek(arg_count), arg_count)) {
+                    return .runtime_error;
+                }
+            },
+
             .@"return" => return .ok,
 
             _ => return .runtime_error,
@@ -386,13 +439,21 @@ fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
     printf(fmt, args);
     printf("\n", .{});
 
-    // Get current erroring instruction line
-    const f: *CallFrame = self.currentFrame();
-    const instruction: usize = f.ip - f.function.chunk.instructions.items.ptr - 1;
-    const line: u16 = f.function.chunk.lineAt(instruction);
+    // Print stack trace
+    var i: usize = self.frame_stack.size() - 1;
+    while (i >= 0) : (i -= if (i > 0) 1 else break) {
+        const frame: *CallFrame = &self.frame_stack.values[i];
+        const function: *Obj.Function = frame.function;
+        const instruction_offset: usize = frame.ip - function.chunk.instructions.items.ptr - 1;
 
-    // TODO: Add stack trace printing when callframes are ported
+        printf("[line {d}] in ", .{function.chunk.lineAt(instruction_offset)});
 
-    printf("[line {d}] in script\n", .{line});
+        if (function.identifier) |identifier| {
+            printf("{f}()\n", .{identifier});
+        } else {
+            printf("script\n", .{});
+        }
+    }
+
     self.stack.reset();
 }
