@@ -18,8 +18,8 @@ pub const Value: type = union(Value.Type) {
     /// Holds the `bool` value of this Value if it is a `bool`.
     bool: bool,
 
-    /// Holds the `f32` value of this Value if it is a `number`.
-    number: f32,
+    /// Holds the `f64` value of this Value if it is a `number`.
+    number: f64,
 
     /// Holds a pointer to a heap-allocated lox object.
     obj: *Obj,
@@ -33,7 +33,7 @@ pub const Value: type = union(Value.Type) {
     }
 
     /// Creates a number `Value` from the given `value`.
-    pub fn Number(value: f32) Value {
+    pub fn Number(value: f64) Value {
         return Value{ .number = value };
     }
 
@@ -92,7 +92,7 @@ pub const Value: type = union(Value.Type) {
         switch (self) {
             .nil => try writer.writeAll("nil"),
             .bool => try writer.print("{}", .{self.bool}),
-            .number => try writer.print("{d}", .{self.number}),
+            .number => try writer.print("{}", .{self.number}),
             .obj => try writer.print("{f}", .{self.obj}),
         }
     }

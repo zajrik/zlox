@@ -268,8 +268,8 @@ fn run(self: *Vm) ExecutionResult {
 
                 // If both values are numbers, add them
                 if (a.is(.number) and b.is(.number)) {
-                    const b_number: f32 = self.stack.pop().number;
-                    const a_number: f32 = self.stack.pop().number;
+                    const b_number: f64 = self.stack.pop().number;
+                    const a_number: f64 = self.stack.pop().number;
                     self.stack.push(.Number(a_number + b_number));
                 }
 
