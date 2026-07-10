@@ -6,6 +6,7 @@ const zlox = @import("../.lib.zig");
 const cmn = zlox.common;
 const debug = zlox.debug;
 const mem = zlox.mem;
+const native = zlox.vm.native;
 
 const Chunk = zlox.compiler.Chunk;
 const Compiler = zlox.compiler.Compiler;
@@ -24,12 +25,16 @@ const ExecutionResult = zlox.vm.ExecutionResult;
 const Stack = zlox.vm.Stack;
 
 const Fnv1a_32 = std.hash.Fnv1a_32;
+const Io = std.Io;
 
 const printf = std.debug.print;
 
 // ============================================================================
 
 const Vm: type = @This();
+
+/// `std.Io` interface to be passed to lox native functions.
+io: Io,
 
 /// Function call frame stack.
 frame_stack: Stack(CallFrame, cmn.FRAME_MAX),
@@ -53,13 +58,17 @@ root_obj: ?*Obj,
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
-pub fn create() !*Vm {
+pub fn create(io: Io) !*Vm {
     const vm: *Vm = try mem.create(Vm);
+    vm.io = io;
     vm.frame_stack.reset();
     vm.stack.reset();
     vm.strings = try .create();
     vm.globals = try .create();
     vm.root_obj = null;
+
+    try native.bootstrapNatives(vm);
+
     return vm;
 }
 
@@ -188,6 +197,26 @@ fn concatenate(self: *Vm) !void {
 fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
     if (callee.is(.obj)) switch (callee.obj.type) {
         .function => return self.callFun(callee.asObj(.function), arg_count),
+        .native => {
+            const native_obj: *Obj.Native = callee.asObj(.native);
+            const native_fun: Obj.Native.FnPtr = native_obj.function;
+
+            if (arg_count != native_obj.arity) {
+                self.runtimeError(
+                    "Expected {d} arguments, got {d}",
+                    .{ native_obj.arity, arg_count },
+                );
+                return false;
+            }
+
+            const result: Value = native_fun(self.io, arg_count, self.stack.top - arg_count);
+
+            // Pop native function and its args from stack
+            self.stack.top -= arg_count + 1;
+
+            self.stack.push(result);
+            return true;
+        },
         else => {},
     };
 
@@ -471,14 +500,14 @@ pub fn freeObjects(self: *Vm) void {
 }
 
 /// Register a native function with the VM.
-fn defineNative(
+pub fn defineNative(
     self: *Vm,
     identifier: []const u8,
     arity: u8,
     fn_ptr: Obj.Native.FnPtr,
-) void {
-    const fn_ident: *Obj.String = self.copyString(identifier);
-    const fn_obj: *Obj.Native = self.createObj(
+) !void {
+    const fn_ident: *Obj.String = try self.copyString(identifier);
+    const fn_obj: *Obj.Native = try self.createObj(
         .native,
         Obj.Native{ .arity = arity, .function = fn_ptr },
     );
@@ -488,15 +517,5 @@ fn defineNative(
     // technique of stashing them in the stack won't fly with the route I've taken with
     // the VM's obj allocation scheme
 
-    self.globals.set(fn_ident, fn_obj);
-}
-
-// TODO: Move native functions to their own file/dir
-
-/// Native `clock()` function.
-fn native_clock(_: u8, _: [*]Value) Value {
-    // TODO: Figure out how to get system time in zig without just calling C clock().
-    // Searches are turning up really outdated information. I can call C if needed but
-    // I don't want to if there's some clock function hiding in std somewhere
-    return .Number(0);
+    _ = self.globals.set(fn_ident, .Object(&fn_obj.obj));
 }

@@ -28,7 +28,7 @@ pub fn main(init: std.process.Init) !void {
     // var tokenizer: Tokenizer = .init(lox_code);
     // while (tokenizer.next()) |token| std.debug.print("{f}\n", .{token});
 
-    const vm: *Vm = try .create();
+    const vm: *Vm = try .create(init.io);
     defer vm.destroy();
 
     const result: ExecutionResult = vm.interpret(lox_code);

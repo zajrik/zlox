@@ -3,4 +3,8 @@ fun fib(n) {
   return fib(n - 2) + fib(n - 1);
 }
 
+var start = clock();
 print fib(35);
+var end = clock() - start;
+
+print end / 1000;
