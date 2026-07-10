@@ -105,7 +105,7 @@ fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
     var index: usize = key.hash % entries.len;
     var tombstone: ?*Entry = null;
 
-    while (true) {
+    while (true) : (index = (index + 1) % entries.len) {
         const entry: *Entry = &entries[index];
 
         // If entry key is null but value is nil, it's an empty slot. If the value
@@ -121,8 +121,6 @@ fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
 
         // Otherwise check if key matches and move on to the next slot if not.
         else if (entry.key == key) return entry;
-
-        index = (index + 1) % entries.len;
     }
 }
 
@@ -134,7 +132,7 @@ pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj.St
 
     var index: usize = hash % self.entries.len;
 
-    while (true) {
+    while (true) : (index = (index + 1) % self.entries.len) {
         const entry: *Entry = &self.entries[index];
 
         // If entry key isn't null, check that it's the one we're looking for
@@ -149,9 +147,6 @@ pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj.St
 
         // If it's an empty slot, no key was found
         else if (entry.val.is(.nil)) return null;
-
-        // Otherwise continue to the next slot
-        index = (index + 1) % self.entries.len;
     }
 }
 

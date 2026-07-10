@@ -112,9 +112,9 @@ fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
     printf("\n", .{});
 
     // Print stack trace
-    var i: usize = self.frame_stack.size() - 1;
-    while (i >= 0) : (i -= if (i > 0) 1 else break) {
-        const frame: *CallFrame = &self.frame_stack.values[i];
+    var i: usize = self.frame_stack.size();
+    while (i > 0) : (i -= 1) {
+        const frame: *CallFrame = &self.frame_stack.values[i - 1];
         const function: *Obj.Function = frame.function;
         const instruction_offset: usize = frame.ip - function.chunk.ip() - 1;
 

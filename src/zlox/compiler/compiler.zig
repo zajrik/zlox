@@ -806,9 +806,9 @@ fn declareLocal(self: *Compiler) void {
     const identifier: Token = self.parser.current;
 
     // Check for existing variable with this identifier in this scope
-    var i: i32 = @as(i32, self.local_count) - 1;
-    while (i >= 0) : (i -= 1) {
-        const local: Local = self.locals[@intCast(i)];
+    var i: u16 = self.local_count;
+    while (i > 0) : (i -= 1) {
+        const local: Local = self.locals[i - 1];
 
         if (local.depth != -1 and local.depth < self.scope_depth) break;
         if (identifier.lexemeEquals(local.identifier)) self.parser.@"error"(
@@ -854,12 +854,13 @@ fn markDefined(self: *Compiler) void {
 /// values of other locals in scope. This means the offset of the local in the
 /// locals array directly reflects its location in the stack.
 fn resolveLocal(self: *const Compiler, identifier: Token) i32 {
-    var i: i32 = self.local_count;
-    while (i >= 0) : (i -= 1) {
-        const local: Local = self.locals[@intCast(i)];
+    var i: u16 = self.local_count;
+    while (i > 0) : (i -= 1) {
+        const local_index: u16 = i - 1;
+        const local: Local = self.locals[local_index];
 
         if (identifier.lexemeEquals(local.identifier)) {
-            if (local.depth != -1) return i;
+            if (local.depth != -1) return local_index;
             self.parser.@"error"("Can't read local variable in its own initializer.");
         }
     }
