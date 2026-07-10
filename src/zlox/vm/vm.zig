@@ -112,7 +112,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         .slots = &self.stack.values,
     });
 
-    return self.run();
+    return self.run() catch .runtime_error;
 }
 
 /// Print a runtime error and stack trace at the current instruction.
@@ -254,8 +254,8 @@ fn callFun(self: *Vm, function: *Obj.Function, arg_count: u8) bool {
 // Instruction loop ===========================================================
 
 /// Run instructions from the currently loaded chunk.
-fn run(self: *Vm) ExecutionResult {
     debug.disassembleChunk(&self.currentFrame().function.chunk, "chunk");
+fn run(self: *Vm) !ExecutionResult {
     printf("\n== begin execution ==\n", .{});
 
     while (true) {
@@ -287,8 +287,8 @@ fn run(self: *Vm) ExecutionResult {
                 const a: Value = self.stack.pop();
                 self.stack.push(.Bool(a.equals(b)));
             },
-            .greater => self.binaryOp(.greater) catch return .runtime_error,
-            .less => self.binaryOp(.less) catch return .runtime_error,
+            .greater => try self.binaryOp(.greater),
+            .less => try self.binaryOp(.less),
 
             // Arithmetic ops
             .add => {
@@ -316,9 +316,9 @@ fn run(self: *Vm) ExecutionResult {
                     return .runtime_error;
                 }
             },
-            .subtract => self.binaryOp(.subtract) catch return .runtime_error,
-            .multiply => self.binaryOp(.multiply) catch return .runtime_error,
-            .divide => self.binaryOp(.divide) catch return .runtime_error,
+            .subtract => try self.binaryOp(.subtract),
+            .multiply => try self.binaryOp(.multiply),
+            .divide => try self.binaryOp(.divide),
 
             .negate => {
                 const value: Value = self.stack.peek(0);

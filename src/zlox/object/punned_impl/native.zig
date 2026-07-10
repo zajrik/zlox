@@ -3,8 +3,6 @@
 const std = @import("std");
 const zlox = @import("../../.lib.zig");
 
-const mem = zlox.mem;
-
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
@@ -27,9 +25,7 @@ arity: u8,
 function: FnPtr,
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(_: *const Native) void {
-    // mem.free(self.chars);
-}
+pub fn destroy(_: *const Native) void {}
 
 /// Custom formatter for `Obj.Native` values.
 pub fn format(_: *const Native, writer: *Writer) !void {
