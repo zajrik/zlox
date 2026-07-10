@@ -30,7 +30,7 @@ pub const obj_free: bool = is_debug_mode and true;
 pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {
     printf("== {s} ==\n", .{name});
     var offset: usize = 0;
-    while (offset < chunk.instructions.items.len) {
+    while (offset < chunk.len()) {
         offset = disassembleInstruction(chunk, offset);
     }
 }

@@ -42,17 +42,17 @@ pub const Value: type = union(Value.Type) {
         return Value{ .obj = obj };
     }
 
-    /// Returns whether this value is of the given `type`.
+    /// Returns whether this value is of type `T`.
     pub fn is(self: Value, comptime T: Value.Type) bool {
         return self == T;
     }
 
-    /// Returns whether this value is not of the given `type`.
+    /// Returns whether this value is not of type `T`.
     pub fn isNot(self: Value, comptime T: Value.Type) bool {
         return self != T;
     }
 
-    /// Returns whether this value is an object of the given `type`.
+    /// Returns whether this value is an object of type `T`.
     pub fn isObj(self: Value, comptime T: Obj.Type) bool {
         return self.is(.obj) and self.obj.is(T);
     }
@@ -78,6 +78,13 @@ pub const Value: type = union(Value.Type) {
             .number => self.number == other.number,
             .obj => self.obj == other.obj,
         };
+    }
+
+    /// Returns this value cast to an object of type `T`.
+    ///
+    /// Panics if this value is not an object.
+    pub fn asObj(self: Value, comptime T: Obj.Type) *Obj.Variant(T) {
+        return self.obj.as(T);
     }
 
     /// Custom formatter for `Value` values.

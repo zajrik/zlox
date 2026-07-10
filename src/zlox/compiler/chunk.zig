@@ -56,9 +56,24 @@ pub fn deinit(self: Chunk) void {
     @constCast(&self.constants).deinit(mem.allocator());
 }
 
+/// Returns the number of instructions compiled to this chunk.
+pub inline fn len(self: *const Chunk) usize {
+    return self.instructions.items.len;
+}
+
 /// Returns whether this chunk has any instructions to execute.
 pub fn isEmpty(self: *const Chunk) bool {
     return self.instructions.items.len == 0;
+}
+
+/// Returns a pointer to the first compiled instruction in this chunk.
+pub inline fn ip(self: *const Chunk) [*]u8 {
+    return self.instructions.items.ptr;
+}
+
+/// Returns a pointer to the instruction at the given offset.
+pub inline fn ipAt(self: *const Chunk, offset: usize) *u8 {
+    return &self.instructions.items[offset];
 }
 
 /// Returns the instruction at the given offset.

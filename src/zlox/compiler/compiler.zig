@@ -127,9 +127,9 @@ fn chunk(self: *const Compiler) *Chunk {
 
 /// Returns the offset at which the next instruction will be inserted.
 ///
-/// Shortcut for `self.chunk.?.instructions.items.len`.
+/// Autocomplete-able shortcut for `self.chunk.?.len()`.
 fn instructionOffset(self: *const Compiler) usize {
-    return self.chunk().instructions.items.len;
+    return self.chunk().len();
 }
 
 /// Compile the entirety of the source input into a function object to be executed
@@ -551,13 +551,13 @@ fn expr(self: *const Compiler, precedence: Precedence) void {
     };
     prefix_rule(self, can_assign);
 
-    // If the precedence of the next token is too low, we stop here. This indicates
+    // If the precedence of the next token is higher, we stop here. This indicates
     // that it is impossible for the next token to be an infix operator that can
     // continue the expression because that would violate the order of operations
     // dictated by the precedence rules.
     //
     // Otherwise, we continue parsing infix expressions until hitting a token with
-    // too low precedence.
+    // higher precedence.
 
     while (precedence.lte(p.strategy(p.next).precedence)) {
         p.advance();
@@ -887,23 +887,25 @@ fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
 /// The result of these expressions will be on the stack at runtime and captured
 /// in the called function's callframe stack window.
 fn argumentList(self: *const Compiler) u8 {
+    const p: *Parser = self.parser;
+
     var count: u8 = 0;
 
-    if (self.parser.next.isNot(.paren_right)) {
-        while (true) : (if (!self.parser.nextMatches(.comma)) break) {
+    if (p.next.isNot(.paren_right)) {
+        while (true) : (if (!p.nextMatches(.comma)) break) {
             // Allow dangling comma
-            if (self.parser.next.is(.paren_right)) break;
+            if (p.next.is(.paren_right)) break;
 
             self.expression();
 
             defer count += 1;
-            if (count == 255) {
-                self.parser.@"error"("A function call may only have up to 255 arguments.");
-            }
+            if (count == 255) p.@"error"(
+                "A function call may only have up to 255 arguments.",
+            );
         }
     }
 
-    self.parser.consume(.paren_right, "Expected ')' after arguments.");
+    p.consume(.paren_right, "Expected ')' after arguments.");
 
     return count;
 }
@@ -1011,8 +1013,8 @@ fn patchJump(self: *const Compiler, offset: usize) void {
     // Patch first and second bytes of 2-byte jump instruction operand
     const jump_byte_1: u8 = @as(u8, @truncate(jump_offset >> 8));
     const jump_byte_2: u8 = @as(u8, @truncate(jump_offset));
-    self.chunk().instructions.items[offset] = jump_byte_1;
-    self.chunk().instructions.items[offset + 1] = jump_byte_2;
+    self.chunk().ipAt(offset).* = jump_byte_1;
+    self.chunk().ipAt(offset + 1).* = jump_byte_2;
 }
 
 /// Write `OpCode.loop` to the chunk currently being compiled, followed by loop

@@ -99,7 +99,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     // Push callframe to execute script function
     self.frame_stack.push(CallFrame{
         .function = script,
-        .ip = script.chunk.instructions.items.ptr,
+        .ip = script.chunk.ip(),
         .slots = &self.stack.values,
     });
 
@@ -116,7 +116,7 @@ fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
     while (i >= 0) : (i -= if (i > 0) 1 else break) {
         const frame: *CallFrame = &self.frame_stack.values[i];
         const function: *Obj.Function = frame.function;
-        const instruction_offset: usize = frame.ip - function.chunk.instructions.items.ptr - 1;
+        const instruction_offset: usize = frame.ip - function.chunk.ip() - 1;
 
         printf("[line {d}] in ", .{function.chunk.lineAt(instruction_offset)});
 
@@ -186,12 +186,10 @@ fn concatenate(self: *Vm) !void {
 ///
 /// Returns whether the `callee` is able to be called (no errors emitted).
 fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
-    if (callee.is(.obj)) {
-        switch (callee.obj.type) {
-            .function => return self.callFun(callee.obj.as(.function), arg_count),
-            else => {},
-        }
-    }
+    if (callee.is(.obj)) switch (callee.obj.type) {
+        .function => return self.callFun(callee.asObj(.function), arg_count),
+        else => {},
+    };
 
     self.runtimeError("Can only call functions, methods, and class initializers.", .{});
     return false;
@@ -217,7 +215,7 @@ fn callFun(self: *Vm, function: *Obj.Function, arg_count: u8) bool {
     // Push callframe for the given function
     self.frame_stack.push(CallFrame{
         .function = function,
-        .ip = function.chunk.instructions.items.ptr,
+        .ip = function.chunk.ip(),
         .slots = @ptrCast(self.stack.top - 1 - arg_count),
     });
 
@@ -242,7 +240,7 @@ fn run(self: *Vm) ExecutionResult {
                 &frame.function.chunk,
                 // Find next instruction offset by subtracting the address of
                 // the first instruction from the address of the next instruction
-                frame.ip - frame.function.chunk.instructions.items.ptr,
+                frame.ip - frame.function.chunk.ip(),
             );
         }
 
