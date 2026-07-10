@@ -4,6 +4,7 @@ const zlox = @import(".lib.zig");
 
 const Chunk = zlox.compiler.Chunk;
 const OpCode = zlox.compiler.OpCode;
+const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 const Stack = zlox.vm.Stack;
 
@@ -18,7 +19,7 @@ pub const is_debug_mode: bool = builtin.mode == .Debug;
 pub const trace_execution: bool = is_debug_mode and false;
 
 /// Whether the vm should print the stack in between instruction traces.
-pub const print_stack: bool = is_debug_mode and false;
+pub const print_stack: bool = is_debug_mode and true;
 
 /// Whether the vm should dump the compiled chunk when there were errors.
 pub const dump_chunk: bool = is_debug_mode and true;
@@ -90,6 +91,9 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .local_set => |T| byteInstruction(T, chunk, offset),
         .local_get => |T| byteInstruction(T, chunk, offset),
 
+        .upvalue_set => |T| byteInstruction(T, chunk, offset),
+        .upvalue_get => |T| byteInstruction(T, chunk, offset),
+
         .jump_if_false => |T| jumpInstruction(T, 1, chunk, offset),
         .jump_if_true => |T| jumpInstruction(T, 1, chunk, offset),
         .jump_if_not_nil => |T| jumpInstruction(T, 1, chunk, offset),
@@ -97,6 +101,32 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .loop => |T| jumpInstruction(T, -1, chunk, offset),
 
         .call => |T| byteInstruction(T, chunk, offset),
+
+        .closure => |T| {
+            var new_offset: usize = offset + 1;
+            const constant: u8 = chunk.instructionAt(new_offset);
+            const function: Value = chunk.constantAt(constant);
+            const fun_obj: *Obj.Function = function.asObj(.function);
+
+            printf("{s:<16} {d:4} {f}\n", .{ T.toString(), constant, function });
+
+            new_offset += 1;
+
+            var i: u8 = 0;
+            while (i < fun_obj.upvalue_count) : (i += 1) {
+                const is_local: u8 = chunk.instructionAt(new_offset);
+                const upvalue_offset: u8 = chunk.instructionAt(new_offset + 1);
+                defer new_offset += 2;
+
+                printf("{d:04}      |                     {s} {d}\n", .{
+                    new_offset,
+                    if (is_local == 1) "local" else "upvalue",
+                    upvalue_offset,
+                });
+            }
+
+            return new_offset;
+        },
 
         .@"return" => |T| simpleInstruction(T, offset),
 

@@ -19,6 +19,7 @@ const ExprFn = zlox.compiler.ExprFn;
 const JumpList = zlox.compiler.JumpList;
 const Local = zlox.compiler.Local;
 const OpCode = zlox.compiler.OpCode;
+const Upvalue = zlox.compiler.Upvalue;
 
 const Parser = zlox.parser.Parser;
 const ParseStrategy = zlox.parser.ParseStrategy;
@@ -43,6 +44,11 @@ const do = zlox.common.do;
 
 const Compiler: type = @This();
 
+/// Enclosing compiler, used for tracking and resolving upvalues.
+///
+/// The root compiler should always have a null `enclosing` value.
+enclosing: ?*Compiler = null,
+
 /// Parser instance primed with the source we're compiling.
 ///
 /// Not owned by the compiler.
@@ -62,11 +68,14 @@ function: ?*Obj.Function = null,
 /// compiler is freed.
 strings: *HashTable,
 
+/// Upvalues tracked by this compilation scope.
+upvalues: [cmn.U8_SIZE]Upvalue,
+
 /// Local variables tracked during compilation.
 locals: [cmn.U8_SIZE]Local,
 
 /// The number of local variables in scope at a given point during compilation.
-local_count: u16 = 0,
+local_count: u8 = 0,
 
 /// Current scope depth at a given point during compilation.
 scope_depth: u16 = 0,
@@ -81,8 +90,12 @@ pub fn create(
     parser: *Parser,
     /// Table for interning strings at compile time.
     interned_strings: *HashTable,
+    /// Enclosing compiler, if any.
+    enclosing: ?*Compiler,
 ) !*Compiler {
     const compiler: *Compiler = try mem.createStruct(Compiler, .{
+        .enclosing = enclosing,
+        .upvalues = undefined,
         .locals = undefined,
         .parser = parser,
         .strings = interned_strings,
@@ -91,7 +104,7 @@ pub fn create(
     // Initialize compiled function object
     compiler.function = try compiler.createObj(
         .function,
-        Obj.Function{ .type = @"type", .arity = 0, .chunk = .init() },
+        Obj.Function{ .type = @"type", .chunk = .init() },
     );
 
     // If the function type is not `script` and the current token is an identifier,
@@ -161,7 +174,18 @@ pub fn compile(self: *Compiler) !?*Obj.Function {
 fn endCompilation(self: *const Compiler) ?*Obj.Function {
     // Emit nil return to allow functions to return nil by default if they do not
     // specify a return value of their own
-    if (self.function) |_| self.emitDefaultReturn();
+    if (self.function) |fun| {
+        self.emitDefaultReturn();
+
+        if ((comptime debug.dump_chunk) and !self.parser.had_error) {
+            const chunk_name: []const u8 = name: {
+                if (fun.identifier) |ident| break :name ident.chars;
+                if (fun.type == .script) break :name "script";
+                break :name "anon fun";
+            };
+            debug.disassembleChunk(&fun.chunk, chunk_name);
+        }
+    }
 
     return self.function;
 }
@@ -244,7 +268,7 @@ fn statement(self: *Compiler) void {
 /// Compile a print statement from source tokens.
 ///
 /// printStmt := "print" exprStmt ";" ;
-fn printStmt(self: *const Compiler) void {
+fn printStmt(self: *Compiler) void {
     self.expression();
     self.parser.consume(.semicolon, "Expected ';' after value.");
     self.emitOp(.print);
@@ -343,7 +367,7 @@ fn switchStmt(self: *Compiler) void {
 }
 
 /// Compile a return statement from source tokens.
-fn returnStmt(self: *const Compiler) void {
+fn returnStmt(self: *Compiler) void {
     if (self.function.?.type == .script) self.parser.@"error"(
         "Can't return from top-level code.",
     );
@@ -452,7 +476,7 @@ fn block(self: *Compiler) void {
 /// Compile an expression statement from source tokens.
 ///
 /// exprStmt := expression ";" ;
-fn expressionStmt(self: *const Compiler) void {
+fn expressionStmt(self: *Compiler) void {
     self.expression();
     self.parser.consume(.semicolon, "Expected ';' after expression.");
     self.emitOp(.pop);
@@ -461,13 +485,13 @@ fn expressionStmt(self: *const Compiler) void {
 // Statement/expression compilation overlap functions =========================
 
 /// Compile a function statement or expression of the given `type` from source tokens.
-fn compileFun(self: *const Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
+fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
     const p: *Parser = self.parser;
 
     // Load identifier into the current token if this is a labeled function expression
     if (is_expr and p.next.is(.identifier)) p.advance();
 
-    const compiler: *Compiler = Compiler.create(@"type", p, self.strings) catch {
+    const compiler: *Compiler = Compiler.create(@"type", p, self.strings, self) catch {
         return p.@"error"("Error compiling function.");
     };
     defer compiler.destroy();
@@ -518,18 +542,27 @@ fn compileFun(self: *const Compiler, @"type": Obj.Function.Type, is_expr: bool) 
         return p.@"error"("Error compiling function.");
     };
 
-    self.emitConstant(.Object(&fun_obj.obj));
+    // Add compiled function to chunk constants and emit closure op
+    const fun_offset: u8 = self.makeConstant(.Object(&fun_obj.obj));
+    self.emitOp1(.closure, fun_offset);
+
+    // Emit closure upvalue bytecode
+    var i: u8 = 0;
+    while (i < self.function.?.upvalue_count) : (i += 1) {
+        self.emitByte(if (self.upvalues[i].is_local) 1 else 0);
+        self.emitByte(self.upvalues[i].offset);
+    }
 }
 
 // Expression compilation methods =============================================
 
 /// Compile an expression from source tokens.
-fn expression(self: *const Compiler) void {
+fn expression(self: *Compiler) void {
     self.expr(.assignment);
 }
 
 /// Compile an expression from source tokens with the given `precedence`.
-fn expr(self: *const Compiler, precedence: Precedence) void {
+fn expr(self: *Compiler, precedence: Precedence) void {
     const p: *Parser = self.parser;
 
     p.advance();
@@ -575,7 +608,7 @@ fn expr(self: *const Compiler, precedence: Precedence) void {
 }
 
 /// Compile a parenthesized grouping expression from source tokens.
-pub fn grouping(self: *const Compiler, _: bool) void {
+pub fn grouping(self: *Compiler, _: bool) void {
     self.expression();
     self.parser.consume(.paren_right, "Expected ')' after expression.");
 }
@@ -609,20 +642,25 @@ pub fn literal(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a variable/identifier get/set expression from the current source token.
-pub fn variable(self: *const Compiler, can_assign: bool) void {
+pub fn variable(self: *Compiler, can_assign: bool) void {
     self.variableGetSet(self.parser.current, can_assign);
 }
 
 /// Compile a variable/identifier get/set expression, emitting bytecode to get/set
 /// the value for that variable/identifier.
-fn variableGetSet(self: *const Compiler, identifier: Token, can_assign: bool) void {
+fn variableGetSet(self: *Compiler, identifier: Token, can_assign: bool) void {
+    var var_offset: u8 = 0;
     var set_op: OpCode = undefined;
     var get_op: OpCode = undefined;
 
-    var var_offset: i32 = self.resolveLocal(identifier);
-    if (var_offset != -1) {
+    if (self.resolveLocal(identifier)) |offset| {
+        var_offset = offset;
         set_op = .local_set;
         get_op = .local_get;
+    } else if (self.resolveUpvalue(identifier)) |offset| {
+        var_offset = offset;
+        set_op = .upvalue_set;
+        get_op = .upvalue_set;
     } else {
         var_offset = self.makeIdentConstant(identifier);
         set_op = .global_set;
@@ -631,14 +669,14 @@ fn variableGetSet(self: *const Compiler, identifier: Token, can_assign: bool) vo
 
     if (can_assign and self.parser.nextMatches(.equal)) {
         self.expression();
-        self.emitOp1(set_op, @intCast(var_offset));
+        self.emitOp1(set_op, var_offset);
     } else {
-        self.emitOp1(get_op, @intCast(var_offset));
+        self.emitOp1(get_op, var_offset);
     }
 }
 
 /// Compile a unary expression from source tokens.
-pub fn unary(self: *const Compiler, _: bool) void {
+pub fn unary(self: *Compiler, _: bool) void {
     const operator_type: TokenType = self.parser.current.type;
 
     self.expr(.unary);
@@ -651,7 +689,7 @@ pub fn unary(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a binary expression from source tokens.
-pub fn binary(self: *const Compiler, _: bool) void {
+pub fn binary(self: *Compiler, _: bool) void {
     const operator: Token = self.parser.current;
     const strategy: ParseStrategy = .forToken(operator);
 
@@ -679,7 +717,7 @@ pub fn binary(self: *const Compiler, _: bool) void {
 ///
 /// The left-hand operand of the `and` expression has already been compiled to
 /// the chunk at the point this will be executed.
-pub fn andExpr(self: *const Compiler, _: bool) void {
+pub fn andExpr(self: *Compiler, _: bool) void {
     // The left-hand operand will be on the stack for this jump
     const end: usize = self.emitJump(.jump_if_false);
 
@@ -693,7 +731,7 @@ pub fn andExpr(self: *const Compiler, _: bool) void {
 ///
 /// The left-hand operand of the `or` expression has already been compiled to
 /// the chunk at the point this will be executed.
-pub fn orExpr(self: *const Compiler, _: bool) void {
+pub fn orExpr(self: *Compiler, _: bool) void {
     // The left-hand operand will be on the stack for this jump
     const end: usize = self.emitJump(.jump_if_true);
 
@@ -707,7 +745,7 @@ pub fn orExpr(self: *const Compiler, _: bool) void {
 ///
 /// switchExpr := "switch" "(" expression ")" "{" caseExpr* "}" ;
 /// caseExpr   := ( expression | "_" ) "=>" expression ;
-pub fn switchExpr(self: *const Compiler, _: bool) void {
+pub fn switchExpr(self: *Compiler, _: bool) void {
     const p: *Parser = self.parser;
 
     p.consume(.paren_left, "Expected '(' after 'switch'.");
@@ -762,14 +800,43 @@ pub fn switchExpr(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a function expression from source tokens.
-pub fn funExpr(self: *const Compiler, _: bool) void {
+pub fn funExpr(self: *Compiler, _: bool) void {
     self.compileFun(.function, true);
 }
 
 /// Compile a function call expression from source tokens.
-pub fn call(self: *const Compiler, _: bool) void {
+pub fn call(self: *Compiler, _: bool) void {
     const arg_count: u8 = self.argumentList();
     self.emitOp1(.call, arg_count);
+}
+
+/// Compile a series of argument expressions for a function call, returning the
+/// number of compiled arguments.
+///
+/// The result of these expressions will be on the stack at runtime and captured
+/// in the called function's callframe stack window.
+fn argumentList(self: *Compiler) u8 {
+    const p: *Parser = self.parser;
+
+    var count: u8 = 0;
+
+    if (p.next.isNot(.paren_right)) {
+        while (true) : (if (!p.nextMatches(.comma)) break) {
+            // Allow dangling comma
+            if (p.next.is(.paren_right)) break;
+
+            self.expression();
+
+            defer count += 1;
+            if (count == 255) p.@"error"(
+                "A function call may only have up to 255 arguments.",
+            );
+        }
+    }
+
+    p.consume(.paren_right, "Expected ')' after arguments.");
+
+    return count;
 }
 
 // Variable compilation/management functions ==================================
@@ -853,10 +920,10 @@ fn markDefined(self: *Compiler) void {
 /// when complete, the only values on the stack when a local is declared are the
 /// values of other locals in scope. This means the offset of the local in the
 /// locals array directly reflects its location in the stack.
-fn resolveLocal(self: *const Compiler, identifier: Token) i32 {
-    var i: u16 = self.local_count;
+fn resolveLocal(self: *const Compiler, identifier: Token) ?u8 {
+    var i: u8 = self.local_count;
     while (i > 0) : (i -= 1) {
-        const local_index: u16 = i - 1;
+        const local_index: u8 = i - 1;
         const local: Local = self.locals[local_index];
 
         if (identifier.lexemeEquals(local.identifier)) {
@@ -865,7 +932,7 @@ fn resolveLocal(self: *const Compiler, identifier: Token) i32 {
         }
     }
 
-    return -1;
+    return null;
 }
 
 /// Define a variable.
@@ -882,33 +949,56 @@ fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
     self.emitOp1(.global_define, ident_const_offset);
 }
 
-/// Compile a series of argument expressions for a function call, returning the
-/// number of compiled arguments.
+/// Resolve an upvalue with the given [identifier].
 ///
-/// The result of these expressions will be on the stack at runtime and captured
-/// in the called function's callframe stack window.
-fn argumentList(self: *const Compiler) u8 {
-    const p: *Parser = self.parser;
+/// Returns `null` if no upvalue with the given `identifier` was found.
+fn resolveUpvalue(self: *Compiler, identifier: Token) ?u8 {
+    // If we have an enclosing scope, try to resolve upvalue from its locals/upvalues
+    if (self.enclosing) |enclosing| {
+        if (enclosing.resolveLocal(identifier)) |offset| {
+            return self.addUpvalue(offset, true);
+        }
 
-    var count: u8 = 0;
-
-    if (p.next.isNot(.paren_right)) {
-        while (true) : (if (!p.nextMatches(.comma)) break) {
-            // Allow dangling comma
-            if (p.next.is(.paren_right)) break;
-
-            self.expression();
-
-            defer count += 1;
-            if (count == 255) p.@"error"(
-                "A function call may only have up to 255 arguments.",
-            );
+        if (enclosing.resolveUpvalue(identifier)) |offset| {
+            return self.addUpvalue(offset, false);
         }
     }
 
-    p.consume(.paren_right, "Expected ')' after arguments.");
+    // No upvalue found, must be a global
+    return null;
+}
 
-    return count;
+/// Add an upvalue to the compiled upvalues in this compilation scope.
+///
+/// Returns the offset for locating the upvalue at runtime.
+///
+/// If an upvalue with the given offset/locality already exists, its offset will
+/// be returned.
+fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
+    const upvalue_count: u8 = self.function.?.upvalue_count;
+
+    // Check for existing compiled upvalue matching the given offset/locality
+    var i: u8 = 0;
+    while (i < upvalue_count) : (i += 1) {
+        const upvalue: Upvalue = self.upvalues[i];
+        if (upvalue.offset == offset and upvalue.is_local == is_local) {
+            return i;
+        }
+    }
+
+    if (upvalue_count == cmn.U8_SIZE) {
+        self.parser.@"error"("Too many closure variables in function.");
+        return 0;
+    }
+
+    // Add upvalue to this compiler's tracked upvalues
+    self.upvalues[upvalue_count] = Upvalue{
+        .offset = offset,
+        .is_local = is_local,
+    };
+
+    self.function.?.upvalue_count += 1;
+    return upvalue_count;
 }
 
 // Chunk-writing methods ======================================================

@@ -31,7 +31,9 @@ type: Type,
 identifier: ?*Obj.String = null,
 
 /// The number of arguments this function expects and accepts at runtime.
-arity: u8,
+arity: u8 = 0,
+
+upvalue_count: u8 = 0,
 
 /// The chunk of compiled bytecode for this function.
 ///

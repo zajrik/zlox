@@ -1,5 +1,9 @@
 //! A function call frame, tracking and facilitating execution of a function's
 //! compiled instructions at runtime.
+//!
+//! All lox functions are currently wrapped in closures for convenience. That's
+//! how it's presented in the book, but it's a little wasteful allocating a closure
+//! for every single function. I'd like to eventually separate the two if I can.
 
 const std = @import("std");
 const zlox = @import("../.lib.zig");
@@ -12,7 +16,7 @@ const Value = zlox.object.Value;
 const CallFrame: type = @This();
 
 /// The function being invoked.
-function: *Obj.Function,
+closure: *Obj.Closure,
 
 /// Instruction pointer pointing to the next compiled instruction in the function
 /// being invoked.
@@ -38,7 +42,7 @@ pub fn readShort(self: *CallFrame) u16 {
 /// by its constant offset obtained from reading the next byte from the compiled
 /// instructions.
 pub fn readConstant(self: *CallFrame) Value {
-    return self.function.chunk.constantAt(self.readByte());
+    return self.closure.function.chunk.constantAt(self.readByte());
 }
 
 /// Read a string constant value from the compiled constants of the invoked function

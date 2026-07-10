@@ -93,12 +93,18 @@ pub fn interpret(self: *Vm, source: []const u8) ExecutionResult {
 fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     var tokenizer: Tokenizer = .init(source);
     const parser: *Parser = try .create(&tokenizer);
-    const compiler: *Compiler = try .create(.script, parser, self.strings);
+    const compiler: *Compiler = try .create(.script, parser, self.strings, null);
     const script: *Obj.Function = try compiler.compile() orelse return .compile_error;
+
+    const closure: *Obj.Closure = try self.createObj(
+        .closure,
+        Obj.Closure{ .function = script },
+    );
 
     defer parser.destroy();
     defer compiler.destroy();
     defer script.destroy();
+    defer closure.destroy();
 
     if (script.chunk.isEmpty()) return .ok;
 
@@ -107,7 +113,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 
     // Push callframe to execute script function
     self.frame_stack.push(CallFrame{
-        .function = script,
+        .closure = closure,
         .ip = script.chunk.ip(),
         .slots = &self.stack.values,
     });
@@ -124,7 +130,7 @@ fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
     var i: usize = self.frame_stack.size();
     while (i > 0) : (i -= 1) {
         const frame: *CallFrame = &self.frame_stack.values[i - 1];
-        const function: *Obj.Function = frame.function;
+        const function: *Obj.Function = frame.closure.function;
         const instruction_offset: usize = frame.ip - function.chunk.ip() - 1;
 
         printf("[line {d}] in ", .{function.chunk.lineAt(instruction_offset)});
@@ -154,8 +160,7 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
     const b: Value = self.stack.pop();
     const a: Value = self.stack.pop();
 
-    self.stack.push((switch (op) {
-        .add => .Number(a.number + b.number),
+    self.stack.push(switch (op) {
         .subtract => .Number(a.number - b.number),
         .multiply => .Number(a.number * b.number),
         .divide => .Number(a.number / b.number),
@@ -167,7 +172,7 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
             self.runtimeError("Invalid binary operator: '{s}'", .{@tagName(op)});
             return error.invalid_operator;
         },
-    }));
+    });
 }
 
 /// Pop the top two strings off of the stack, concatenate them, and push the resulting
@@ -196,7 +201,7 @@ fn concatenate(self: *Vm) !void {
 /// Returns whether the `callee` is able to be called (no errors emitted).
 fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
     if (callee.is(.obj)) switch (callee.obj.type) {
-        .function => return self.callFun(callee.asObj(.function), arg_count),
+        .closure => return self.callFun(callee.asObj(.closure), arg_count),
         .native => {
             const native_obj: *Obj.Native = callee.asObj(.native);
             const native_fun: Obj.Native.FnPtr = native_obj.function;
@@ -227,11 +232,11 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
 /// Call the given `function`, using the top `arg_count` stack values as arguments.
 ///
 /// Returns whether the function's instructions are able to begin executing.
-fn callFun(self: *Vm, function: *Obj.Function, arg_count: u8) bool {
-    if (arg_count != function.arity) {
+fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) bool {
+    if (arg_count != closure.function.arity) {
         self.runtimeError(
             "Expected {d} arguments, got {d}",
-            .{ function.arity, arg_count },
+            .{ closure.function.arity, arg_count },
         );
         return false;
     }
@@ -243,8 +248,8 @@ fn callFun(self: *Vm, function: *Obj.Function, arg_count: u8) bool {
 
     // Push callframe for the given function
     self.frame_stack.push(CallFrame{
-        .function = function,
-        .ip = function.chunk.ip(),
+        .closure = closure,
+        .ip = closure.function.chunk.ip(),
         .slots = @ptrCast(self.stack.top - 1 - arg_count),
     });
 
@@ -254,8 +259,8 @@ fn callFun(self: *Vm, function: *Obj.Function, arg_count: u8) bool {
 // Instruction loop ===========================================================
 
 /// Run instructions from the currently loaded chunk.
-    debug.disassembleChunk(&self.currentFrame().function.chunk, "chunk");
 fn run(self: *Vm) !ExecutionResult {
+    debug.disassembleChunk(&self.currentFrame().closure.function.chunk, "chunk");
     printf("\n== begin execution ==\n", .{});
 
     while (true) {
@@ -266,10 +271,10 @@ fn run(self: *Vm) !ExecutionResult {
             if (debug.print_stack) printf("{f}", .{&self.stack});
 
             _ = debug.disassembleInstruction(
-                &frame.function.chunk,
+                &frame.closure.function.chunk,
                 // Find next instruction offset by subtracting the address of
                 // the first instruction from the address of the next instruction
-                frame.ip - frame.function.chunk.ip(),
+                frame.ip - frame.closure.function.chunk.ip(),
             );
         }
 
@@ -374,6 +379,9 @@ fn run(self: *Vm) !ExecutionResult {
             .local_set => frame.slots[frame.readByte()] = self.stack.peek(0),
             .local_get => self.stack.push(frame.slots[frame.readByte()]),
 
+            .upvalue_set => {},
+            .upvalue_get => {},
+
             .jump_if_false => {
                 const offset: u16 = frame.readShort();
                 if (self.stack.peek(0).isFalsey()) frame.ip += offset;
@@ -400,6 +408,20 @@ fn run(self: *Vm) !ExecutionResult {
                 if (!self.callValue(self.stack.peek(arg_count), arg_count)) {
                     return .runtime_error;
                 }
+            },
+
+            .closure => {
+                const function: *Obj.Function = frame.readConstant().asObj(.function);
+
+                const closure: *Obj.Closure = self.createObj(
+                    .closure,
+                    Obj.Closure{ .function = function },
+                ) catch {
+                    self.runtimeError("Error allocating function closure. Out of memory?", .{});
+                    return .runtime_error;
+                };
+
+                self.stack.push(.Object(&closure.obj));
             },
 
             .@"return" => {

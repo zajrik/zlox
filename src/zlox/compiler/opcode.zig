@@ -147,6 +147,9 @@ pub const OpCode = enum(u8) {
     ///   expression (or discarded at the end of a statement)
     local_get,
 
+    upvalue_set,
+    upvalue_get,
+
     /// ### `OpCode.jump_if_false(offset: jump_offset)`
     /// - Jump over a number of instructions obtained from the operand if the value
     ///   at the top of the stack is `false`.
@@ -176,6 +179,11 @@ pub const OpCode = enum(u8) {
     ///
     ///   The function value will be on the stack, followed by all of its arguments.
     call,
+
+    /// ### `OpCode.closure(offset: constant_offset)`
+    /// - Create a closure at runtime. Must be followed by an offset pointing to
+    ///   the function object the closure is wrapping.
+    closure,
 
     /// ### `OpCode.return()`
     /// - Returns the value at the top of the stack from whatever call frame
