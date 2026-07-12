@@ -491,15 +491,15 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
     // Load identifier into the current token if this is a labeled function expression
     if (is_expr and p.next.is(.identifier)) p.advance();
 
-    const compiler: *Compiler = Compiler.create(@"type", p, self.strings, self) catch {
+    const fun_cmp: *Compiler = Compiler.create(@"type", p, self.strings, self) catch {
         return p.@"error"("Error compiling function.");
     };
-    defer compiler.destroy();
+    defer fun_cmp.destroy();
 
     // Push scope for function to contain arguments and the function body. This
     // does not need to be closed since the scope will be discarded when the compiler
     // instance is freed
-    compiler.pushScope();
+    fun_cmp.pushScope();
 
     p.consume(.paren_left, "Expected '(' after function name.");
 
@@ -508,13 +508,13 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
         // Allow dangling comma
         if (p.next.is(.paren_right)) break;
 
-        compiler.function.?.arity += 1;
-        if (compiler.function.?.arity > 255) p.errorAtNext(
+        fun_cmp.function.?.arity += 1;
+        if (fun_cmp.function.?.arity > 255) p.errorAtNext(
             "A function can't have more than 255 parameters.",
         );
 
-        const param: u8 = compiler.variableIdentifier("Expected parameter identifier.");
-        compiler.defineVariable(param);
+        const param: u8 = fun_cmp.variableIdentifier("Expected parameter identifier.");
+        fun_cmp.defineVariable(param);
 
         if (!p.nextMatches(.comma)) break;
     };
@@ -523,13 +523,13 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
 
     // Compile block function body if we see an opening brace
     if (p.nextMatches(.brace_left)) {
-        compiler.block();
+        fun_cmp.block();
     }
 
     // Compile expression body if we see `=`
     else if (p.nextMatches(.equal)) {
-        compiler.expression();
-        compiler.emitOp(.@"return");
+        fun_cmp.expression();
+        fun_cmp.emitOp(.@"return");
         if (!is_expr) p.consume(.semicolon, "Expected ';' after function body.");
     }
 
@@ -538,19 +538,19 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
         p.@"error"("Expected '{' or '=' before function body.");
     }
 
-    const fun_obj: *Obj.Function = compiler.endCompilation() orelse {
+    const fun_obj: *Obj.Function = fun_cmp.endCompilation() orelse {
         return p.@"error"("Error compiling function.");
     };
 
-    // Add compiled function to chunk constants and emit closure op
+    // Add compiled function to chunk constants and emit closure opd
     const fun_offset: u8 = self.makeConstant(.Object(&fun_obj.obj));
     self.emitOp1(.closure, fun_offset);
 
     // Emit closure upvalue bytecode
     var i: u8 = 0;
-    while (i < self.function.?.upvalue_count) : (i += 1) {
-        self.emitByte(if (self.upvalues[i].is_local) 1 else 0);
-        self.emitByte(self.upvalues[i].offset);
+    while (i < fun_obj.upvalue_count) : (i += 1) {
+        self.emitByte(if (fun_cmp.upvalues[i].is_local) 1 else 0);
+        self.emitByte(fun_cmp.upvalues[i].offset);
     }
 }
 
@@ -873,7 +873,7 @@ fn declareLocal(self: *Compiler) void {
     const identifier: Token = self.parser.current;
 
     // Check for existing variable with this identifier in this scope
-    var i: u16 = self.local_count;
+    var i: u8 = self.local_count;
     while (i > 0) : (i -= 1) {
         const local: Local = self.locals[i - 1];
 
@@ -927,8 +927,11 @@ fn resolveLocal(self: *const Compiler, identifier: Token) ?u8 {
         const local: Local = self.locals[local_index];
 
         if (identifier.lexemeEquals(local.identifier)) {
-            if (local.depth != -1) return local_index;
-            self.parser.@"error"("Can't read local variable in its own initializer.");
+            if (local.depth == -1) self.parser.@"error"(
+                "Can't read local variable in its own initializer.",
+            );
+
+            return local_index;
         }
     }
 
@@ -956,6 +959,7 @@ fn resolveUpvalue(self: *Compiler, identifier: Token) ?u8 {
     // If we have an enclosing scope, try to resolve upvalue from its locals/upvalues
     if (self.enclosing) |enclosing| {
         if (enclosing.resolveLocal(identifier)) |offset| {
+            enclosing.locals[offset].is_captured = true;
             return self.addUpvalue(offset, true);
         }
 

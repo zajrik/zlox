@@ -9,3 +9,5 @@ fun outer() {
     }
   }
 }
+
+outer();

@@ -16,13 +16,16 @@ const printf = std.debug.print;
 pub const is_debug_mode: bool = builtin.mode == .Debug;
 
 /// Whether the vm should print instruction traces during execution.
-pub const trace_execution: bool = is_debug_mode and false;
+pub const trace_execution: bool = is_debug_mode and true;
 
 /// Whether the vm should print the stack in between instruction traces.
 pub const print_stack: bool = is_debug_mode and true;
 
 /// Whether the vm should dump the compiled chunk when there were errors.
 pub const dump_chunk: bool = is_debug_mode and true;
+
+/// Whether the vm should dump raw chunk bytes before dumping the chunk contents./
+pub const dump_raw: bool = is_debug_mode and true;
 
 /// Whether Obj memory being released should be logged.
 pub const obj_free: bool = is_debug_mode and false;
@@ -31,6 +34,16 @@ pub const obj_free: bool = is_debug_mode and false;
 pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {
     printf("== {s} ==\n", .{name});
     var offset: usize = 0;
+
+    if (comptime dump_raw) {
+        while (offset < chunk.len()) {
+            printf("{d:02} ", .{chunk.instructionAt(offset)});
+            offset += 1;
+        }
+        printf("\n", .{});
+        offset = 0;
+    }
+
     while (offset < chunk.len()) {
         offset = disassembleInstruction(chunk, offset);
     }

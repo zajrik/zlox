@@ -17,3 +17,11 @@ depth: i32,
 
 /// Whether this local has been captured in a closure.
 is_captured: bool = false,
+
+/// Custom formatter for `Local` values.
+pub fn format(self: Local, writer: *std.Io.Writer) !void {
+    try writer.print(
+        "Local{{ .identifier = '{s}', .depth = {d}, .is_captured = {} }}",
+        .{ self.identifier.lexeme, self.depth, self.is_captured },
+    );
+}
