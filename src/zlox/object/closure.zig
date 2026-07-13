@@ -1,7 +1,7 @@
 //! A lox closure `Obj` struct variant, wrapping a lox function obj.
 
 const std = @import("std");
-const zlox = @import("../../.lib.zig");
+const zlox = @import("../.lib.zig");
 
 const Obj = zlox.object.Obj;
 

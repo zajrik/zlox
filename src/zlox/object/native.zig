@@ -1,7 +1,7 @@
 //! A lox native function `Obj` struct variant.
 
 const std = @import("std");
-const zlox = @import("../../.lib.zig");
+const zlox = @import("../.lib.zig");
 
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;

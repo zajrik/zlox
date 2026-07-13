@@ -1,5 +1,5 @@
 const std = @import("std");
-const zlox = @import("../../.lib.zig");
+const zlox = @import("../.lib.zig");
 
 const Type = zlox.object.Obj.Type;
 

@@ -1,11 +1,7 @@
 //! A heap-allocated lox object.
-//!
-//! Implemented with the closest safe approximation to C-like type punning/struct
-//! inheritance I can manage in zig without just using extern structs. There might
-//! be a better way of doing this, but I haven't found one yet.
 
 const std = @import("std");
-const zlox = @import("../../.lib.zig");
+const zlox = @import("../.lib.zig");
 
 const mem = zlox.mem;
 const debug = zlox.debug;
