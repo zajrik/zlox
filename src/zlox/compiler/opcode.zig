@@ -20,6 +20,9 @@ const Writer = std.Io.Writer;
 ///   top of the stack. A stack offset of `0` points to the top of the stack, `1`
 ///   to the item below that, etc.
 ///
+/// - `upvalue_offset`: An integer pointing to an upvalue in the closure of the
+///   current callframe.
+///
 /// - `jump_offset`: A 2-byte integer indicating a number of instructions for a
 ///   jump instruction to jump over.
 ///
@@ -100,6 +103,11 @@ pub const OpCode = enum(u8) {
     /// - Pops the top `n` values off of the stack, discarding them.
     pop_n,
 
+    /// ### `OpCode.close()`
+    /// - Close the upvalue capturing the local at the top of the stack and then
+    ///   pop the local from the stack.
+    close,
+
     /// ### `OpCode.copy()`
     /// - Pushes a copy of the value at the top of the stack to the top of the stack.
     copy,
@@ -147,7 +155,14 @@ pub const OpCode = enum(u8) {
     ///   expression (or discarded at the end of a statement)
     local_get,
 
+    /// ### `OpCode.upvalue_set(offset: upvalue_offset)`
+    /// - Set the value of the upvalue at the offset obtained from the operand to
+    ///   the value at the top of the stack.
     upvalue_set,
+
+    /// ### `OpCode.upvalue_get(offset: upvalue_offset)`
+    /// - Get the value of the upvalue at the offset obtained from the operand,
+    ///   pushing it to the top of the stack.
     upvalue_get,
 
     /// ### `OpCode.jump_if_false(offset: jump_offset)`

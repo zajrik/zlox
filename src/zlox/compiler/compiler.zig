@@ -116,8 +116,8 @@ pub fn create(
     }
 
     // Reserve local slot 0 for the compiled function itself
-    defer compiler.local_count += 1;
-    compiler.locals[compiler.local_count] = Local{
+    compiler.local_count += 1;
+    compiler.locals[0] = Local{
         .identifier = Token.init(.identifier, "", 0, 0),
         .depth = 0,
     };
@@ -201,9 +201,9 @@ fn pushScope(self: *Compiler) void {
 fn popScope(self: *Compiler) void {
     self.scope_depth -= 1;
 
-    // Pop local variables at end of scope
+    // Pop locals from stack and close upvalues at end of scope
     while (self.local_count > 0 and self.lastLocal().depth > self.scope_depth) {
-        self.emitOp(.pop);
+        self.emitOp(if (self.lastLocal().is_captured) .close else .pop);
         self.local_count -= 1;
     }
 }
@@ -660,7 +660,7 @@ fn variableGetSet(self: *Compiler, identifier: Token, can_assign: bool) void {
     } else if (self.resolveUpvalue(identifier)) |offset| {
         var_offset = offset;
         set_op = .upvalue_set;
-        get_op = .upvalue_set;
+        get_op = .upvalue_get;
     } else {
         var_offset = self.makeIdentConstant(identifier);
         set_op = .global_set;
@@ -959,6 +959,7 @@ fn resolveUpvalue(self: *Compiler, identifier: Token) ?u8 {
     // If we have an enclosing scope, try to resolve upvalue from its locals/upvalues
     if (self.enclosing) |enclosing| {
         if (enclosing.resolveLocal(identifier)) |offset| {
+            // Mark local in enclosing scope as captured
             enclosing.locals[offset].is_captured = true;
             return self.addUpvalue(offset, true);
         }

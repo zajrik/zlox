@@ -128,7 +128,7 @@ pub fn Stack(comptime T: type, max: comptime_int) type {
             // If stack is empty, don't print anything
             if (self.isEmpty()) return;
 
-            try writer.writeAll("           ");
+            try writer.writeAll("        |  ");
             defer writer.writeAll("\n") catch {};
 
             var slot: [*]const T = &self.values;

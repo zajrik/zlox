@@ -48,6 +48,12 @@ strings: *HashTable,
 /// Contains all runtime global variables.
 globals: *HashTable,
 
+/// Linked list of open upvalues.
+///
+/// The head of the list is the open upvalue capturing the local variable highest
+/// on the stack relative to other captured locals at the point the list is observed.
+open_upvalues: ?*Obj.Upvalue,
+
 /// Linked list of heap-allocated `Obj` values.
 ///
 /// Contains all lox objects created by the VM at runtime, to be used by the
@@ -65,6 +71,7 @@ pub fn create(io: Io) !*Vm {
     vm.stack.reset();
     vm.strings = try .create();
     vm.globals = try .create();
+    vm.open_upvalues = null;
     vm.root_obj = null;
 
     try native.bootstrapNatives(vm);
@@ -98,7 +105,10 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 
     const closure: *Obj.Closure = try self.createObj(
         .closure,
-        Obj.Closure{ .function = script },
+        Obj.Closure{
+            .function = script,
+            .upvalues = try mem.alloc(*Obj.Upvalue, script.upvalue_count),
+        },
     );
 
     defer parser.destroy();
@@ -118,7 +128,10 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         .slots = &self.stack.values,
     });
 
-    return self.run() catch .runtime_error;
+    return self.run() catch |err| it: {
+        self.runtimeError("An unexpected error occurred: {any}", .{err});
+        break :it .runtime_error;
+    };
 }
 
 /// Print a runtime error and stack trace at the current instruction.
@@ -192,6 +205,72 @@ fn concatenate(self: *Vm) !void {
     self.stack.push(.Object(&new_string.obj));
 }
 
+/// Capture an upvalue from the given pointer to a `local` variable slot on the
+/// stack.
+///
+/// Attempts to find an existing upvalue for the given local variable slot before
+/// allocating a new one.
+///
+/// Returns a pointer to the captured upvalue. The returned object is managed by
+/// the garbage collector.
+fn captureUpvalue(self: *Vm, local: *Value) !*Obj.Upvalue {
+    var upvalue: ?*Obj.Upvalue = null;
+    var next: ?*Obj.Upvalue = self.open_upvalues;
+
+    // Walk the list of open upvalues, starting at the upvalue that captures the
+    // local variable highest on the stack relative to other captured local vars
+    // (the head of the list).
+    //
+    // We'll exit the loop if any of these conditions are met:
+    // - `next` is an existing upvalue capturing the given local variable slot
+    // - `next` is an upvalue capturing a local on the stack below the given local
+    // - We've run out of open upvalues to check
+    while (next) |it| : (next = it.next) {
+        if (@intFromPtr(it.location) <= @intFromPtr(local)) break;
+        upvalue = it;
+    }
+
+    // If we find an existing open upvalue for the given local, return it
+    if (next) |it| if (it.location == local) return it;
+
+    // Otherwise create a new upvalue to capture the given local. `next` refers
+    // to an upvalue lower on the stack than the given local, so this will be
+    // inserted before `next` in the linked list
+    const capture: *Obj.Upvalue = try self.createObj(
+        .upvalue,
+        Obj.Upvalue{ .location = local, .next = next },
+    );
+
+    // If `upvalue` is not null, then the given local (now `capture`) is on the
+    // stack between the locals captured by `upvalue` and `next`, and is inserted
+    // into the list of open upvalues between the two.
+    //
+    // The slice of these three linked upvalues should then look like this:
+    //
+    // `upvalue`
+    //  `-.next -> `capture`
+    //              `-.next -> `next`
+    //                          `-.next = ...
+    //
+    // If `upvalue` IS null then there is no captured local higher on the stack
+    // than the given local so we can insert `capture` at the head of the list as
+    // the highest captured local on the stack
+    (if (upvalue) |it| &it.next else &self.open_upvalues).* = capture;
+
+    return capture;
+}
+
+/// Close the open upvalue associated with the given local variable, or the first
+/// open upvalue capturing a local higher on the stack than the given one, as well
+/// as any open upvalues capturing locals above it on the stack.
+fn closeUpvalues(self: *Vm, local: *const Value) void {
+    while (self.open_upvalues) |upvalue| {
+        if (@intFromPtr(upvalue.location) < @intFromPtr(local)) break;
+        upvalue.close();
+        self.open_upvalues = upvalue.next;
+    }
+}
+
 /// Attempt to call the given `callee` as a function using the top `arg_count` values
 /// from the stack as its arguments.
 ///
@@ -214,7 +293,12 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
                 return false;
             }
 
-            const result: Value = native_fun(self.io, arg_count, self.stack.top - arg_count);
+            // Call native function, capturing its returned value
+            const result: Value = native_fun(
+                self.io,
+                arg_count,
+                self.stack.top - arg_count,
+            );
 
             // Pop native function and its args from stack
             self.stack.top -= arg_count + 1;
@@ -281,6 +365,7 @@ fn run(self: *Vm) !ExecutionResult {
         const instruction: OpCode = .fromByte(frame.readByte());
 
         switch (instruction) {
+            // Constant ops
             .constant => self.stack.push(frame.readConstant()),
             .nil => self.stack.push(.Nil),
             .true => self.stack.push(.Bool(true)),
@@ -341,6 +426,10 @@ fn run(self: *Vm) !ExecutionResult {
             // .peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
             .pop => _ = self.stack.pop(),
             .pop_n => self.stack.popN(frame.readByte()),
+            .close => {
+                self.closeUpvalues(@ptrCast(self.stack.top - 1));
+                _ = self.stack.pop();
+            },
             .copy => self.stack.push(self.stack.peek(0)),
             .swap => {
                 const b: Value = self.stack.pop();
@@ -351,6 +440,7 @@ fn run(self: *Vm) !ExecutionResult {
 
             .print => printf("{f}\n", .{self.stack.pop()}),
 
+            // Variable define/get/set etc. ops
             .global_define => {
                 const ident: *Obj.String = frame.readString();
                 _ = self.globals.set(ident, self.stack.peek(0));
@@ -363,7 +453,7 @@ fn run(self: *Vm) !ExecutionResult {
                 // runtime error and delete the entry from the globals table
                 if (self.globals.set(ident, self.stack.peek(0))) {
                     _ = self.globals.delete(ident);
-                    self.runtimeError("Undefined variable '{f}'", .{ident});
+                    self.runtimeError("Undefined variable '{f}'.", .{ident});
                     return .runtime_error;
                 }
             },
@@ -379,9 +469,18 @@ fn run(self: *Vm) !ExecutionResult {
             .local_set => frame.slots[frame.readByte()] = self.stack.peek(0),
             .local_get => self.stack.push(frame.slots[frame.readByte()]),
 
-            .upvalue_set => {},
-            .upvalue_get => {},
+            .upvalue_set => {
+                const offset: u8 = frame.readByte();
+                const upvalue: *Obj.Upvalue = frame.closure.upvalues[offset];
+                upvalue.location.* = self.stack.peek(0);
+            },
+            .upvalue_get => {
+                const offset: u8 = frame.readByte();
+                const upvalue: *Obj.Upvalue = frame.closure.upvalues[offset];
+                self.stack.push(upvalue.location.*);
+            },
 
+            // Control flow ops
             .jump_if_false => {
                 const offset: u16 = frame.readShort();
                 if (self.stack.peek(0).isFalsey()) frame.ip += offset;
@@ -412,14 +511,31 @@ fn run(self: *Vm) !ExecutionResult {
 
             .closure => {
                 const function: *Obj.Function = frame.readConstant().asObj(.function);
-
-                const closure: *Obj.Closure = self.createObj(
+                const closure: *Obj.Closure = try self.createObj(
                     .closure,
-                    Obj.Closure{ .function = function },
-                ) catch {
-                    self.runtimeError("Error allocating function closure. Out of memory?", .{});
-                    return .runtime_error;
-                };
+                    Obj.Closure{
+                        .function = function,
+                        .upvalues = try mem.alloc(*Obj.Upvalue, function.upvalue_count),
+                    },
+                );
+
+                // Capture upvalues from enclosing scopes
+                var i: u8 = 0;
+                while (i < function.upvalue_count) : (i += 1) {
+                    const is_local: bool = frame.readByte() == 1;
+                    const offset: u8 = frame.readByte();
+
+                    closure.upvalues[i] = it: {
+                        // Capture local from the frame's stack window if upvalue is local
+                        if (is_local) {
+                            const local_ptr: *Value = @ptrCast(frame.slots + offset);
+                            break :it try self.captureUpvalue(local_ptr);
+                        }
+
+                        // Otherwise reference existing upvalue from frame
+                        break :it frame.closure.upvalues[offset];
+                    };
+                }
 
                 self.stack.push(.Object(&closure.obj));
             },
@@ -427,6 +543,9 @@ fn run(self: *Vm) !ExecutionResult {
             .@"return" => {
                 // Pop return value from value stack
                 const result: Value = self.stack.pop();
+
+                // Close any open upvalues on the stack within this callframe's scope
+                self.closeUpvalues(@ptrCast(frame.slots));
 
                 // Pop callframe from frame stack, exiting if it was the root callframe
                 if (self.frame_stack.discard() == 0) {

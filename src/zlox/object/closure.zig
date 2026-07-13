@@ -3,6 +3,8 @@
 const std = @import("std");
 const zlox = @import("../.lib.zig");
 
+const mem = zlox.mem;
+
 const Obj = zlox.object.Obj;
 
 const Writer = std.Io.Writer;
@@ -19,8 +21,15 @@ obj: Obj = undefined,
 /// The function obj is not owned by the closure.
 function: *Obj.Function,
 
+/// Array of pointers to upvalues captured by this closure.
+///
+/// The closure owns this array, but not the upvalues its contents point to.
+upvalues: []*Obj.Upvalue,
+
 /// Free allocated memory owned by this obj.
-pub fn destroy(_: *const Closure) void {}
+pub fn destroy(self: *const Closure) void {
+    mem.free(self.upvalues);
+}
 
 /// Custom formatter for `Obj.Closure` values.
 pub fn format(self: *const Closure, writer: *Writer) !void {

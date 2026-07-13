@@ -92,11 +92,13 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         // .peek => |op| byteInstruction(op, chunk, offset),
         .pop => |T| simpleInstruction(T, offset),
         .pop_n => |T| byteInstruction(T, chunk, offset),
+        .close => |T| simpleInstruction(T, offset),
         .copy => |T| simpleInstruction(T, offset),
         .swap => |T| simpleInstruction(T, offset),
 
         .print => |T| simpleInstruction(T, offset),
 
+        // Variable define/get/set etc. ops
         .global_define => |T| constantInstruction(T, chunk, offset),
         .global_set => |T| constantInstruction(T, chunk, offset),
         .global_get => |T| constantInstruction(T, chunk, offset),
@@ -107,6 +109,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .upvalue_set => |T| byteInstruction(T, chunk, offset),
         .upvalue_get => |T| byteInstruction(T, chunk, offset),
 
+        // Control flow ops
         .jump_if_false => |T| jumpInstruction(T, 1, chunk, offset),
         .jump_if_true => |T| jumpInstruction(T, 1, chunk, offset),
         .jump_if_not_nil => |T| jumpInstruction(T, 1, chunk, offset),
@@ -131,7 +134,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
                 const upvalue_offset: u8 = chunk.instructionAt(new_offset + 1);
                 defer new_offset += 2;
 
-                printf("{d:04}      |                     {s} {d}\n", .{
+                printf("{d:04}    |                       {s} {d}\n", .{
                     new_offset,
                     if (is_local == 1) "local" else "upvalue",
                     upvalue_offset,
