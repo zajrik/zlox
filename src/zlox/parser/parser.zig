@@ -95,6 +95,16 @@ pub fn nextMatches(self: *Parser, @"type": TokenType) bool {
     return true;
 }
 
+/// Returns whether a currently-parsing list of comma-separated items has ended.
+///
+/// An end is found when a non-comma token or the given `end_token` is encountered.
+///
+/// Call this at the end of every loop after encountering a comma. Dangling commas
+/// are allowed and will be consumed. The given end token will not be consumed.
+pub fn listEnd(self: *Parser, end_token: TokenType) bool {
+    return !self.nextMatches(.comma) or self.next.is(end_token);
+}
+
 /// Returns the strategy for how the given `token` is parsed/compiled.
 pub fn strategy(_: *const Parser, token: Token) ParseStrategy {
     return ParseStrategy.forToken(token);

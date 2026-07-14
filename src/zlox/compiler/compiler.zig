@@ -341,9 +341,7 @@ fn switchStmt(self: *Compiler) void {
 
     var default_found: bool = false;
 
-    const exit_jumps: *JumpList = JumpList.create() catch return p.@"error"(
-        "Error allocating switch jump list. Out of memory?",
-    );
+    const exit_jumps: *JumpList = JumpList.create() catch return self.allocError();
     defer exit_jumps.destroy();
 
     while (!p.nextMatches(.brace_right) and !p.nextMatches(.eof)) {
@@ -570,20 +568,20 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
     p.consume(.paren_left, "Expected '(' after function name.");
 
     // Compile function parameters, if any
-    if (p.next.isNot(.paren_right)) while (true) {
-        // Allow dangling comma
-        if (p.next.is(.paren_right)) break;
+    if (p.next.isNot(.paren_right)) {
+        const arity: *u8 = &fun_cmp.function.?.arity;
 
-        fun_cmp.function.?.arity += 1;
-        if (fun_cmp.function.?.arity > 255) p.errorAtNext(
-            "A function can't have more than 255 parameters.",
-        );
+        while (true) : (if (p.listEnd(.paren_right)) break) {
+            fun_cmp.defineVariable(
+                fun_cmp.variableIdentifier("Expected parameter identifier."),
+            );
 
-        const param: u8 = fun_cmp.variableIdentifier("Expected parameter identifier.");
-        fun_cmp.defineVariable(param);
-
-        if (!p.nextMatches(.comma)) break;
-    };
+            defer arity.* += 1;
+            if (arity.* == 255) p.@"error"(
+                "A function can't have more than 255 parameters.",
+            );
+        }
+    }
 
     p.consume(.paren_right, "Expected ')' after parameter list.");
 
@@ -821,9 +819,7 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
 
     var wildcard_found: bool = false;
 
-    const exit_jumps: *JumpList = JumpList.create() catch return p.@"error"(
-        "Error allocating switch jump list. Out of memory?",
-    );
+    const exit_jumps: *JumpList = JumpList.create() catch return self.allocError();
     defer exit_jumps.destroy();
 
     while (!p.nextMatches(.brace_right) and !p.nextMatches(.eof)) {
@@ -887,10 +883,7 @@ fn argumentList(self: *Compiler) u8 {
     var count: u8 = 0;
 
     if (p.next.isNot(.paren_right)) {
-        while (true) : (if (!p.nextMatches(.comma)) break) {
-            // Allow dangling comma
-            if (p.next.is(.paren_right)) break;
-
+        while (true) : (if (p.listEnd(.paren_right)) break) {
             self.expression();
 
             defer count += 1;
