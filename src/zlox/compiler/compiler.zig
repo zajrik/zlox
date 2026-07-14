@@ -691,7 +691,7 @@ pub fn string(self: *const Compiler, _: bool) void {
 
 /// Compile a number expression from the current source token.
 pub fn number(self: *const Compiler, _: bool) void {
-    const value: f32 = parseFloat(f32, self.parser.current.lexeme) catch {
+    const value: f64 = parseFloat(f64, self.parser.current.lexeme) catch {
         return self.parser.@"error"("Invalid number literal.");
     };
     self.emitConstant(.Number(value));
