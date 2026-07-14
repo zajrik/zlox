@@ -81,7 +81,7 @@ local_count: u8 = 0,
 /// Current scope depth at a given point during compilation.
 scope_depth: u16 = 0,
 
-/// The current loop scope at a given point during compilation.
+/// The innermost loop scope at a given point during compilation.
 ///
 /// Loop scopes must be freed when they end.
 loop_scope: ?*LoopScope = null,
@@ -224,7 +224,7 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
     rule(self);
 }
 
-/// Begin a new loop scope for resolving break statements within loops.
+/// Begin a new loop scope.
 fn pushLoopScope(self: *Compiler) void {
     self.loop_scope = LoopScope.create(self.loop_scope) catch return;
 }
@@ -390,20 +390,25 @@ fn switchStmt(self: *Compiler) void {
 
 /// Compile a break statement from source tokens.
 fn breakStmt(self: *Compiler) void {
+    // Emit an unpatched jump for this break statement and add it to the scope
     if (self.loop_scope) |it| {
-        self.parser.consume(.semicolon, "Expected ';' after 'break'.");
-        return it.addBreak(self.emitJump(.jump));
+        it.addBreak(self.emitJump(.jump)) catch self.allocError();
+        return self.parser.consume(.semicolon, "Expected ';' after 'break'.");
     }
+
     self.parser.@"error"("'break' cannot be used outside of a loop.");
 }
 
 /// Compile a continue statement from source tokens.
 fn continueStmt(self: *Compiler) void {
+    // Emit a loop instruction with placeholder operand bytes to be patched when
+    // continue statements are resolved at the end of the loop scope
     if (self.loop_scope) |it| {
-        self.parser.consume(.semicolon, "Expected ';' after 'continue'.");
         self.emitOp2(.loop, 0xff, 0xff);
-        return it.addContinue(self.instructionOffset() - 2);
+        it.addContinue(self.instructionOffset() - 2) catch self.allocError();
+        return self.parser.consume(.semicolon, "Expected ';' after 'continue'.");
     }
+
     self.parser.@"error"("'continue' cannot be used outside of a loop.");
 }
 
@@ -455,8 +460,8 @@ fn whileStmt(self: *Compiler) void {
     self.emitOp(.pop);
 
     // Resolve any break/continue statements compiled within in the loop body
-    self.loop_scope.?.resolveBreaks(self.chunk());
-    self.loop_scope.?.resolveContinues(self.chunk(), loop_start);
+    self.patchBreaks();
+    self.patchContinues(loop_start);
 }
 
 /// Compiles a for-loop statement from source tokens.
@@ -522,8 +527,8 @@ fn forStmt(self: *Compiler) void {
     }
 
     // Resolve any break/continue statements compiled within in the loop body
-    self.loop_scope.?.resolveBreaks(self.chunk());
-    self.loop_scope.?.resolveContinues(self.chunk(), loop_start);
+    self.patchBreaks();
+    self.patchContinues(loop_start);
 }
 
 /// Compile a block statement from source tokens.
@@ -1197,9 +1202,36 @@ fn addJump(self: *const Compiler, jump_list: *JumpList) void {
 /// Patch all jumps in the given `jump_list`.
 fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
     var next: ?*JumpList.Jump = jump_list.head;
-    while (next) |jump| {
-        next = jump.next;
-        self.patchJump(jump.offset);
+    while (next) |it| : (next = it.next) self.patchJump(it.offset);
+}
+
+/// Patch all unresolved break statements within the current loop scope.
+///
+/// The jump instruction placeholders for break statements tracked by the current
+/// loop scope will be patched to the current instruction offset at the callsite.
+fn patchBreaks(self: *const Compiler) void {
+    if (self.loop_scope) |loop_scope| {
+        var next: ?*LoopScope.Break = loop_scope.breaks;
+        while (next) |it| : (next = it.next) self.patchJump(it.offset);
+    }
+}
+
+/// Patch all unresolved continue statements within the current loop scope.
+///
+/// The loop instruction placeholders for all continue statements tracked by the
+/// current loop scope will be patched to point to the given `loop_start` instruction
+/// offset.
+fn patchContinues(self: *const Compiler, loop_start: usize) void {
+    if (self.loop_scope) |loop_scope| {
+        var next: ?*LoopScope.Continue = loop_scope.continues;
+        while (next) |it| : (next = it.next) {
+            const loop_offset: usize = it.offset - loop_start + 2;
+            const loop_byte_1: u8 = @as(u8, @truncate(loop_offset >> 8));
+            const loop_byte_2: u8 = @as(u8, @truncate(loop_offset));
+
+            self.chunk().ipAt(it.offset).* = loop_byte_1;
+            self.chunk().ipAt(it.offset + 1).* = loop_byte_2;
+        }
     }
 }
 
@@ -1249,4 +1281,12 @@ fn copyString(self: *const Compiler, chars: []const u8) !*Obj.String {
     );
 
     return str;
+}
+
+// Error reporting convenience methods ========================================
+
+/// Report an error at the current token indicating memory allocation critical to
+/// the compilation process failed while compiling.
+fn allocError(self: *const Compiler) void {
+    self.parser.@"error"("Error allocating during compilation. Out of memory?");
 }
