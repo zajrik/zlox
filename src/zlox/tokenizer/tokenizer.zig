@@ -199,9 +199,11 @@ fn identifierType(self: *Tokenizer) TokenType {
 
     return switch (self.start[0]) {
         'a' => self.checkPartial(1, "nd", .keyword_and),
+        'b' => self.checkPartial(1, "reak", .keyword_break),
+
         'c' => if (token_len > 1) switch (self.start[1]) {
-            'l' => self.checkPartial(2, "ass", .keyword_class),
             'a' => self.checkPartial(2, "se", .keyword_case),
+            'l' => self.checkPartial(2, "ass", .keyword_class),
             else => .identifier,
         } else .identifier,
 

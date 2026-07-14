@@ -18,6 +18,7 @@ const Chunk = zlox.compiler.Chunk;
 const ExprFn = zlox.compiler.ExprFn;
 const JumpList = zlox.compiler.JumpList;
 const Local = zlox.compiler.Local;
+const LoopScope = zlox.compiler.LoopScope;
 const OpCode = zlox.compiler.OpCode;
 const Upvalue = zlox.compiler.Upvalue;
 
@@ -79,6 +80,11 @@ local_count: u8 = 0,
 
 /// Current scope depth at a given point during compilation.
 scope_depth: u16 = 0,
+
+/// The current loop scope at a given point during compilation.
+///
+/// Loop scopes must be freed when they end.
+loop_scope: ?*LoopScope = null,
 
 /// Allocate a new `Compiler` instance on the heap, returning a pointer to it.
 ///
@@ -218,6 +224,19 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
     rule(self);
 }
 
+/// Begin a new loop scope for resolving break statements within loops.
+fn pushLoopScope(self: *Compiler) void {
+    self.loop_scope = LoopScope.create(self.loop_scope) catch return;
+}
+
+/// End the current loop scope.
+fn popLoopScope(self: *Compiler) void {
+    if (self.loop_scope) |it| {
+        defer it.destroy();
+        self.loop_scope = it.enclosing;
+    }
+}
+
 // Statement compilation methods ==============================================
 
 /// Compile a declaration from source tokens.
@@ -258,6 +277,7 @@ fn statement(self: *Compiler) void {
         .keyword_print => do(self.parser.advance(), self.printStmt()),
         .keyword_if => do(self.parser.advance(), self.ifStmt()),
         .keyword_switch => do(self.parser.advance(), self.switchStmt()),
+        .keyword_break => do(self.parser.advance(), self.breakStmt()),
         .keyword_return => do(self.parser.advance(), self.returnStmt()),
         .keyword_while => do(self.parser.advance(), self.whileStmt()),
         .keyword_for => do(self.parser.advance(), self.scope(forStmt)),
@@ -367,6 +387,15 @@ fn switchStmt(self: *Compiler) void {
     self.emitOp(.pop);
 }
 
+/// Compile a break statement from source tokens.
+fn breakStmt(self: *Compiler) void {
+    if (self.loop_scope) |it| {
+        self.parser.consume(.semicolon, "Expected ';' after 'break'.");
+        return it.addBreak(self.emitJump(.jump));
+    }
+    self.parser.@"error"("'break' cannot be used outside of a loop.");
+}
+
 /// Compile a return statement from source tokens.
 fn returnStmt(self: *Compiler) void {
     if (self.function.?.type == .script) self.parser.@"error"(
@@ -390,6 +419,9 @@ fn returnStmt(self: *Compiler) void {
 ///
 /// whileStmt := "while" "(" expression ")" statement ;
 fn whileStmt(self: *Compiler) void {
+    self.pushLoopScope();
+    defer self.popLoopScope();
+
     const loop_start: usize = self.instructionOffset();
 
     self.parser.consume(.paren_left, "Expected '(' after 'while'.");
@@ -410,6 +442,9 @@ fn whileStmt(self: *Compiler) void {
     // Patch exit here and pop condition expression value from stack
     self.patchJump(exit_jump);
     self.emitOp(.pop);
+
+    // Resolve any break statements encountered in the loop body
+    self.loop_scope.?.resolveBreaks(self.chunk());
 }
 
 /// Compiles a for-loop statement from source tokens.
@@ -418,6 +453,9 @@ fn whileStmt(self: *Compiler) void {
 ///            expression? ";" expression? ")" statement ;
 fn forStmt(self: *Compiler) void {
     const p: *Parser = self.parser;
+
+    self.pushLoopScope();
+    defer self.popLoopScope();
 
     p.consume(.paren_left, "Expected '(' after 'for'.");
 
@@ -470,6 +508,9 @@ fn forStmt(self: *Compiler) void {
         self.patchJump(j);
         self.emitOp(.pop);
     }
+
+    // Resolve any break statements encountered in the loop body
+    self.loop_scope.?.resolveBreaks(self.chunk());
 }
 
 /// Compile a block statement from source tokens.

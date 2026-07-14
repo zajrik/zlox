@@ -39,6 +39,7 @@ pub const TokenType = enum(u8) {
 
     // Keywords
     keyword_and,
+    keyword_break,
     keyword_case,
     keyword_class,
     keyword_default,
