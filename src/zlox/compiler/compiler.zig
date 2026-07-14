@@ -213,8 +213,9 @@ fn popScope(self: *Compiler) void {
 /// The scope will be popped when the rule completes.
 fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
     self.pushScope();
+    defer self.popScope();
+
     rule(self);
-    self.popScope();
 }
 
 // Statement compilation methods ==============================================
@@ -292,7 +293,7 @@ fn ifStmt(self: *Compiler) void {
 
     // Emit .jump to jump over else-branch if we reach this instruction. This keeps
     // the then-branch from falling through to the else-branch. We then patch then_jump
-    // to jump over the .jump, followed by a .pop for the else-branch to pop the value
+    // to jump over else_jump, followed by a .pop for the else-branch to pop the value
     // left on the stack by the condition expression if the then-branch was jumped over
     const else_jump: usize = self.emitJump(.jump);
     self.patchJump(then_jump);
@@ -397,10 +398,16 @@ fn whileStmt(self: *Compiler) void {
 
     const exit_jump: usize = self.emitJump(.jump_if_false);
 
+    // Pop condition expression value from stack it was truthy
     self.emitOp(.pop);
+
+    // Evaluate loop body
     self.statement();
 
+    // Loop back to start
     self.emitLoop(loop_start);
+
+    // Patch exit here and pop condition expression value from stack
     self.patchJump(exit_jump);
     self.emitOp(.pop);
 }
@@ -914,7 +921,7 @@ fn markDefined(self: *Compiler) void {
 /// Walks down scoped locals array until locating the local variable with the given
 /// `identifier`, returning the offset within the locals array of that local.
 ///
-/// Returns `-1` if it does not exist.
+/// Returns `null` if it does not exist.
 ///
 /// Because of the way the stack behaves with statements popping their stack values
 /// when complete, the only values on the stack when a local is declared are the

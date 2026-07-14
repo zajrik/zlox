@@ -33,6 +33,7 @@ identifier: ?*Obj.String = null,
 /// The number of arguments this function expects and accepts at runtime.
 arity: u8 = 0,
 
+/// The number of upvalues this function relies on.
 upvalue_count: u8 = 0,
 
 /// The chunk of compiled bytecode for this function.
