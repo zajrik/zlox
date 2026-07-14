@@ -204,6 +204,7 @@ fn identifierType(self: *Tokenizer) TokenType {
         'c' => if (token_len > 1) switch (self.start[1]) {
             'a' => self.checkPartial(2, "se", .keyword_case),
             'l' => self.checkPartial(2, "ass", .keyword_class),
+            'o' => self.checkPartial(2, "ntinue", .keyword_continue),
             else => .identifier,
         } else .identifier,
 

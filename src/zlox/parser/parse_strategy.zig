@@ -100,6 +100,7 @@ const strategies: [token_count]ParseStrategy = .{
     strat(.keyword_and,      null,       andExpr,  .@"and"    ),
     strat(.keyword_break,    null,       null,     .none      ),
     strat(.keyword_case,     null,       null,     .none      ),
+    strat(.keyword_continue, null,       null,     .none      ),
     strat(.keyword_class,    null,       null,     .none      ),
     strat(.keyword_default,  null,       null,     .none      ),
     strat(.keyword_else,     null,       null,     .none      ),

@@ -198,12 +198,12 @@ fn endCompilation(self: *const Compiler) ?*Obj.Function {
 
 // Scope management methods ===================================================
 
-/// Begin a new scope.
+/// Begin a new lexical scope.
 fn pushScope(self: *Compiler) void {
     self.scope_depth += 1;
 }
 
-/// End the current scope.
+/// End the current lexical scope.
 fn popScope(self: *Compiler) void {
     self.scope_depth -= 1;
 
@@ -214,7 +214,7 @@ fn popScope(self: *Compiler) void {
     }
 }
 
-/// Execute the given statement rule within a new scope.
+/// Execute the given statement rule within a new lexical scope.
 ///
 /// The scope will be popped when the rule completes.
 fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
@@ -278,6 +278,7 @@ fn statement(self: *Compiler) void {
         .keyword_if => do(self.parser.advance(), self.ifStmt()),
         .keyword_switch => do(self.parser.advance(), self.switchStmt()),
         .keyword_break => do(self.parser.advance(), self.breakStmt()),
+        .keyword_continue => do(self.parser.advance(), self.continueStmt()),
         .keyword_return => do(self.parser.advance(), self.returnStmt()),
         .keyword_while => do(self.parser.advance(), self.whileStmt()),
         .keyword_for => do(self.parser.advance(), self.scope(forStmt)),
@@ -396,6 +397,16 @@ fn breakStmt(self: *Compiler) void {
     self.parser.@"error"("'break' cannot be used outside of a loop.");
 }
 
+/// Compile a continue statement from source tokens.
+fn continueStmt(self: *Compiler) void {
+    if (self.loop_scope) |it| {
+        self.parser.consume(.semicolon, "Expected ';' after 'continue'.");
+        self.emitOp2(.loop, 0xff, 0xff);
+        return it.addContinue(self.instructionOffset() - 2);
+    }
+    self.parser.@"error"("'continue' cannot be used outside of a loop.");
+}
+
 /// Compile a return statement from source tokens.
 fn returnStmt(self: *Compiler) void {
     if (self.function.?.type == .script) self.parser.@"error"(
@@ -443,8 +454,9 @@ fn whileStmt(self: *Compiler) void {
     self.patchJump(exit_jump);
     self.emitOp(.pop);
 
-    // Resolve any break statements encountered in the loop body
+    // Resolve any break/continue statements compiled within in the loop body
     self.loop_scope.?.resolveBreaks(self.chunk());
+    self.loop_scope.?.resolveContinues(self.chunk(), loop_start);
 }
 
 /// Compiles a for-loop statement from source tokens.
@@ -509,8 +521,9 @@ fn forStmt(self: *Compiler) void {
         self.emitOp(.pop);
     }
 
-    // Resolve any break statements encountered in the loop body
+    // Resolve any break/continue statements compiled within in the loop body
     self.loop_scope.?.resolveBreaks(self.chunk());
+    self.loop_scope.?.resolveContinues(self.chunk(), loop_start);
 }
 
 /// Compile a block statement from source tokens.
