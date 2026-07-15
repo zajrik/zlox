@@ -186,10 +186,10 @@ fn endCompilation(self: *const Compiler) ?*Obj.Function {
         self.emitDefaultReturn();
 
         if ((comptime debug.dump_chunk) and !self.parser.had_error) {
-            const chunk_name: []const u8 = name: {
-                if (fun.identifier) |ident| break :name ident.chars;
-                if (fun.type == .script) break :name "script";
-                break :name "anon fun";
+            const chunk_name: []const u8 = it: {
+                if (fun.identifier) |ident| break :it ident.chars;
+                if (fun.type == .script) break :it "script";
+                break :it "anon fun";
             };
             debug.disassembleChunk(&fun.chunk, chunk_name);
         }
@@ -608,14 +608,13 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
         return p.err("Error compiling function.");
     };
 
-    // Add compiled function to chunk constants and emit closure opd
-    const fun_offset: u8 = self.makeConstant(.Object(&fun_obj.obj));
-    self.emitOp1(.closure, fun_offset);
+    // Add compiled function to chunk constants and emit closure op
+    self.emitOp1(.closure, self.makeConstant(.Object(&fun_obj.obj)));
 
     // Emit closure upvalue bytecode
     var i: u8 = 0;
     while (i < fun_obj.upvalue_count) : (i += 1) {
-        self.emitByte(if (fun_cmp.upvalues[i].is_local) 1 else 0);
+        self.emitByte(@intFromBool(fun_cmp.upvalues[i].is_local));
         self.emitByte(fun_cmp.upvalues[i].offset);
     }
 }
@@ -951,10 +950,9 @@ fn declareLocal(self: *Compiler) void {
         "Too many local variables in function.",
     );
 
-    defer self.local_count += 1;
-
     // Add declared local to locals array
-    self.locals[self.local_count] = Local{
+    self.local_count += 1;
+    self.locals[self.local_count - 1] = Local{
         .identifier = identifier,
         .depth = -1,
         .is_captured = false,
@@ -1152,17 +1150,10 @@ fn emitJump(self: *const Compiler, op: OpCode) usize {
     return self.instructionOffset() - 2;
 }
 
-/// Patches the jump instruction operand at `offset` to the current instruction
-/// offset.
-fn patchJump(self: *const Compiler, offset: usize) void {
-    const jump_offset: usize = self.instructionOffset() - offset - 2;
-    const byte_1: u8, const byte_2: u8 = splitBytes(jump_offset);
-
-    // Patch first and second bytes of 2-byte jump instruction operand
-    self.chunk().ipAt(offset).* = byte_1;
-    self.chunk().ipAt(offset + 1).* = byte_2;
-
-    if (jump_offset > cmn.U16_MAX) self.err("Jump offset is too large.");
+/// Emit a `.jump` op beginning at the current instruction offset, adding it to
+/// the given `jump_list` to be resolved later via `patchJumpList()`.
+fn addJump(self: *const Compiler, jump_list: *JumpList) void {
+    jump_list.addJump(self.emitJump(.jump)) catch self.allocErr();
 }
 
 /// Write `OpCode.loop` to the chunk currently being compiled, followed by loop
@@ -1170,19 +1161,32 @@ fn patchJump(self: *const Compiler, offset: usize) void {
 fn emitLoop(self: *const Compiler, offset: usize) void {
     const loop_offset: usize = self.instructionOffset() - offset + 3;
     const byte_1: u8, const byte_2: u8 = splitBytes(loop_offset);
-
     self.emitOp2(.loop, byte_1, byte_2);
 
     if (loop_offset > cmn.U16_MAX) self.err("Loop body is too large.");
 }
 
-/// Emit a `.jump` op beginning at the current instruction offset, adding it to
-/// the given `jump_list` to be resolved later via `patchJumpList()`.
-fn addJump(self: *const Compiler, jump_list: *JumpList) void {
-    jump_list.addJump(self.emitJump(.jump)) catch self.allocErr();
+/// Patch a 2-byte placeholder operand beginning at the given instruction `offset`,
+/// replacing it with the given `bytes`.
+///
+/// `bytes` can be an unsigned integer of any size for callsite convenience, but
+/// it will be truncated to its 16 least-significant bits before being split into
+/// two separate bytes to patch the placeholder bytes.
+fn patchBytes(self: *const Compiler, offset: usize, bytes: usize) void {
+    if (bytes > cmn.U16_MAX) return self.err("Jump offset is too large.");
+
+    const byte_1: u8, const byte_2: u8 = splitBytes(bytes);
+    self.chunk().ipAt(offset).* = byte_1;
+    self.chunk().ipAt(offset + 1).* = byte_2;
 }
 
-/// Patch all jumps in the given `jump_list`.
+/// Patches the jump instruction operand at the given instruction `offset` to point
+/// to the current instruction offset.
+fn patchJump(self: *const Compiler, offset: usize) void {
+    self.patchBytes(offset, self.instructionOffset() - offset - 2);
+}
+
+/// Patch all jumps in the given `jump_list` to the current instruction offset.
 fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
     var next: ?*Jump = jump_list.head;
     while (next) |it| : (next = it.next) self.patchJump(it.offset);
@@ -1191,7 +1195,7 @@ fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
 /// Patch all unresolved break statements within the current loop scope.
 ///
 /// The jump instruction placeholders for break statements tracked by the current
-/// loop scope will be patched to the current instruction offset at the callsite.
+/// loop scope will be patched to point to the current instruction offset.
 fn patchBreaks(self: *const Compiler) void {
     if (self.loop_scope) |loop_scope| {
         var next: ?*Jump = loop_scope.breaks;
@@ -1207,13 +1211,10 @@ fn patchBreaks(self: *const Compiler) void {
 fn patchContinues(self: *const Compiler, loop_start: usize) void {
     if (self.loop_scope) |loop_scope| {
         var next: ?*Jump = loop_scope.continues;
-        while (next) |it| : (next = it.next) {
-            const loop_offset: usize = it.offset - loop_start + 2;
-            const byte_1: u8, const byte_2: u8 = splitBytes(loop_offset);
-
-            self.chunk().ipAt(it.offset).* = byte_1;
-            self.chunk().ipAt(it.offset + 1).* = byte_2;
-        }
+        while (next) |it| : (next = it.next) self.patchBytes(
+            it.offset,
+            it.offset - loop_start + 2,
+        );
     }
 }
 
