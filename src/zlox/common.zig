@@ -14,3 +14,10 @@ pub const STACK_MAX = FRAME_MAX * U8_SIZE;
 pub inline fn do(_: anytype, result: anytype) @TypeOf(result) {
     return result;
 }
+
+/// Split the given unsigned integer into two 8-bit integers.
+///
+/// Given integers larger than 16-bits will be truncated.
+pub fn splitBytes(int: usize) struct { u8, u8 } {
+    return .{ @as(u8, @truncate(int >> 8)), @as(u8, @truncate(int)) };
+}

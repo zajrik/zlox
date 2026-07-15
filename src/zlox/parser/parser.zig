@@ -73,7 +73,7 @@ pub fn advance(self: *Parser) void {
         self.next = token;
         if (token.isNot(.@"error")) break;
 
-        self.errorAtNext(token.lexeme);
+        self.errAtNext(token.lexeme);
     }
 }
 
@@ -82,14 +82,14 @@ pub fn advance(self: *Parser) void {
 /// Emits error `msg` if a token of the given type is not found.
 pub fn consume(self: *Parser, @"type": TokenType, msg: []const u8) void {
     if (self.next.is(@"type")) return self.advance();
-    self.errorAtNext(msg);
+    self.errAtNext(msg);
 }
 
 /// Returns whether the next token to be parsed is of `type`.
 ///
 /// If it is, the token will be consumed and the next token will be fetched from
 /// the tokenizer.
-pub fn nextMatches(self: *Parser, @"type": TokenType) bool {
+pub fn match(self: *Parser, @"type": TokenType) bool {
     if (self.next.isNot(@"type")) return false;
     self.advance();
     return true;
@@ -102,7 +102,16 @@ pub fn nextMatches(self: *Parser, @"type": TokenType) bool {
 /// Call this at the end of every loop after encountering a comma. Dangling commas
 /// are allowed and will be consumed. The given end token will not be consumed.
 pub fn listEnd(self: *Parser, end_token: TokenType) bool {
-    return !self.nextMatches(.comma) or self.next.is(end_token);
+    return !self.match(.comma) or self.next.is(end_token);
+}
+
+/// Returns whether a currently parsing block has ended.
+///
+/// An end is found when `end_token` is encountered, or we hit `.eof`.
+///
+/// `.eof` will be consumed if encountered, `end_token` will not.
+pub fn blockEnd(self: *Parser, end_token: TokenType) bool {
+    return self.match(.eof) or self.next.is(end_token);
 }
 
 /// Returns the strategy for how the given `token` is parsed/compiled.
@@ -113,7 +122,7 @@ pub fn strategy(_: *const Parser, token: Token) ParseStrategy {
 // Error management ===========================================================
 
 /// Output error `msg` at the given `token`.
-pub fn errorAt(self: *Parser, token: Token, msg: []const u8) void {
+pub fn errAt(self: *Parser, token: Token, msg: []const u8) void {
     printf("[line {d}:{d}] Error", .{ token.line, token.column });
 
     if (token.is(.eof)) {
@@ -129,13 +138,13 @@ pub fn errorAt(self: *Parser, token: Token, msg: []const u8) void {
 }
 
 /// Output error `msg` at the current token being parsed.
-pub fn @"error"(self: *Parser, msg: []const u8) void {
-    self.errorAt(self.current, msg);
+pub fn err(self: *Parser, msg: []const u8) void {
+    self.errAt(self.current, msg);
 }
 
 /// Output error `msg` at the next token to be parsed.
-pub fn errorAtNext(self: *Parser, msg: []const u8) void {
-    self.errorAt(self.next, msg);
+pub fn errAtNext(self: *Parser, msg: []const u8) void {
+    self.errAt(self.next, msg);
 }
 
 /// Synchronize parser to the next valid statement boundary after encountering

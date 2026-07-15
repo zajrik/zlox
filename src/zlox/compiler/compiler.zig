@@ -40,6 +40,7 @@ const exit = std.process.exit;
 const parseFloat = std.fmt.parseFloat;
 
 const do = zlox.common.do;
+const splitBytes = zlox.common.splitBytes;
 
 // ============================================================================
 
@@ -160,7 +161,7 @@ fn instructionOffset(self: *const Compiler) usize {
 /// Returns `null` if compilation failed for any reason.
 pub fn compile(self: *Compiler) !?*Obj.Function {
     // Compile declarations from source until reaching end of input.
-    while (!self.parser.nextMatches(.eof)) {
+    while (!self.parser.match(.eof)) {
         self.declaration();
     }
 
@@ -265,7 +266,7 @@ fn funDeclaration(self: *Compiler) void {
 fn varDeclaration(self: *Compiler) void {
     const ident_offset: u8 = self.variableIdentifier("Expected variable name.");
 
-    if (self.parser.nextMatches(.equal)) self.expression() else self.emitOp(.nil);
+    if (self.parser.match(.equal)) self.expression() else self.emitOp(.nil);
     self.parser.consume(.semicolon, "Expected ';' after variable declaration.");
 
     self.defineVariable(ident_offset);
@@ -320,7 +321,7 @@ fn ifStmt(self: *Compiler) void {
     self.patchJump(then_jump);
     self.emitOp(.pop);
 
-    if (self.parser.nextMatches(.keyword_else)) self.statement();
+    if (self.parser.match(.keyword_else)) self.statement();
 
     // Patch else_jump to the end of the if-statement bytecode
     self.patchJump(else_jump);
@@ -341,12 +342,12 @@ fn switchStmt(self: *Compiler) void {
 
     var default_found: bool = false;
 
-    const exit_jumps: *JumpList = JumpList.create() catch return self.allocError();
+    const exit_jumps: *JumpList = JumpList.create() catch return self.allocErr();
     defer exit_jumps.destroy();
 
-    while (!p.nextMatches(.brace_right) and !p.nextMatches(.eof)) {
-        if (!p.nextMatches(.keyword_case) and !p.nextMatches(.keyword_default)) {
-            p.@"error"("Expected 'case' or 'default'.");
+    while (!p.blockEnd(.brace_right)) {
+        if (!p.match(.keyword_case) and !p.match(.keyword_default)) {
+            p.err("Expected 'case' or 'default'.");
         }
 
         // Compile non-default case expression
@@ -361,7 +362,7 @@ fn switchStmt(self: *Compiler) void {
 
         // Compile default case
         else {
-            if (default_found) p.@"error"(
+            if (default_found) p.err(
                 "A switch statement may only have a single 'default' case.",
             );
             default_found = true;
@@ -380,6 +381,8 @@ fn switchStmt(self: *Compiler) void {
         self.emitOp(.pop);
     }
 
+    p.consume(.brace_right, "Expected '}' after switch block.");
+
     self.patchJumpList(exit_jumps);
 
     // Pop condition value
@@ -390,11 +393,11 @@ fn switchStmt(self: *Compiler) void {
 fn breakStmt(self: *Compiler) void {
     // Emit an unpatched jump for this break statement and add it to the scope
     if (self.loop_scope) |it| {
-        it.addBreak(self.emitJump(.jump)) catch self.allocError();
+        it.addBreak(self.emitJump(.jump)) catch self.allocErr();
         return self.parser.consume(.semicolon, "Expected ';' after 'break'.");
     }
 
-    self.parser.@"error"("'break' cannot be used outside of a loop.");
+    self.err("'break' cannot be used outside of a loop.");
 }
 
 /// Compile a continue statement from source tokens.
@@ -403,21 +406,21 @@ fn continueStmt(self: *Compiler) void {
     // continue statements are resolved at the end of the loop scope
     if (self.loop_scope) |it| {
         self.emitOp2(.loop, 0xff, 0xff);
-        it.addContinue(self.instructionOffset() - 2) catch self.allocError();
+        it.addContinue(self.instructionOffset() - 2) catch self.allocErr();
         return self.parser.consume(.semicolon, "Expected ';' after 'continue'.");
     }
 
-    self.parser.@"error"("'continue' cannot be used outside of a loop.");
+    self.err("'continue' cannot be used outside of a loop.");
 }
 
 /// Compile a return statement from source tokens.
 fn returnStmt(self: *Compiler) void {
-    if (self.function.?.type == .script) self.parser.@"error"(
+    if (self.function.?.type == .script) self.err(
         "Can't return from top-level code.",
     );
 
     // Emit default return on empty return statement
-    if (self.parser.nextMatches(.semicolon)) {
+    if (self.parser.match(.semicolon)) {
         self.emitDefaultReturn();
     }
 
@@ -489,7 +492,7 @@ fn forStmt(self: *Compiler) void {
     var exit_jump: ?usize = null;
 
     // Compile loop condition if present and set exit jump placeholder
-    if (!p.nextMatches(.semicolon)) {
+    if (!p.match(.semicolon)) {
         self.expression();
         p.consume(.semicolon, "Expected ';' after loop condition.");
 
@@ -498,7 +501,7 @@ fn forStmt(self: *Compiler) void {
     }
 
     // Compile increment expression if present
-    if (!p.nextMatches(.paren_right)) {
+    if (!p.match(.paren_right)) {
         const increment_jump: usize = self.emitJump(.jump);
         const increment_start: usize = self.instructionOffset();
 
@@ -531,9 +534,7 @@ fn forStmt(self: *Compiler) void {
 
 /// Compile a block statement from source tokens.
 fn block(self: *Compiler) void {
-    while (self.parser.next.isNot(.brace_right) and self.parser.next.isNot(.eof)) {
-        self.declaration();
-    }
+    while (!self.parser.blockEnd(.brace_right)) self.declaration();
     self.parser.consume(.brace_right, "Expected '}' after block.");
 }
 
@@ -556,7 +557,7 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
     if (is_expr and p.next.is(.identifier)) p.advance();
 
     const fun_cmp: *Compiler = Compiler.create(@"type", p, self.strings, self) catch {
-        return p.@"error"("Error compiling function.");
+        return p.err("Error compiling function.");
     };
     defer fun_cmp.destroy();
 
@@ -577,7 +578,7 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
             );
 
             defer arity.* += 1;
-            if (arity.* == 255) p.@"error"(
+            if (arity.* == 255) p.err(
                 "A function can't have more than 255 parameters.",
             );
         }
@@ -586,12 +587,12 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
     p.consume(.paren_right, "Expected ')' after parameter list.");
 
     // Compile block function body if we see an opening brace
-    if (p.nextMatches(.brace_left)) {
+    if (p.match(.brace_left)) {
         fun_cmp.block();
     }
 
     // Compile expression body if we see `=`
-    else if (p.nextMatches(.equal)) {
+    else if (p.match(.equal)) {
         fun_cmp.expression();
         fun_cmp.emitOp(.@"return");
         if (!is_expr) p.consume(.semicolon, "Expected ';' after function body.");
@@ -599,11 +600,11 @@ fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
 
     // Otherwise emit a compilation error
     else {
-        p.@"error"("Expected '{' or '=' before function body.");
+        p.err("Expected '{' or '=' before function body.");
     }
 
     const fun_obj: *Obj.Function = fun_cmp.endCompilation() orelse {
-        return p.@"error"("Error compiling function.");
+        return p.err("Error compiling function.");
     };
 
     // Add compiled function to chunk constants and emit closure opd
@@ -644,7 +645,7 @@ fn expr(self: *Compiler, precedence: Precedence) void {
     // -1 + 1); // unary minus is a prefix rule
 
     const prefix_rule: ExprFn = p.strategy(p.current).prefix orelse {
-        return p.@"error"("Expected expression.");
+        return p.err("Expected expression.");
     };
     prefix_rule(self, can_assign);
 
@@ -659,15 +660,15 @@ fn expr(self: *Compiler, precedence: Precedence) void {
     while (precedence.lte(p.strategy(p.next).precedence)) {
         p.advance();
         const infix_rule: ExprFn = p.strategy(p.current).infix orelse {
-            return p.@"error"("Expected expression.");
+            return p.err("Expected expression.");
         };
         infix_rule(self, can_assign);
     }
 
     // `.equal` should have been consumed by the variable prefix rule at this point
     // if assignment was allowed, so we should error if we see `=`
-    if (can_assign and p.nextMatches(.equal)) {
-        p.@"error"("Invalid assignment target.");
+    if (can_assign and p.match(.equal)) {
+        p.err("Invalid assignment target.");
     }
 }
 
@@ -679,10 +680,10 @@ pub fn grouping(self: *Compiler, _: bool) void {
 
 /// Compile a string expression from the current source token.
 pub fn string(self: *const Compiler, _: bool) void {
-    errdefer exit(1);
-
     const lexeme: []const u8 = self.parser.current.lexeme;
-    const str: *Obj.String = try self.copyString(lexeme[1..(lexeme.len - 1)]);
+    const str: *Obj.String = self.copyString(
+        lexeme[1..(lexeme.len - 1)],
+    ) catch return self.allocErr();
 
     self.emitConstant(.Object(&str.obj));
 }
@@ -690,8 +691,9 @@ pub fn string(self: *const Compiler, _: bool) void {
 /// Compile a number expression from the current source token.
 pub fn number(self: *const Compiler, _: bool) void {
     const value: f64 = parseFloat(f64, self.parser.current.lexeme) catch {
-        return self.parser.@"error"("Invalid number literal.");
+        return self.err("Invalid number literal.");
     };
+
     self.emitConstant(.Number(value));
 }
 
@@ -731,7 +733,7 @@ fn variableGetSet(self: *Compiler, identifier: Token, can_assign: bool) void {
         get_op = .global_get;
     }
 
-    if (can_assign and self.parser.nextMatches(.equal)) {
+    if (can_assign and self.parser.match(.equal)) {
         self.expression();
         self.emitOp1(set_op, var_offset);
     } else {
@@ -819,10 +821,10 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
 
     var wildcard_found: bool = false;
 
-    const exit_jumps: *JumpList = JumpList.create() catch return self.allocError();
+    const exit_jumps: *JumpList = JumpList.create() catch return self.allocErr();
     defer exit_jumps.destroy();
 
-    while (!p.nextMatches(.brace_right) and !p.nextMatches(.eof)) {
+    while (!p.blockEnd(.brace_right)) {
         // Compile expression case
         if (p.next.isNot(.identifier) or !p.next.isDiscard()) {
             self.emitOp(.copy);
@@ -832,7 +834,7 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
 
         // Compile wildcard case
         else {
-            if (wildcard_found) p.@"error"(
+            if (wildcard_found) p.err(
                 "A switch expression may only have a single wildcard case.",
             );
             wildcard_found = true;
@@ -853,6 +855,8 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
         self.patchJump(case_jump);
         self.emitOp(.pop);
     }
+
+    p.consume(.brace_right, "Expected '}' after switch block.");
 
     // If we didn't find a wildcard case then we need to pop switch input expression
     // from the stack and return nil from the switch expression
@@ -887,7 +891,7 @@ fn argumentList(self: *Compiler) u8 {
             self.expression();
 
             defer count += 1;
-            if (count == 255) p.@"error"(
+            if (count == 255) p.err(
                 "A function call may only have up to 255 arguments.",
             );
         }
@@ -937,12 +941,12 @@ fn declareLocal(self: *Compiler) void {
         const local: Local = self.locals[i - 1];
 
         if (local.depth != -1 and local.depth < self.scope_depth) break;
-        if (identifier.lexemeEquals(local.identifier)) self.parser.@"error"(
+        if (identifier.equals(local.identifier)) self.err(
             "A variable with this name already exists in this scope.",
         );
     }
 
-    if (self.local_count == cmn.U8_SIZE) return self.parser.@"error"(
+    if (self.local_count == cmn.U8_SIZE) return self.err(
         "Too many local variables in function.",
     );
 
@@ -985,8 +989,8 @@ fn resolveLocal(self: *const Compiler, identifier: Token) ?u8 {
         const local_index: u8 = i - 1;
         const local: Local = self.locals[local_index];
 
-        if (identifier.lexemeEquals(local.identifier)) {
-            if (local.depth == -1) self.parser.@"error"(
+        if (identifier.equals(local.identifier)) {
+            if (local.depth == -1) self.err(
                 "Can't read local variable in its own initializer.",
             );
 
@@ -1051,7 +1055,7 @@ fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
     }
 
     if (upvalue_count == cmn.U8_SIZE) {
-        self.parser.@"error"("Too many closure variables in function.");
+        self.err("Too many closure variables in function.");
         return 0;
     }
 
@@ -1078,7 +1082,7 @@ fn makeConstant(self: *const Compiler, value: Value) u8 {
     const offset: u8 = self.chunk().addConstant(value);
 
     if (offset > cmn.U8_MAX) {
-        self.parser.@"error"("Too many constants in one chunk.");
+        self.err("Too many constants in one chunk.");
         return 0;
     }
 
@@ -1089,7 +1093,7 @@ fn makeConstant(self: *const Compiler, value: Value) u8 {
 /// the offset of the added constant string.
 fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
     const ident: *Obj.String = self.copyString(token.lexeme) catch {
-        self.parser.@"error"("Error copying identifier string.");
+        self.err("Error copying identifier string.");
         return 0;
     };
 
@@ -1160,30 +1164,24 @@ fn emitJump(self: *const Compiler, op: OpCode) usize {
 /// offset.
 fn patchJump(self: *const Compiler, offset: usize) void {
     const jump_offset: usize = self.instructionOffset() - offset - 2;
-
-    if (jump_offset > cmn.U16_MAX) {
-        self.parser.@"error"("Jump offset is too large.");
-    }
+    const byte_1: u8, const byte_2: u8 = splitBytes(jump_offset);
 
     // Patch first and second bytes of 2-byte jump instruction operand
-    const jump_byte_1: u8 = @as(u8, @truncate(jump_offset >> 8));
-    const jump_byte_2: u8 = @as(u8, @truncate(jump_offset));
-    self.chunk().ipAt(offset).* = jump_byte_1;
-    self.chunk().ipAt(offset + 1).* = jump_byte_2;
+    self.chunk().ipAt(offset).* = byte_1;
+    self.chunk().ipAt(offset + 1).* = byte_2;
+
+    if (jump_offset > cmn.U16_MAX) self.err("Jump offset is too large.");
 }
 
 /// Write `OpCode.loop` to the chunk currently being compiled, followed by loop
 /// offset operands to loop back to the given instruction `offset`.
 fn emitLoop(self: *const Compiler, offset: usize) void {
     const loop_offset: usize = self.instructionOffset() - offset + 3;
+    const byte_1: u8, const byte_2: u8 = splitBytes(loop_offset);
 
-    if (loop_offset > cmn.U16_MAX) {
-        self.parser.@"error"("Loop body is too large.");
-    }
+    self.emitOp2(.loop, byte_1, byte_2);
 
-    const loop_byte_1: u8 = @as(u8, @truncate(loop_offset >> 8));
-    const loop_byte_2: u8 = @as(u8, @truncate(loop_offset));
-    self.emitOp2(.loop, loop_byte_1, loop_byte_2);
+    if (loop_offset > cmn.U16_MAX) self.err("Loop body is too large.");
 }
 
 /// Emit a `.jump` op beginning at the current instruction offset, adding it to
@@ -1219,11 +1217,10 @@ fn patchContinues(self: *const Compiler, loop_start: usize) void {
         var next: ?*LoopScope.Continue = loop_scope.continues;
         while (next) |it| : (next = it.next) {
             const loop_offset: usize = it.offset - loop_start + 2;
-            const loop_byte_1: u8 = @as(u8, @truncate(loop_offset >> 8));
-            const loop_byte_2: u8 = @as(u8, @truncate(loop_offset));
+            const byte_1: u8, const byte_2: u8 = splitBytes(loop_offset);
 
-            self.chunk().ipAt(it.offset).* = loop_byte_1;
-            self.chunk().ipAt(it.offset + 1).* = loop_byte_2;
+            self.chunk().ipAt(it.offset).* = byte_1;
+            self.chunk().ipAt(it.offset + 1).* = byte_2;
         }
     }
 }
@@ -1278,8 +1275,15 @@ fn copyString(self: *const Compiler, chars: []const u8) !*Obj.String {
 
 // Error reporting convenience methods ========================================
 
+/// Report an error at the current token.
+///
+/// Shortcut for `self.parser.err(...)`
+fn err(self: *const Compiler, msg: []const u8) void {
+    self.parser.err(msg);
+}
+
 /// Report an error at the current token indicating memory allocation critical to
 /// the compilation process failed while compiling.
-fn allocError(self: *const Compiler) void {
-    self.parser.@"error"("Error allocating during compilation. Out of memory?");
+fn allocErr(self: *const Compiler) void {
+    self.err("Error allocating during compilation. Out of memory?");
 }
