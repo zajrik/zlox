@@ -259,7 +259,7 @@ fn funDeclaration(self: *Compiler) void {
     // Mark function identifier as defined so it can refer to itself
     self.markDefined();
 
-    self.compileFun(Obj.Function.Type.function, false);
+    self.compileFun(.function, false);
     self.defineVariable(ident_offset);
 }
 
