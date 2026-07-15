@@ -16,6 +16,7 @@ const debug = zlox.debug;
 
 const Chunk = zlox.compiler.Chunk;
 const ExprFn = zlox.compiler.ExprFn;
+const Jump = zlox.compiler.Jump;
 const JumpList = zlox.compiler.JumpList;
 const Local = zlox.compiler.Local;
 const LoopScope = zlox.compiler.LoopScope;
@@ -1130,15 +1131,6 @@ fn emitOp2(self: *const Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
     self.emitByte(byte_2);
 }
 
-/// Write the given `op` to the chunk currently being compiled, followed by three
-/// byte operands.
-fn emitOp3(self: *const Compiler, op: OpCode, byte_1: u8, byte_2: u8, byte_3: u8) void {
-    self.emitOp(op);
-    self.emitByte(byte_1);
-    self.emitByte(byte_2);
-    self.emitByte(byte_3);
-}
-
 /// Write `OpCode.constant` to the chunk currently being compiled, followed by
 /// the constants array offset of the given `value`.
 fn emitConstant(self: *const Compiler, value: Value) void {
@@ -1187,12 +1179,12 @@ fn emitLoop(self: *const Compiler, offset: usize) void {
 /// Emit a `.jump` op beginning at the current instruction offset, adding it to
 /// the given `jump_list` to be resolved later via `patchJumpList()`.
 fn addJump(self: *const Compiler, jump_list: *JumpList) void {
-    jump_list.addJump(self.emitJump(.jump));
+    jump_list.addJump(self.emitJump(.jump)) catch self.allocErr();
 }
 
 /// Patch all jumps in the given `jump_list`.
 fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
-    var next: ?*JumpList.Jump = jump_list.head;
+    var next: ?*Jump = jump_list.head;
     while (next) |it| : (next = it.next) self.patchJump(it.offset);
 }
 
@@ -1202,7 +1194,7 @@ fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
 /// loop scope will be patched to the current instruction offset at the callsite.
 fn patchBreaks(self: *const Compiler) void {
     if (self.loop_scope) |loop_scope| {
-        var next: ?*LoopScope.Break = loop_scope.breaks;
+        var next: ?*Jump = loop_scope.breaks;
         while (next) |it| : (next = it.next) self.patchJump(it.offset);
     }
 }
@@ -1214,7 +1206,7 @@ fn patchBreaks(self: *const Compiler) void {
 /// offset.
 fn patchContinues(self: *const Compiler, loop_start: usize) void {
     if (self.loop_scope) |loop_scope| {
-        var next: ?*LoopScope.Continue = loop_scope.continues;
+        var next: ?*Jump = loop_scope.continues;
         while (next) |it| : (next = it.next) {
             const loop_offset: usize = it.offset - loop_start + 2;
             const byte_1: u8, const byte_2: u8 = splitBytes(loop_offset);
