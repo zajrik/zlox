@@ -23,25 +23,25 @@ line: u16,
 /// The column number of this token in the source text.
 column: u16,
 
-/// Initializes a new `Token` on the stack with the given `type`, `lexeme`, and
+/// Initializes a new `Token` on the stack with the given type `T`, `lexeme`, and
 /// source text location (`line`/`column`).
-pub fn init(@"type": TokenType, lexeme: []const u8, line: u16, column: u16) Token {
+pub fn init(T: TokenType, lexeme: []const u8, line: u16, column: u16) Token {
     return .{
-        .type = @"type",
+        .type = T,
         .lexeme = lexeme,
         .line = line,
         .column = column,
     };
 }
 
-/// Returns whether this token is of the given `type`.
-pub fn is(self: Token, @"type": TokenType) bool {
-    return self.type == @"type";
+/// Returns whether this token is of the given type `T`.
+pub fn is(self: Token, T: TokenType) bool {
+    return self.type == T;
 }
 
-/// Returns whether this token is *not* of the given `type`.
-pub fn isNot(self: Token, @"type": TokenType) bool {
-    return self.type != @"type";
+/// Returns whether this token is *not* of the given type `T`.
+pub fn isNot(self: Token, T: TokenType) bool {
+    return self.type != T;
 }
 
 /// Returns whether this token is a discard token (`_`).
@@ -53,11 +53,11 @@ pub fn isDiscard(self: Token) bool {
 ///
 /// Tokens are equal if their types and lexemes are equal.
 pub fn equals(self: Token, other: Token) bool {
-    return self.type == other.type and std.mem.eql(u8, self.lexeme, other.lexeme);
+    return self.is(other.type) and std.mem.eql(u8, self.lexeme, other.lexeme);
 }
 
 /// Custom formatter for `Token` values.
-pub fn format(self: Token, writer: *Writer) Writer.Error!void {
+pub fn format(self: Token, writer: *Writer) !void {
     try writer.writeAll("Token { ");
     try writer.print(".token_type = {}, ", .{self.type});
     try writer.print(".lexeme = '{s}', ", .{self.lexeme});

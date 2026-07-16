@@ -26,7 +26,10 @@ continues: ?*Jump = null,
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(enclosing: ?*LoopScope) !*LoopScope {
-    return try mem.createStruct(LoopScope, .{ .enclosing = enclosing });
+    return try mem.createStruct(
+        LoopScope,
+        .{ .enclosing = enclosing },
+    );
 }
 
 /// Destroy this `LoopScope`, freeing its owned resources.

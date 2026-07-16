@@ -93,7 +93,7 @@ loop_scope: ?*LoopScope = null,
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(
     /// The type of function to compiled.
-    @"type": Obj.Function.Type,
+    T: Obj.Function.Type,
     /// Parser instance primed with source input to compile.
     parser: *Parser,
     /// Table for interning strings at compile time.
@@ -112,12 +112,12 @@ pub fn create(
     // Initialize compiled function object
     compiler.function = try compiler.createObj(
         .function,
-        Obj.Function{ .type = @"type", .chunk = .init() },
+        Obj.Function{ .type = T, .chunk = .init() },
     );
 
     // If the function type is not `script` and the current token is an identifier,
     // capture its lexeme to use as the function identifier string
-    if (@"type" != .script and parser.current.is(.identifier)) {
+    if (T != .script and parser.current.is(.identifier)) {
         compiler.function.?.identifier = try compiler.copyString(
             parser.current.lexeme,
         );
@@ -551,13 +551,13 @@ fn expressionStmt(self: *Compiler) void {
 // Statement/expression compilation overlap functions =========================
 
 /// Compile a function statement or expression of the given `type` from source tokens.
-fn compileFun(self: *Compiler, @"type": Obj.Function.Type, is_expr: bool) void {
+fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     const p: *Parser = self.parser;
 
     // Load identifier into the current token if this is a labeled function expression
     if (is_expr and p.next.is(.identifier)) p.advance();
 
-    const fun_cmp: *Compiler = Compiler.create(@"type", p, self.strings, self) catch {
+    const fun_cmp: *Compiler = Compiler.create(T, p, self.strings, self) catch {
         return p.err("Error compiling function.");
     };
     defer fun_cmp.destroy();

@@ -50,9 +50,10 @@ panic_mode: bool = false,
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(tokenizer: *Tokenizer) !*Parser {
-    const parser: *Parser = try mem.createStruct(Parser, .{
-        .tokenizer = tokenizer,
-    });
+    const parser: *Parser = try mem.createStruct(
+        Parser,
+        .{ .tokenizer = tokenizer },
+    );
 
     // Load the first token into `next`
     parser.advance();
@@ -77,20 +78,20 @@ pub fn advance(self: *Parser) void {
     }
 }
 
-/// Consume a token of the given `type` from the tokenizer.
+/// Consume a token of the given type `T` from the tokenizer.
 ///
 /// Emits error `msg` if a token of the given type is not found.
-pub fn consume(self: *Parser, @"type": TokenType, msg: []const u8) void {
-    if (self.next.is(@"type")) return self.advance();
+pub fn consume(self: *Parser, T: TokenType, msg: []const u8) void {
+    if (self.next.is(T)) return self.advance();
     self.errAtNext(msg);
 }
 
-/// Returns whether the next token to be parsed is of `type`.
+/// Returns whether the next token to be parsed is of type `T`.
 ///
 /// If it is, the token will be consumed and the next token will be fetched from
 /// the tokenizer.
-pub fn match(self: *Parser, @"type": TokenType) bool {
-    if (self.next.isNot(@"type")) return false;
+pub fn match(self: *Parser, T: TokenType) bool {
+    if (self.next.isNot(T)) return false;
     self.advance();
     return true;
 }
