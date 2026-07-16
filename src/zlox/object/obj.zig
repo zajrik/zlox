@@ -8,6 +8,7 @@ const debug = zlox.debug;
 
 pub const Type = @import("type.zig").Type;
 pub const Variant = @import("variant.zig").Variant;
+pub const Flags = @import("flags.zig").Flags;
 
 pub const Closure = @import("closure.zig");
 pub const Function = @import("function.zig");
@@ -24,10 +25,8 @@ const Obj: type = @This();
 /// The type tag of this lox object.
 type: Type,
 
-/// Whether this object is a constant object value. Constant objects are compiled
-/// and owned by the chunk they are compiled into. They should not be freed by
-/// the garbage collector.
-is_constant: bool = false,
+/// Bit-flags carrying extra data about this lox object.
+flags: Flags,
 
 /// Pointer to the next lox object on the heap, forming a linked list of objects
 /// at runtime for the garbage collector to trace.
@@ -45,7 +44,7 @@ next: ?*Obj = null,
 pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     const object: *Variant(T) = try mem.create(Variant(T));
     object.* = variant;
-    object.obj = Obj{ .type = T };
+    object.obj = Obj{ .type = T, .flags = .{} };
     return object;
 }
 
@@ -57,7 +56,7 @@ pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
 /// should be owned and cleaned up by the chunk they're compiled to.
 pub fn createConstant(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     const object: *Variant(T) = try create(T, variant);
-    object.obj.is_constant = true;
+    object.obj.flags.is_constant = true;
     return object;
 }
 
@@ -69,8 +68,8 @@ pub fn destroy(self: *Obj) void {
     };
 
     if (comptime debug.obj_free) std.debug.print(
-        "freeing {s}obj [{*}] {f}\n",
-        .{ if (self.is_constant) "const " else "", self, self },
+        "freeing {s}obj({any}) [{*}] {f}\n",
+        .{ if (self.flags.is_constant) "const " else "", self.type, self, self },
     );
 }
 

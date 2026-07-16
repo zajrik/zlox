@@ -29,5 +29,5 @@ pub fn destroy(_: *const Native) void {}
 
 /// Custom formatter for `Obj.Native` values.
 pub fn format(_: *const Native, writer: *Writer) !void {
-    try writer.print("<native fn>", .{});
+    try writer.writeAll("<native fn>");
 }

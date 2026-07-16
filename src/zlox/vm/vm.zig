@@ -22,6 +22,7 @@ const Parser = zlox.parser.Parser;
 
 const CallFrame = zlox.vm.CallFrame;
 const ExecutionResult = zlox.vm.ExecutionResult;
+const Gc = zlox.vm.Gc;
 const Stack = zlox.vm.Stack;
 
 const Fnv1a_32 = std.hash.Fnv1a_32;
@@ -61,6 +62,11 @@ open_upvalues: ?*Obj.Upvalue,
 /// references.
 root_obj: ?*Obj,
 
+/// Garbage collector instance.
+///
+/// This is owned by the VM and must be freed when the VM is freed.
+gc: *Gc,
+
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
@@ -73,6 +79,7 @@ pub fn create(io: Io) !*Vm {
     vm.globals = try .create();
     vm.open_upvalues = null;
     vm.root_obj = null;
+    vm.gc = try .create(vm);
 
     try native.bootstrapNatives(vm);
 
@@ -81,10 +88,11 @@ pub fn create(io: Io) !*Vm {
 
 /// Destroy this `Vm`, freeing its owned resources.
 pub fn destroy(self: *Vm) void {
+    defer mem.destroy(self);
     self.strings.destroy();
     self.globals.destroy();
     self.freeObjects();
-    mem.destroy(self);
+    self.gc.destroy();
 }
 
 /// Interpret the given lox source code by compiling it to lox bytecode and running it.
@@ -118,10 +126,10 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 
     if (script.chunk.isEmpty()) return .ok;
 
-    // Push script object to stack to match reserved local slot 0
-    self.stack.push(.Object(&script.obj));
+    // Push script closure to stack to match reserved local slot 0
+    self.stack.push(.Object(&closure.obj));
 
-    // Push callframe to execute script function
+    // Push callframe to execute script closure
     self.frame_stack.push(CallFrame{
         .closure = closure,
         .ip = script.chunk.ip(),
@@ -577,8 +585,18 @@ pub fn createObj(
     comptime T: Obj.Type,
     variant: Obj.Variant(T),
 ) !*Obj.Variant(T) {
+    // TODO: Calculate object size, check with GC if it necessitates a cycle before
+    // object creation
     const object: *Obj.Variant(T) = try Obj.create(T, variant);
+    return self.linkObj(T, object);
+}
 
+/// Link the given object with the VM, allowing it to be traced by the GC.
+///
+/// Returns a pointer to the linked object. In the event that the given object is
+/// a string that has already been interned, it will be destroyed and the interned
+/// string will be returned instead.
+pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.Variant(T) {
     // Pre-hash and intern string objects
     if (T == .string) {
         const hash: u32 = Fnv1a_32.hash(variant.chars);
@@ -586,19 +604,19 @@ pub fn createObj(
 
         // Return interned string if it exists
         if (interned) |str| {
-            object.destroy();
+            variant.destroy();
             return str;
         }
 
-        object.hash = hash;
-        _ = self.strings.set(object, .Nil);
+        variant.hash = hash;
+        _ = self.strings.set(variant, .Nil);
     }
 
     // Link object for GC tracing
-    object.obj.next = self.root_obj;
-    self.root_obj = &object.obj;
+    variant.obj.next = self.root_obj;
+    self.root_obj = &variant.obj;
 
-    return object;
+    return variant;
 }
 
 /// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
@@ -627,9 +645,20 @@ pub fn takeString(self: *Vm, string: []const u8) !*Obj.String {
 /// Objects created this way are managed by the garbage collector, or cleaned up
 /// when the VM is freed if they live until the end of the program.
 pub fn copyString(self: *Vm, string: []const u8) !*Obj.String {
+    return self.linkObj(.string, copyStringUnmanaged(string));
+}
+
+/// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
+/// allocated lox string `Obj`.
+///
+/// Returns a pointer to the allocated lox string `Obj`.
+///
+/// Objects created this way are NOT managed by the garbage collector and must be
+/// manually linked with the VM to be managed.
+fn copyStringUnmanaged(string: []const u8) !*Obj.String {
     const copy: []u8 = try mem.alloc(u8, string.len);
     @memcpy(copy.ptr, string);
-    return try self.takeString(copy);
+    return try Obj.create(.string, Obj.String{ .chars = copy });
 }
 
 /// Free all lox objects allocated by the vm.
@@ -647,16 +676,14 @@ pub fn defineNative(
     arity: u8,
     fn_ptr: Obj.Native.FnPtr,
 ) !void {
-    const fn_ident: *Obj.String = try self.copyString(identifier);
-    const fn_obj: *Obj.Native = try self.createObj(
+    const fn_ident: *Obj.String = try copyStringUnmanaged(identifier);
+    const fn_obj: *Obj.Native = try Obj.create(
         .native,
         Obj.Native{ .arity = arity, .function = fn_ptr },
     );
 
-    // TODO: Update this after starting GC and implementing some other way of keeping
-    // pending objects safe from the GC until they're acually hitting userland. Bob's
-    // technique of stashing them in the stack won't fly with the route I've taken with
-    // the VM's obj allocation scheme
-
-    _ = self.globals.set(fn_ident, .Object(&fn_obj.obj));
+    _ = self.globals.set(
+        self.linkObj(.string, fn_ident),
+        .Object(&self.linkObj(.native, fn_obj).obj),
+    );
 }
