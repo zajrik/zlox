@@ -175,8 +175,8 @@ pub fn markObject(self: *Gc, obj: *Obj) !void {
 /// alive for this GC cycle.
 pub fn visitObject(self: *Gc, obj: *Obj) !void {
     switch (obj.type) {
-        .upvalue => try self.markValue(obj.as(.upvalue).closed),
-        .closure => for (obj.as(.closure).upvalues) |upvalue| {
+        .upvalue => |T| try self.markValue(obj.as(T).closed),
+        .closure => |T| for (obj.as(T).upvalues) |upvalue| {
             try self.markObject(&upvalue.obj);
         },
         else => return,

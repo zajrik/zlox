@@ -97,8 +97,25 @@ pub fn create(io: Io) !*Vm {
 /// Destroy this `Vm`, freeing its owned resources.
 pub fn destroy(self: *Vm) void {
     defer mem.destroy(self);
+
+    // Free lingering globals (native fns)
+    for (self.globals.entries) |entry| {
+        if (entry.key) |key| {
+            entry.val.obj.destroy();
+            key.obj.destroy();
+        }
+    }
+
+    // Free lingering interned strings
+    for (self.strings.entries) |entry| {
+        if (entry.key) |key| {
+            key.obj.destroy();
+        }
+    }
+
     self.strings.destroy();
     self.globals.destroy();
+
     self.freeObjects();
     self.gc.destroy();
 }
