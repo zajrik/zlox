@@ -38,10 +38,10 @@ const Vm: type = @This();
 io: Io,
 
 /// Function call frame stack.
-frame_stack: Stack(CallFrame, cmn.FRAME_MAX),
+frame_stack: Stack(CallFrame, cmn.FRAME_MAX) = undefined,
 
 /// Virtual machine value stack.
-stack: Stack(Value, cmn.STACK_MAX),
+stack: Stack(Value, cmn.STACK_MAX) = undefined,
 
 /// Contains all runtime-interned strings.
 strings: *HashTable,
@@ -60,25 +60,33 @@ open_upvalues: ?*Obj.Upvalue,
 /// Contains all lox objects created by the VM at runtime, to be used by the
 /// garbage collector to reach unreferenced objects after tracing living object
 /// references.
-root_obj: ?*Obj,
+heap: ?*Obj,
 
 /// Garbage collector instance.
 ///
 /// This is owned by the VM and must be freed when the VM is freed.
-gc: *Gc,
+gc: *Gc = undefined,
+
+/// The number of bytes allocated by objects linked to the VM's heap.
+bytes_allocated: usize = 0,
+
+/// The threshold of bytes allocated at which the next GC sweep should trigger.
+next_gc: usize = 1024 * 1024,
 
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(io: Io) !*Vm {
-    const vm: *Vm = try mem.create(Vm);
-    vm.io = io;
+    const vm: *Vm = try mem.createStruct(Vm, .{
+        .io = io,
+        .strings = try .create(),
+        .globals = try .create(),
+        .open_upvalues = null,
+        .heap = null,
+    });
+
     vm.frame_stack.reset();
     vm.stack.reset();
-    vm.strings = try .create();
-    vm.globals = try .create();
-    vm.open_upvalues = null;
-    vm.root_obj = null;
     vm.gc = try .create(vm);
 
     try native.bootstrapNatives(vm);
@@ -122,7 +130,6 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     defer parser.destroy();
     defer compiler.destroy();
     defer script.destroy();
-    defer closure.destroy();
 
     if (script.chunk.isEmpty()) return .ok;
 
@@ -519,7 +526,7 @@ fn run(self: *Vm) !ExecutionResult {
 
             .closure => {
                 const function: *Obj.Function = frame.readConstant().asObj(.function);
-                const closure: *Obj.Closure = try self.createObj(
+                const closure: *Obj.Closure = try Obj.create(
                     .closure,
                     Obj.Closure{
                         .function = function,
@@ -545,7 +552,7 @@ fn run(self: *Vm) !ExecutionResult {
                     };
                 }
 
-                self.stack.push(.Object(&closure.obj));
+                self.stack.push(.Object(&self.linkObj(.closure, closure).obj));
             },
 
             .@"return" => {
@@ -585,10 +592,7 @@ pub fn createObj(
     comptime T: Obj.Type,
     variant: Obj.Variant(T),
 ) !*Obj.Variant(T) {
-    // TODO: Calculate object size, check with GC if it necessitates a cycle before
-    // object creation
-    const object: *Obj.Variant(T) = try Obj.create(T, variant);
-    return self.linkObj(T, object);
+    return self.linkObj(T, try Obj.create(T, variant));
 }
 
 /// Link the given object with the VM, allowing it to be traced by the GC.
@@ -596,6 +600,12 @@ pub fn createObj(
 /// Returns a pointer to the linked object. In the event that the given object is
 /// a string that has already been interned, it will be destroyed and the interned
 /// string will be returned instead.
+///
+/// Assume the VM takes ownership of any object given so there will be no need
+/// to manually clean that object up.
+///
+/// The size of the created object will be noted so that we can keep track of
+/// when the GC needs to run.
 pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.Variant(T) {
     // Pre-hash and intern string objects
     if (T == .string) {
@@ -612,11 +622,36 @@ pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.V
         _ = self.strings.set(variant, .Nil);
     }
 
+    if (comptime debug.stress_gc) self.gc.collect() catch {};
+
+    self.bytes_allocated += @sizeOf(Obj.Variant(T));
+    if (T == .string) self.bytes_allocated += @sizeOf(u8) * variant.chars.len;
+
+    // Run GC if we've exceeded the GC threshold. This should only fail if we're
+    // out of memory when allocating memory for tracking marked objs before tracing,
+    // at which point things are out of our hands 💀 We could potentially allocate
+    // a rainy-day fund of memory in the GC that can be freed if that happens and
+    // then try running the GC again, but Bob didn't bother in the book so I'm not
+    // likely to bother here unless it becomes a problem for me personally (it won't)
+    if (self.bytes_allocated > self.next_gc) self.gc.collect() catch |err| {
+        self.runtimeError("Error running garbage collector: {any}", .{err});
+        std.process.exit(1);
+    };
+
     // Link object for GC tracing
-    variant.obj.next = self.root_obj;
-    self.root_obj = &variant.obj;
+    variant.obj.next = self.heap;
+    self.heap = &variant.obj;
 
     return variant;
+}
+
+/// Destroy an object linked to the VM, making note of the released bytes so that
+/// we can keep track of when the GC needs to run.
+///
+/// Note: Make sure the object is unlinked from the VM heap before releasing.
+pub fn releaseObj(self: *Vm, obj: *Obj) void {
+    self.bytes_allocated -= obj.size();
+    obj.destroy();
 }
 
 /// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
@@ -628,13 +663,8 @@ pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.V
 ///
 /// Objects created this way are managed by the garbage collector, or cleaned up
 /// when the VM is freed if they live until the end of the program.
-pub fn takeString(self: *Vm, string: []const u8) !*Obj.String {
-    const str: *Obj.String = try self.createObj(
-        .string,
-        Obj.String{ .chars = string },
-    );
-
-    return str;
+pub fn takeString(self: *Vm, chars: []const u8) !*Obj.String {
+    return self.linkObj(.string, try Obj.takeString(chars));
 }
 
 /// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
@@ -644,28 +674,15 @@ pub fn takeString(self: *Vm, string: []const u8) !*Obj.String {
 ///
 /// Objects created this way are managed by the garbage collector, or cleaned up
 /// when the VM is freed if they live until the end of the program.
-pub fn copyString(self: *Vm, string: []const u8) !*Obj.String {
-    return self.linkObj(.string, copyStringUnmanaged(string));
-}
-
-/// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
-/// allocated lox string `Obj`.
-///
-/// Returns a pointer to the allocated lox string `Obj`.
-///
-/// Objects created this way are NOT managed by the garbage collector and must be
-/// manually linked with the VM to be managed.
-fn copyStringUnmanaged(string: []const u8) !*Obj.String {
-    const copy: []u8 = try mem.alloc(u8, string.len);
-    @memcpy(copy.ptr, string);
-    return try Obj.create(.string, Obj.String{ .chars = copy });
+pub fn copyString(self: *Vm, chars: []const u8) !*Obj.String {
+    return self.linkObj(.string, try Obj.copyString(chars));
 }
 
 /// Free all lox objects allocated by the vm.
 pub fn freeObjects(self: *Vm) void {
-    while (self.root_obj) |obj| {
-        self.root_obj = obj.next;
-        obj.destroy();
+    while (self.heap) |obj| {
+        self.heap = obj.next;
+        self.releaseObj(obj);
     }
 }
 
@@ -676,14 +693,13 @@ pub fn defineNative(
     arity: u8,
     fn_ptr: Obj.Native.FnPtr,
 ) !void {
-    const fn_ident: *Obj.String = try copyStringUnmanaged(identifier);
+    // These objects don't need to be linked to the VM since globals are protected
+    // from being garbage-collected
+    const fn_ident: *Obj.String = try Obj.copyString(identifier);
     const fn_obj: *Obj.Native = try Obj.create(
         .native,
         Obj.Native{ .arity = arity, .function = fn_ptr },
     );
 
-    _ = self.globals.set(
-        self.linkObj(.string, fn_ident),
-        .Object(&self.linkObj(.native, fn_obj).obj),
-    );
+    _ = self.globals.set(fn_ident, .Object(&fn_obj.obj));
 }

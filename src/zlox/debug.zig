@@ -28,7 +28,13 @@ pub const dump_chunk: bool = is_debug_mode and true;
 pub const dump_raw: bool = is_debug_mode and true;
 
 /// Whether Obj memory being released should be logged.
-pub const obj_free: bool = is_debug_mode and true;
+pub const obj_free: bool = is_debug_mode and false;
+
+/// Whether GC cycles should be logged.
+pub const print_gc: bool = is_debug_mode and true;
+
+/// Whether GC cycles should be forced at relevant points.
+pub const stress_gc: bool = is_debug_mode and false;
 
 /// Print the contents (instructions, values, etc.) of the chunk at address `chunk`.
 pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {

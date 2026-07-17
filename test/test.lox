@@ -1,8 +1,20 @@
 {
-var a = "foo";
-var b = "bar";
-var c = a + b;
+    var a = "foo";
+    var b = "bar";
+    var c = a + b;
     var d = a + b + a;
 
     fun foo() {}
 }
+// print clock();
+var d = "foo" + "bar" + "fee" ;
+print d;
+print "aee" + "ooo" + "aaa";
+
+var bar = "a";
+
+for (var i = 0; i < 200; i = i + 1) {
+    bar = bar + "a";
+    bar = bar + "b";
+}
+print bar;

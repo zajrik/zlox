@@ -37,10 +37,11 @@ next: ?*Obj = null,
 /// Returns a pointer to the allocated `Obj`. The caller owns this obj and
 /// is responsible for freeing it.
 ///
-/// Note: Objects created directly with this function are not able to be traced
-/// by the garbage collector unless reachable through some other traceable structure.
+/// Objects created this way are NOT managed by the garbage collector and must be
+/// manually linked with the VM to be managed.
 ///
-/// Use `Vm.createObj()` when creating objects that need to be garbage-collectable.
+/// See also:
+/// - `Vm.linkObj`
 pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     const object: *Variant(T) = try mem.create(Variant(T));
     object.* = variant;
@@ -48,7 +49,8 @@ pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     return object;
 }
 
-/// Allocate a new constant `Obj` of the given `type` with the given `variant` payload.
+/// Allocate a new constant `Obj` of the given type `T` with the given `variant`
+/// payload.
 ///
 /// Returns a pointer to the allocated `Obj`.
 ///
@@ -58,6 +60,36 @@ pub fn createConstant(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     const object: *Variant(T) = try create(T, variant);
     object.obj.flags.is_constant = true;
     return object;
+}
+
+/// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
+/// the given slice.
+///
+/// The given `string` slice will be freed when the allocated `Obj` is freed.
+///
+/// Returns a pointer to the allocated lox string `Obj`.
+///
+/// Strings created this way are NOT managed by the garbage collector and must be
+/// manually linked with the VM to be managed.
+///
+/// See also:
+/// - `Vm.linkObj`
+pub fn takeString(chars: []const u8) !*Obj.String {
+    return create(.string, Obj.String{ .chars = chars });
+}
+
+/// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
+/// allocated lox string `Obj`.
+///
+/// Returns a pointer to the allocated lox string `Obj`.
+///
+/// Strings created this way are NOT managed by the garbage collector and must be
+/// manually linked with the VM to be managed.
+///
+/// See also:
+/// - `Vm.linkObj`
+pub fn copyString(chars: []const u8) !*Obj.String {
+    return takeString(try mem.allocator().dupe(u8, chars));
 }
 
 /// Destroy this `Obj`, freeing its owned resources.
@@ -73,19 +105,27 @@ pub fn destroy(self: *Obj) void {
     );
 }
 
-/// Returns whether this obj is of the given `type`.
+/// Returns whether this obj is of the given type `T`.
 pub fn is(self: *Obj, T: Type) bool {
     return self.type == T;
 }
 
-/// Returns whether this obj is not of the given `type`.
+/// Returns whether this obj is not of the given type `T`.
 pub fn isNot(self: *Obj, T: Type) bool {
     return self.type != T;
 }
 
-/// Cast this `Obj` to an obj of the given `type`.
+/// Cast this `Obj` to an obj of the given type `T`.
 pub fn as(self: *Obj, comptime T: Type) *Variant(T) {
     return @alignCast(@fieldParentPtr("obj", self));
+}
+
+/// Returns the runtime size of an `Obj` variant of the given `type`.
+pub fn size(self: *Obj) usize {
+    return switch (self.type) {
+        .string => |T| @sizeOf(Variant(T)) + @sizeOf(u8) * self.as(T).chars.len,
+        inline else => |T| @sizeOf(Variant(T)),
+    };
 }
 
 /// Custom formatter for `Obj` values.

@@ -1255,15 +1255,10 @@ fn createObj(
 /// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
 /// pointer and is responsible for freeing it.
 fn copyString(self: *const Compiler, chars: []const u8) !*Obj.String {
-    const copy: []u8 = try mem.alloc(u8, chars.len);
-    @memcpy(copy.ptr, chars);
-
-    const str: *Obj.String = try self.createObj(
+    return self.createObj(
         .string,
-        Obj.String{ .chars = copy },
+        Obj.String{ .chars = try mem.allocator().dupe(u8, chars) },
     );
-
-    return str;
 }
 
 // Error reporting convenience methods ========================================

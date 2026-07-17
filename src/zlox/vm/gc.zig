@@ -1,11 +1,53 @@
 //! A mark-sweep garbage collector implementation lovingly shoehorned into what
 //! has diverged far enough from the book that I'm sure this will be a challenge
 //! 🤡🤡🤡🤡🤡
+//!
+//! ### Garbage Collection
+//!
+//! The book presents a problem wherein an object can be created at runtime and
+//! swept by the GC on the next allocation if that object was not put in a location
+//! that allows it to be marked as alive by the GC. Bob avoids this by stashing the
+//! object in the stack until it's no longer at risk of being swept. This is fine
+//! because these stack-stashing operations all happen within the same instruction
+//! loop so the stack is not accessed by any additional instructions while the objects
+//! are stashed there.
+//!
+//! I don't like it though, it feels clunky and things that feel clunky make me
+//! itchy until I write a tailor-made solution that doesn't make me feel that way.
+//!
+//! I avoid this problem and thus the need to rely on the stack as a stash for
+//! wayward objects by evaluating whether to run the GC when the object is linked
+//! with the VM rather than when it is allocated. Any object that is created at
+//! runtime without being linked to the VM is assumed to be critical to the runtime
+//! until it is linked and becomes managed.
+//!
+//! This eliminates the need to stash objects on the stack during operations as
+//! demonstrated in the book, but does mean that any object that for whatever reason
+//! might actually need to be swept immediately will live until the next GC cycle.
+//!
+//! Now, I'm no expert, but I can't foresee any reason why an object would ever need
+//! to live that briefly, so I don't think this should ever be a problem.
+//!
+//! That said, in the event that *additional* objects need to be allocated before
+//! any preceeding object has been safely homed, they should all be created manually
+//! using `Obj.create` and linked with the VM as they're being placed in their homes,
+//! wherever that may be. This ensures none of the objects are able to be swept
+//! by the GC before it is safe to do so.
+//!
+//! This did also create the problem of creating a string object for native function
+//! identifiers and a native object for the native function itself, linking the
+//! string and then linking the native object when inserting them into the globals
+//! table as a key/value pair, leading to the string getting swept as the native
+//! object was linked but before the table insert happened.
+//!
+//! Since native functions and their identifiers are globals and globals aren't GC'd,
+//! I just stopped linking those two objects and the problem went away 😎
 
 const std = @import("std");
 const zlox = @import("../.lib.zig");
 
 const mem = zlox.mem;
+const debug = zlox.debug;
 
 const HashTable = zlox.object.HashTable;
 const Obj = zlox.object.Obj;
@@ -16,6 +58,8 @@ const Vm = zlox.vm.Vm;
 
 const ArrayList = std.ArrayList;
 
+const printf = std.debug.print;
+
 // ============================================================================
 
 const Gc: type = @This();
@@ -23,7 +67,8 @@ const Gc: type = @This();
 /// Pointer to the VM instance for which the GC will collect garbage.
 vm: *Vm,
 
-/// Stack of objects marked as alive by the GC.
+/// Stack of objects marked as alive by the GC that can hold references to other
+/// objects that need to be traced and marked.
 stack: ArrayList(*Obj),
 
 /// Allocate a new `Gc` instance on the heap, returning a pointer to it.
@@ -43,11 +88,17 @@ pub fn destroy(self: *Gc) void {
 }
 
 /// Initiate a GC cycle, marking all living objs and freeing all non-living objs.
-pub fn collectGarbage(self: *Gc) !void {
+pub fn collect(self: *Gc) !void {
+    if (comptime debug.print_gc) printf("GC start --\n", .{});
+
     try self.markRoots();
     try self.traceReferences();
     self.sweepTable(self.vm.strings);
     try self.sweep();
+
+    self.vm.next_gc = self.vm.bytes_allocated * 2;
+
+    if (comptime debug.print_gc) printf("GC end --\n", .{});
 }
 
 /// Mark all reachable objects in the VM as alive for this GC cycle.
@@ -80,11 +131,11 @@ pub fn traceReferences(self: *Gc) !void {
 /// Free all objects that were not marked as alive during this GC cycle.
 pub fn sweep(self: *const Gc) !void {
     var prev: ?*Obj = null;
-    var next: ?*Obj = self.vm.root_obj;
+    var next: ?*Obj = self.vm.heap;
 
     while (next) |it| {
         // Unmark marked object and advance
-        if (it.flags.is_alive) {
+        if (it.flags.is_constant or it.flags.is_alive) {
             it.flags.is_alive = false;
             prev = it;
             next = it.next;
@@ -93,11 +144,11 @@ pub fn sweep(self: *const Gc) !void {
 
         // Otherwise free unmarked object and unlink it from the VMs tracked objs
         next = it.next;
-        it.destroy();
+        self.vm.releaseObj(it);
 
         // If there is a previous object then we're unlinking the object linked
         // to it. Otherwise we're unlinking the root object
-        (if (prev) |obj| &obj.next else &self.vm.root_obj).* = next;
+        (if (prev) |obj| &obj.next else &self.vm.heap).* = next;
     }
 }
 
@@ -110,26 +161,25 @@ pub fn markValue(self: *Gc, value: Value) !void {
 
 /// Mark the given object as alive, allowing it to live through this GC cycle.
 pub fn markObject(self: *Gc, obj: *Obj) !void {
+    if (obj.flags.is_alive) return;
     obj.flags.is_alive = true;
-    try self.stack.append(mem.allocator(), obj);
+
+    // Add objects with additional references to the stack to visit next
+    switch (obj.type) {
+        .closure, .upvalue => try self.stack.append(mem.allocator(), obj),
+        else => return,
+    }
 }
 
 /// Visit all object references reachable from the given `obj`, marking them as
 /// alive for this GC cycle.
 pub fn visitObject(self: *Gc, obj: *Obj) !void {
     switch (obj.type) {
-        // Native functions and strings have no owned references to mark
-        .native, .string => {},
-
-        // Functions and their identifiers are compile-time constants in zlox which
-        // are not touched by the GC so skipping marking functions for now.
-        .function => {},
-
+        .upvalue => try self.markValue(obj.as(.upvalue).closed),
         .closure => for (obj.as(.closure).upvalues) |upvalue| {
             try self.markObject(&upvalue.obj);
         },
-
-        .upvalue => try self.markValue(obj.as(.upvalue).closed),
+        else => return,
     }
 }
 
