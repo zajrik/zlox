@@ -41,7 +41,9 @@ closed: Value = .Nil,
 next: ?*Obj.Upvalue,
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(_: *const Upvalue) void {}
+pub fn destroy(self: *const Upvalue) void {
+    mem.destroy(self);
+}
 
 /// Close this upvalue, hoisting the value of the variable it captures onto the
 /// heap.

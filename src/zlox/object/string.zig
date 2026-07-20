@@ -27,6 +27,7 @@ hash: u32 = 0,
 
 /// Free allocated memory owned by this obj.
 pub fn destroy(self: *const String) void {
+    defer mem.destroy(self);
     mem.free(self.chars);
 }
 

@@ -44,6 +44,7 @@ chunk: Chunk,
 
 /// Free allocated memory owned by this obj.
 pub fn destroy(self: *const Function) void {
+    defer mem.destroy(self);
     self.chunk.deinit();
 }
 

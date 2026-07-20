@@ -89,34 +89,14 @@ pub fn create(io: Io) !*Vm {
     vm.stack.reset();
     vm.gc = try .create(vm);
 
-    try native.bootstrapNatives(vm);
-
     return vm;
 }
 
 /// Destroy this `Vm`, freeing its owned resources.
 pub fn destroy(self: *Vm) void {
     defer mem.destroy(self);
-
-    // Free lingering globals (native fns)
-    for (self.globals.entries) |entry| {
-        if (entry.key) |key| {
-            entry.val.obj.destroy();
-            key.obj.destroy();
-        }
-    }
-
-    // Free lingering interned strings
-    for (self.strings.entries) |entry| {
-        if (entry.key) |key| {
-            key.obj.destroy();
-        }
-    }
-
     self.strings.destroy();
     self.globals.destroy();
-
-    self.freeObjects();
     self.gc.destroy();
 }
 
@@ -159,6 +139,10 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         .ip = script.chunk.ip(),
         .slots = &self.stack.values,
     });
+
+    try native.bootstrapNatives(self);
+
+    defer self.freeHeap();
 
     return self.run() catch |err| it: {
         self.runtimeError("An unexpected error occurred: {any}", .{err});
@@ -376,7 +360,6 @@ fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) bool {
 
 /// Run instructions from the currently loaded chunk.
 fn run(self: *Vm) !ExecutionResult {
-    debug.disassembleChunk(&self.currentFrame().closure.function.chunk, "chunk");
     printf("\n== begin execution ==\n", .{});
 
     while (true) {
@@ -695,8 +678,8 @@ pub fn copyString(self: *Vm, chars: []const u8) !*Obj.String {
     return self.linkObj(.string, try Obj.copyString(chars));
 }
 
-/// Free all lox objects allocated by the vm.
-pub fn freeObjects(self: *Vm) void {
+/// Free all lox objects allocated on the VM's virtual heap.
+pub fn freeHeap(self: *Vm) void {
     while (self.heap) |obj| {
         self.heap = obj.next;
         self.releaseObj(obj);
@@ -710,13 +693,14 @@ pub fn defineNative(
     arity: u8,
     fn_ptr: Obj.Native.FnPtr,
 ) !void {
-    // These objects don't need to be linked to the VM since globals are protected
-    // from being garbage-collected
     const fn_ident: *Obj.String = try Obj.copyString(identifier);
     const fn_obj: *Obj.Native = try Obj.create(
         .native,
         Obj.Native{ .arity = arity, .function = fn_ptr },
     );
 
-    _ = self.globals.set(fn_ident, .Object(&fn_obj.obj));
+    // Link ident string first so we can get an existing interned string, if any,
+    // and link the native fn after insertion when the ident string is safe from gc
+    _ = self.globals.set(self.linkObj(.string, fn_ident), .Object(&fn_obj.obj));
+    _ = self.linkObj(.native, fn_obj);
 }

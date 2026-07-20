@@ -33,15 +33,6 @@
 //! using `Obj.create` and linked with the VM as they're being placed in their homes,
 //! wherever that may be. This ensures none of the objects are able to be swept
 //! by the GC before it is safe to do so.
-//!
-//! This did also create the problem of creating a string object for native function
-//! identifiers and a native object for the native function itself, linking the
-//! string and then linking the native object when inserting them into the globals
-//! table as a key/value pair, leading to the string getting swept as the native
-//! object was linked but before the table insert happened.
-//!
-//! Since native functions and their identifiers are globals and globals aren't GC'd,
-//! I just stopped linking those two objects and the problem went away 😎
 
 const std = @import("std");
 const zlox = @import("../.lib.zig");

@@ -94,7 +94,6 @@ pub fn copyString(chars: []const u8) !*Obj.String {
 
 /// Destroy this `Obj`, freeing its owned resources.
 pub fn destroy(self: *Obj) void {
-    defer mem.destroy(self);
     defer switch (self.type) {
         inline else => |T| self.as(T).destroy(),
     };

@@ -38,3 +38,16 @@ pub fn readFile(io: Io, path: []const u8) ![]u8 {
         .unlimited,
     );
 }
+
+test "main" {
+    mem.init(std.testing.allocator);
+
+    const lox_code: []u8 = try readFile(std.testing.io, "test/test.lox");
+    const vm: *Vm = try .create(std.testing.io);
+
+    defer mem.free(lox_code);
+    defer vm.destroy();
+
+    const result: ExecutionResult = vm.interpret(lox_code);
+    std.debug.print("{}\n", .{result});
+}

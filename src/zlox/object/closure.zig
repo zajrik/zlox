@@ -28,6 +28,7 @@ upvalues: []*Obj.Upvalue,
 
 /// Free allocated memory owned by this obj.
 pub fn destroy(self: *const Closure) void {
+    defer mem.destroy(self);
     mem.free(self.upvalues);
 }
 
