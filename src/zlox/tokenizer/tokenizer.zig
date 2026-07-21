@@ -145,7 +145,7 @@ fn peekNext(self: *Tokenizer) u8 {
 
 /// Returns whether the tokenizer has reached the end of the source code.
 fn isAtEnd(self: *Tokenizer) bool {
-    return self.peek() == 0;
+    return @intFromPtr(self.current) >= @intFromPtr(self.source.ptr) + self.source.len;
 }
 
 /// Peek at the current character being processed and return whether it matches
