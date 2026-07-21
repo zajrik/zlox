@@ -26,7 +26,7 @@ const Obj: type = @This();
 type: Type,
 
 /// Bit-flags carrying extra data about this lox object.
-flags: Flags,
+flags: Flags = .{},
 
 /// Pointer to the next lox object on the heap, forming a linked list of objects
 /// at runtime for the garbage collector to trace.
@@ -45,7 +45,7 @@ next: ?*Obj = null,
 pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     const object: *Variant(T) = try mem.create(Variant(T));
     object.* = variant;
-    object.obj = Obj{ .type = T, .flags = .{} };
+    object.obj = Obj{ .type = T };
     return object;
 }
 
@@ -121,11 +121,11 @@ pub fn cast(self: *Obj, comptime T: Type) *Variant(T) {
     return @alignCast(@fieldParentPtr("obj", self));
 }
 
-/// Cast this `Obj` to an obj of the given type `T`.
+/// Safely cast this `Obj` to an obj of the given type `T`.
 ///
 /// Returns `null` if the obj is not of the given type `T`.
 pub fn as(self: *Obj, comptime T: Type) ?*Variant(T) {
-    return if (self.isNot(T)) null else self.cast(T);
+    return if (self.is(T)) self.cast(T) else null;
 }
 
 /// Returns the runtime size of an `Obj` variant of the given `type`.

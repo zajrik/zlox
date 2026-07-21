@@ -9,36 +9,46 @@ const Writer = std.Io.Writer;
 
 /// Represents a lox value.
 pub const Value: type = union(Value.Type) {
-    // Represents the type of a lox value.
+    /// Represents the type variants of a lox value.
     pub const Type = enum { nil, bool, number, obj };
 
+    /// Represents the type of a lox value from the zig side.
+    pub fn Variant(comptime T: Value.Type) type {
+        return switch (T) {
+            .nil => void,
+            .bool => bool,
+            .number => f64,
+            .obj => *Obj,
+        };
+    }
+
     /// A `void` standin for a `nil` lox Value.
-    nil,
+    nil: Value.Variant(.nil),
 
     /// Holds the `bool` value of this Value if it is a `bool`.
-    bool: bool,
+    bool: Value.Variant(.bool),
 
     /// Holds the `f64` value of this Value if it is a `number`.
-    number: f64,
+    number: Value.Variant(.number),
 
     /// Holds a pointer to a heap-allocated lox object.
-    obj: *Obj,
+    obj: Value.Variant(.obj),
 
     /// The constant `nil` lox Value.
     pub const Nil: Value = .nil;
 
     /// Creates a bool `Value` from the given `value`.
-    pub fn Bool(value: bool) Value {
+    pub fn Bool(value: Value.Variant(.bool)) Value {
         return Value{ .bool = value };
     }
 
     /// Creates a number `Value` from the given `value`.
-    pub fn Number(value: f64) Value {
+    pub fn Number(value: Value.Variant(.number)) Value {
         return Value{ .number = value };
     }
 
     /// Creates an object `Value` from the given `obj`.
-    pub fn Object(obj: *Obj) Value {
+    pub fn Object(obj: Value.Variant(.obj)) Value {
         return Value{ .obj = obj };
     }
 
@@ -80,22 +90,36 @@ pub const Value: type = union(Value.Type) {
         };
     }
 
-    /// Returns this value cast to an object of type `T`.
+    /// Safely cast this value to the zig representation of the given variant
+    /// type `T`.
     ///
-    /// Panics if this value is not an object.
+    /// Returns `null` if the value is not of the given variant type.
+    pub fn as(self: Value, comptime T: Value.Type) ?Value.Variant(T) {
+        return if (self.isNot(T)) null else switch (T) {
+            .nil => self.nil,
+            .bool => self.bool,
+            .number => self.number,
+            .obj => self.obj,
+        };
+    }
+
+    /// Returns this value cast to an object variant of type `T`.
+    ///
+    /// Panics if this value is not an object, or panics on access if the value
+    /// is not an object of the given type.
     pub fn objCast(self: Value, comptime T: Obj.Type) *Obj.Variant(T) {
         return self.obj.cast(T);
     }
 
-    /// Returns this value cast to an object of type `T`.
+    /// Returns this value safely cast to an object variant of type `T`.
     ///
     /// Returns `null` if this value is not an object of the given type.
     pub fn asObj(self: Value, comptime T: Obj.Type) ?*Obj.Variant(T) {
-        return if (self.isNot(.obj) or self.obj.isNot(T)) null else self.obj.cast(T);
+        return if (self.is(.obj)) self.obj.as(T) else null;
     }
 
     /// Custom formatter for `Value` values.
-    pub fn format(self: Value, writer: *Writer) Writer.Error!void {
+    pub fn format(self: Value, writer: *Writer) !void {
         switch (self) {
             .nil => try writer.writeAll("nil"),
             .bool => try writer.print("{}", .{self.bool}),

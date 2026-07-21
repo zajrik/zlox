@@ -68,7 +68,7 @@ heap: ?*Obj,
 gc: *Gc = undefined,
 
 /// The number of bytes allocated by objects linked to the VM's heap.
-bytes_allocated: usize = 0,
+heap_size: usize = 0,
 
 /// The threshold of bytes allocated at which the next GC sweep should trigger.
 next_gc: usize = 1024 * 1024,
@@ -175,7 +175,7 @@ fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
 
 /// Returns the current callframe off of the frame stack.
 fn currentFrame(self: *const Vm) *CallFrame {
-    return @ptrCast(self.frame_stack.top - 1);
+    return self.frame_stack.slot(0);
 }
 
 /// Perform a binary operation with the top two number values on the stack.
@@ -440,7 +440,7 @@ fn run(self: *Vm) !ExecutionResult {
             .pop => _ = self.stack.pop(),
             .pop_n => self.stack.popN(frame.readByte()),
             .close => {
-                self.closeUpvalues(@ptrCast(self.stack.top - 1));
+                self.closeUpvalues(self.stack.slot(0));
                 _ = self.stack.pop();
             },
             .copy => self.stack.copy(0),
@@ -617,8 +617,8 @@ pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.V
 
     if (comptime debug.stress_gc) self.gc.collect() catch {};
 
-    self.bytes_allocated += @sizeOf(Obj.Variant(T));
-    if (T == .string) self.bytes_allocated += @sizeOf(u8) * variant.chars.len;
+    self.heap_size += @sizeOf(Obj.Variant(T));
+    if (T == .string) self.heap_size += @sizeOf(u8) * variant.chars.len;
 
     // Run GC if we've exceeded the GC threshold. This should only fail if we're
     // out of memory when allocating memory for tracking marked objs before tracing,
@@ -626,7 +626,7 @@ pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.V
     // a rainy-day fund of memory in the GC that can be freed if that happens and
     // then try running the GC again, but Bob didn't bother in the book so I'm not
     // likely to bother here unless it becomes a problem for me personally (it won't)
-    if (self.bytes_allocated > self.next_gc) self.gc.collect() catch |err| {
+    if (self.heap_size > self.next_gc) self.gc.collect() catch |err| {
         self.runtimeError("Error running garbage collector: {any}", .{err});
         std.process.exit(1);
     };
@@ -643,7 +643,7 @@ pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.V
 ///
 /// Note: Make sure the object is unlinked from the VM heap before releasing.
 pub fn releaseObj(self: *Vm, obj: *Obj) void {
-    self.bytes_allocated -= obj.size();
+    self.heap_size -= obj.size();
     obj.destroy();
 }
 

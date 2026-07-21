@@ -87,7 +87,7 @@ pub fn collect(self: *Gc) !void {
     self.sweepTable(self.vm.strings);
     try self.sweep();
 
-    self.vm.next_gc = self.vm.bytes_allocated * 2;
+    self.vm.next_gc = self.vm.heap_size * 2;
 
     if (comptime debug.print_gc) printf("GC end --\n", .{});
 }
@@ -103,7 +103,7 @@ pub fn markRoots(self: *Gc) !void {
     // Mark callframe closures
     var frame: [*]CallFrame = &self.vm.frame_stack.values;
     while (@intFromPtr(frame) < @intFromPtr(self.vm.frame_stack.top)) : (frame += 1) {
-        try self.markObject(&frame[0].closure.obj);
+        try self.markObject(frame[0].closure.toObj());
     }
 
     // Mark open upvalues
