@@ -8,6 +8,7 @@ const Token = zlox.tokenizer.Token;
 const TokenType = zlox.tokenizer.TokenType;
 
 const do = zlox.common.do;
+const allocfmt = zlox.mem.allocfmt;
 
 // ============================================================================
 
@@ -338,7 +339,7 @@ fn consumeToken(self: *Tokenizer) Token {
 
         '"' => self.consumeString(),
 
-        else => self.errorToken("Unexpected character."),
+        else => self.errorToken(allocfmt("Unexpected character '{c}'.", .{char})),
     };
 }
 

@@ -101,3 +101,10 @@ pub fn free(ptr: anytype) void {
 pub fn growCapacity(capacity: usize) usize {
     return if (capacity < 8) 8 else capacity * growth_factor;
 }
+
+/// Returns an interpolated string using `std.fmt.allocPrint`, allocating as needed.
+///
+/// If allocation fails for any reason, returns the unformatted `fmt` string.
+pub fn allocfmt(comptime fmt: []const u8, args: anytype) []const u8 {
+    return std.fmt.allocPrint(allocator(), fmt, args) catch fmt;
+}
