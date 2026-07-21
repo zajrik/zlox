@@ -124,6 +124,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         },
     );
 
+    defer self.freeConstStrings();
     defer parser.destroy();
     defer compiler.destroy();
     defer script.destroy();
@@ -676,6 +677,16 @@ pub fn freeHeap(self: *Vm) void {
     while (self.heap) |obj| {
         self.heap = obj.next;
         self.releaseObj(obj);
+    }
+}
+
+/// Free all compile-time constant strings owned by the interned strings table.
+pub fn freeConstStrings(self: *Vm) void {
+    for (self.strings.entries) |entry| {
+        if (entry.key) |it| {
+            const obj: *Obj = it.toObj();
+            if (obj.flags.is_constant) obj.destroy();
+        }
     }
 }
 

@@ -49,8 +49,12 @@ pub fn deinit(self: Chunk) void {
     @constCast(&self.instructions).deinit(mem.allocator());
     @constCast(&self.lines).deinit(mem.allocator());
 
-    // Free compile-time constant objs
-    for (self.constants.items) |c| if (c.as(.obj)) |it| it.destroy();
+    // Free compile-time constant non-string objs
+    for (self.constants.items) |c| {
+        if (c.as(.obj)) |it| {
+            if (it.isNot(.string)) it.destroy();
+        }
+    }
 
     @constCast(&self.constants).deinit(mem.allocator());
 }

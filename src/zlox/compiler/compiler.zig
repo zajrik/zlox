@@ -118,7 +118,7 @@ pub fn create(
     // If the function type is not `script` and the current token is an identifier,
     // capture its lexeme to use as the function identifier string
     if (T != .script and parser.current.is(.identifier)) {
-        compiler.function.?.identifier = try compiler.copyString(
+        compiler.function.?.identifier = try compiler.wrapString(
             parser.current.lexeme,
         );
     }
@@ -681,7 +681,7 @@ pub fn grouping(self: *Compiler, _: bool) void {
 /// Compile a string expression from the current source token.
 pub fn string(self: *const Compiler, _: bool) void {
     const lexeme: []const u8 = self.parser.current.lexeme;
-    const str: *Obj.String = self.copyString(
+    const str: *Obj.String = self.wrapString(
         lexeme[1..(lexeme.len - 1)],
     ) catch return self.allocErr();
 
@@ -1091,7 +1091,7 @@ fn makeConstant(self: *const Compiler, value: Value) u8 {
 /// Push an identifier's string to the current chunk's constants array, returning
 /// the offset of the added constant string.
 fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
-    const ident: *Obj.String = self.copyString(token.lexeme) catch {
+    const ident: *Obj.String = self.wrapString(token.lexeme) catch {
         self.err("Error copying identifier string.");
         return 0;
     };
@@ -1220,10 +1220,15 @@ fn patchContinues(self: *const Compiler, loop_start: usize) void {
 
 // Object creation methods ====================================================
 
-/// Allocate a new `Obj` of the given `type` with the given `variant` payload.
+/// Allocate a new compile-time constant `Obj` of the given `type` with the given
+/// `variant` payload.
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns the returned pointer
-/// and is responsible for freeing it.
+/// and is responsible for freeing it, unless it is a string object.
+///
+/// Ownership of compile-time constant string objects is transferred to the interned
+/// strings table owned by the VM instance that owns the compiler. As such, the VM
+/// becomes responsible for freeing compile-time constant strings.
 fn createObj(
     self: *const Compiler,
     comptime T: Obj.Type,
@@ -1249,16 +1254,15 @@ fn createObj(
     return object;
 }
 
-/// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
-/// allocated lox string `Obj`.
+/// Wraps the given char slice in a newly allocated lox compile-time constant
+/// string `Obj`.
 ///
-/// Returns a pointer to the allocated lox string `Obj`. The caller owns the returned
-/// pointer and is responsible for freeing it.
-fn copyString(self: *const Compiler, chars: []const u8) !*Obj.String {
-    return self.createObj(
-        .string,
-        Obj.String{ .chars = try mem.dupe(u8, chars) },
-    );
+/// The lox string obj does not take ownership of the given chars.
+///
+/// Returns a pointer to the allocated lox string `Obj`. The returned pointer is
+/// owned by the interned strings table.
+fn wrapString(self: *const Compiler, chars: []const u8) !*Obj.String {
+    return self.createObj(.string, Obj.String{ .chars = chars });
 }
 
 // Error reporting convenience methods ========================================
