@@ -53,7 +53,7 @@ pub fn Stack(comptime T: type, max: comptime_int) type {
         }
 
         /// Reset this `Stack` by setting the top pointer to the address of the
-        /// first item in the stack, allowing it to be overwritten on the next push.
+        /// first slot in the stack, allowing it to be overwritten on the next push.
         pub fn reset(self: *Self) void {
             self.top = &self.values;
         }
@@ -71,6 +71,17 @@ pub fn Stack(comptime T: type, max: comptime_int) type {
         /// Returns whether this stack has at least one item on it.
         pub fn isNotEmpty(self: *const Self) bool {
             return self.size() > 0;
+        }
+
+        /// Peek at the value at `offset` from the top of this stack.
+        pub fn peek(self: *const Self, offset: usize) T {
+            return (self.top - 1 - offset)[0];
+        }
+
+        /// Returns a pointer to the stack slot at the given `offset` from the top
+        /// of this stack.
+        pub fn slot(self: *const Self, offset: usize) *T {
+            return @ptrCast(self.top - 1 - offset);
         }
 
         /// Push the given `value` to the top of this stack.
@@ -103,21 +114,26 @@ pub fn Stack(comptime T: type, max: comptime_int) type {
             return self.size();
         }
 
-        /// Peek at a value in the stack, offset by `distance` from the top of this
-        /// stack.
-        pub fn peek(self: *const Self, distance: usize) T {
-            return (self.top - 1 - distance)[0];
+        /// Push a copy of the value at `offset` from the top of this stack to
+        /// the top of this stack.
+        pub fn copy(self: *Self, offset: usize) void {
+            self.push(self.peek(offset));
         }
 
-        /// Replace a value at `distance` from the top of this stack with the given
+        /// Replace a value at `offset` from the top of this stack with the given
         /// `value`.
         ///
         /// Returns the original, replaced value.
-        pub fn replace(self: *Self, distance: usize, value: T) T {
-            const slot: *T = @ptrCast(self.top - 1 - distance);
-            const oldVal: T = slot.*;
-            slot.* = value;
-            return oldVal;
+        pub fn replace(self: *Self, offset: usize, value: T) T {
+            const old_val: T = self.slot(offset).*;
+            self.slot(offset).* = value;
+            return old_val;
+        }
+
+        /// Swap the values on this stack at the given offsets from the top of this
+        /// stack.
+        pub fn swap(self: *Self, offset_1: usize, offset_2: usize) void {
+            _ = self.replace(offset_1, self.replace(offset_2, self.peek(offset_1)));
         }
 
         /// Custom formatter for `Stack` values.
@@ -131,9 +147,9 @@ pub fn Stack(comptime T: type, max: comptime_int) type {
             try writer.writeAll("        |  ");
             defer writer.writeAll("\n") catch {};
 
-            var slot: [*]const T = &self.values;
-            while (@intFromPtr(slot) < @intFromPtr(self.top)) : (slot += 1) {
-                try writer.print("[ {f} ]", .{slot[0]});
+            var it: [*]const T = &self.values;
+            while (@intFromPtr(it) < @intFromPtr(self.top)) : (it += 1) {
+                try writer.print("[ {f} ]", .{it[0]});
             }
         }
     };

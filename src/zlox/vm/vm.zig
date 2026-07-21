@@ -443,13 +443,8 @@ fn run(self: *Vm) !ExecutionResult {
                 self.closeUpvalues(@ptrCast(self.stack.top - 1));
                 _ = self.stack.pop();
             },
-            .copy => self.stack.push(self.stack.peek(0)),
-            .swap => {
-                const b: Value = self.stack.pop();
-                const a: Value = self.stack.pop();
-                self.stack.push(b);
-                self.stack.push(a);
-            },
+            .copy => self.stack.copy(0),
+            .swap => self.stack.swap(0, 1),
 
             .print => printf("{f}\n", .{self.stack.pop()}),
 
