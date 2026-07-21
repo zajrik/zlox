@@ -90,11 +90,6 @@ pub const OpCode = enum(u8) {
     ///   result to the top of the stack.
     not,
 
-    // /// ### `OpCode.peek(offset: stack_offset)`
-    // /// - Prints the value on the stack at the given `offset` from the top of
-    // ///   the stack.
-    // peek,
-
     /// ### `OpCode.pop()`
     /// - Pops the top value off of the stack, discarding it.
     pop,

@@ -83,8 +83,15 @@ pub const Value: type = union(Value.Type) {
     /// Returns this value cast to an object of type `T`.
     ///
     /// Panics if this value is not an object.
-    pub fn asObj(self: Value, comptime T: Obj.Type) *Obj.Variant(T) {
-        return self.obj.as(T);
+    pub fn objCast(self: Value, comptime T: Obj.Type) *Obj.Variant(T) {
+        return self.obj.cast(T);
+    }
+
+    /// Returns this value cast to an object of type `T`.
+    ///
+    /// Returns `null` if this value is not an object of the given type.
+    pub fn asObj(self: Value, comptime T: Obj.Type) ?*Obj.Variant(T) {
+        return if (self.isNot(.obj) or self.obj.isNot(T)) null else self.obj.cast(T);
     }
 
     /// Custom formatter for `Value` values.

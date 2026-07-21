@@ -45,6 +45,11 @@ pub fn destroy(self: *const Upvalue) void {
     mem.destroy(self);
 }
 
+/// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
+pub fn toObj(self: *Upvalue) *Obj {
+    return &self.obj;
+}
+
 /// Close this upvalue, hoisting the value of the variable it captures onto the
 /// heap.
 pub fn close(self: *Upvalue) void {

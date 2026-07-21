@@ -108,7 +108,7 @@ pub fn markRoots(self: *Gc) !void {
 
     // Mark open upvalues
     var upvalue: ?*Obj.Upvalue = self.vm.open_upvalues;
-    while (upvalue) |it| : (upvalue = it.next) try self.markObject(&it.obj);
+    while (upvalue) |it| : (upvalue = it.next) try self.markObject(it.toObj());
 
     // Mark globals
     try self.markTable(self.vm.globals);
@@ -166,9 +166,9 @@ pub fn markObject(self: *Gc, obj: *Obj) !void {
 /// alive for this GC cycle.
 pub fn visitObject(self: *Gc, obj: *Obj) !void {
     switch (obj.type) {
-        .upvalue => |T| try self.markValue(obj.as(T).closed),
-        .closure => |T| for (obj.as(T).upvalues) |upvalue| {
-            try self.markObject(&upvalue.obj);
+        .upvalue => |T| try self.markValue(obj.cast(T).closed),
+        .closure => |T| for (obj.cast(T).upvalues) |upvalue| {
+            try self.markObject(upvalue.toObj());
         },
         else => return,
     }
@@ -178,7 +178,7 @@ pub fn visitObject(self: *Gc, obj: *Obj) !void {
 /// through this GC cycle.
 pub fn markTable(self: *Gc, table: *HashTable) !void {
     for (table.entries) |entry| {
-        if (entry.key) |key| try self.markObject(&key.obj);
+        if (entry.key) |key| try self.markObject(key.toObj());
         try self.markValue(entry.val);
     }
 }

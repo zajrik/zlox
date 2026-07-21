@@ -95,7 +95,7 @@ pub fn copyString(chars: []const u8) !*Obj.String {
 /// Destroy this `Obj`, freeing its owned resources.
 pub fn destroy(self: *Obj) void {
     defer switch (self.type) {
-        inline else => |T| self.as(T).destroy(),
+        inline else => |T| self.cast(T).destroy(),
     };
 
     if (comptime debug.obj_free) std.debug.print(
@@ -115,14 +115,23 @@ pub fn isNot(self: *Obj, T: Type) bool {
 }
 
 /// Cast this `Obj` to an obj of the given type `T`.
-pub fn as(self: *Obj, comptime T: Type) *Variant(T) {
+///
+/// Panics on access if the obj is not of the given type `T`.
+pub fn cast(self: *Obj, comptime T: Type) *Variant(T) {
     return @alignCast(@fieldParentPtr("obj", self));
+}
+
+/// Cast this `Obj` to an obj of the given type `T`.
+///
+/// Returns `null` if the obj is not of the given type `T`.
+pub fn as(self: *Obj, comptime T: Type) ?*Variant(T) {
+    return if (self.isNot(T)) null else self.cast(T);
 }
 
 /// Returns the runtime size of an `Obj` variant of the given `type`.
 pub fn size(self: *Obj) usize {
     return switch (self.type) {
-        .string => |T| @sizeOf(Variant(T)) + @sizeOf(u8) * self.as(T).chars.len,
+        .string => |T| @sizeOf(Variant(T)) + @sizeOf(u8) * self.cast(T).chars.len,
         inline else => |T| @sizeOf(Variant(T)),
     };
 }
@@ -130,6 +139,6 @@ pub fn size(self: *Obj) usize {
 /// Custom formatter for `Obj` values.
 pub fn format(self: *Obj, writer: *Writer) !void {
     switch (self.type) {
-        inline else => |T| try self.as(T).format(writer),
+        inline else => |T| try self.cast(T).format(writer),
     }
 }

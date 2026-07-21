@@ -127,11 +127,12 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     defer parser.destroy();
     defer compiler.destroy();
     defer script.destroy();
+    defer self.freeHeap();
 
     if (script.chunk.isEmpty()) return .ok;
 
     // Push script closure to stack to match reserved local slot 0
-    self.stack.push(.Object(&closure.obj));
+    self.stack.push(.Object(closure.toObj()));
 
     // Push callframe to execute script closure
     self.frame_stack.push(CallFrame{
@@ -141,8 +142,6 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     });
 
     try native.bootstrapNatives(self);
-
-    defer self.freeHeap();
 
     return self.run() catch |err| it: {
         self.runtimeError("An unexpected error occurred: {any}", .{err});
@@ -176,7 +175,7 @@ fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
 
 /// Returns the current callframe off of the frame stack.
 fn currentFrame(self: *const Vm) *CallFrame {
-    return &(self.frame_stack.top - 1)[0];
+    return @ptrCast(self.frame_stack.top - 1);
 }
 
 /// Perform a binary operation with the top two number values on the stack.
@@ -207,8 +206,8 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
 /// Pop the top two strings off of the stack, concatenate them, and push the resulting
 /// string to the stack.
 fn concatenate(self: *Vm) !void {
-    const b: []const u8 = self.stack.pop().obj.as(.string).chars;
-    const a: []const u8 = self.stack.pop().obj.as(.string).chars;
+    const b: []const u8 = self.stack.pop().objCast(.string).chars;
+    const a: []const u8 = self.stack.pop().objCast(.string).chars;
 
     const new_len: usize = a.len + b.len;
     const new_chars: []u8 = try mem.alloc(u8, new_len);
@@ -218,7 +217,7 @@ fn concatenate(self: *Vm) !void {
 
     const new_string: *Obj.String = try self.takeString(new_chars);
 
-    self.stack.push(.Object(&new_string.obj));
+    self.stack.push(.Object(new_string.toObj()));
 }
 
 /// Capture an upvalue from the given pointer to a `local` variable slot on the
@@ -296,9 +295,9 @@ fn closeUpvalues(self: *Vm, local: *const Value) void {
 /// Returns whether the `callee` is able to be called (no errors emitted).
 fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
     if (callee.is(.obj)) switch (callee.obj.type) {
-        .closure => return self.callFun(callee.asObj(.closure), arg_count),
+        .closure => return self.callFun(callee.objCast(.closure), arg_count),
         .native => {
-            const native_obj: *Obj.Native = callee.asObj(.native);
+            const native_obj: *Obj.Native = callee.objCast(.native);
             const native_fun: Obj.Native.FnPtr = native_obj.function;
 
             if (arg_count != native_obj.arity) {
@@ -438,7 +437,6 @@ fn run(self: *Vm) !ExecutionResult {
             .not => _ = self.stack.replace(0, .Bool(self.stack.peek(0).isFalsey())),
 
             // Stack ops
-            // .peek => printf("{any}\n", .{self.stack.peek(self.readByte())}),
             .pop => _ = self.stack.pop(),
             .pop_n => self.stack.popN(frame.readByte()),
             .close => {
@@ -525,7 +523,7 @@ fn run(self: *Vm) !ExecutionResult {
             },
 
             .closure => {
-                const function: *Obj.Function = frame.readConstant().asObj(.function);
+                const function: *Obj.Function = frame.readConstant().objCast(.function);
                 const closure: *Obj.Closure = try Obj.create(
                     .closure,
                     Obj.Closure{
@@ -640,7 +638,7 @@ pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.V
 
     // Link object for GC tracing
     variant.obj.next = self.heap;
-    self.heap = &variant.obj;
+    self.heap = variant.toObj();
 
     return variant;
 }
@@ -701,6 +699,6 @@ pub fn defineNative(
 
     // Link ident string first so we can get an existing interned string, if any,
     // and link the native fn after insertion when the ident string is safe from gc
-    _ = self.globals.set(self.linkObj(.string, fn_ident), .Object(&fn_obj.obj));
+    _ = self.globals.set(self.linkObj(.string, fn_ident), .Object(fn_obj.toObj()));
     _ = self.linkObj(.native, fn_obj);
 }

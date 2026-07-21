@@ -32,6 +32,11 @@ pub fn destroy(self: *const Closure) void {
     mem.free(self.upvalues);
 }
 
+/// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
+pub fn toObj(self: *Closure) *Obj {
+    return &self.obj;
+}
+
 /// Custom formatter for `Obj.Closure` values.
 pub fn format(self: *const Closure, writer: *Writer) !void {
     try self.function.format(writer);

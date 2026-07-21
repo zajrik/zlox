@@ -31,6 +31,11 @@ pub fn destroy(self: *const Native) void {
     defer mem.destroy(self);
 }
 
+/// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
+pub fn toObj(self: *Native) *Obj {
+    return &self.obj;
+}
+
 /// Custom formatter for `Obj.Native` values.
 pub fn format(_: *const Native, writer: *Writer) !void {
     try writer.writeAll("<native fn>");

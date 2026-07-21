@@ -48,6 +48,11 @@ pub fn destroy(self: *const Function) void {
     self.chunk.deinit();
 }
 
+/// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
+pub fn toObj(self: *Function) *Obj {
+    return &self.obj;
+}
+
 /// Custom formatter for `Obj.Function` values.
 pub fn format(self: *const Function, writer: *Writer) !void {
     if (self.type == .script) {

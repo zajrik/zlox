@@ -31,6 +31,11 @@ pub fn destroy(self: *const String) void {
     mem.free(self.chars);
 }
 
+/// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
+pub fn toObj(self: *String) *Obj {
+    return &self.obj;
+}
+
 /// Custom formatter for `Obj.String` values.
 pub fn format(self: *const String, writer: *Writer) !void {
     try writer.print("{s}", .{self.chars});

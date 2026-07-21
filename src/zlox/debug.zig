@@ -16,7 +16,7 @@ const printf = std.debug.print;
 pub const is_debug_mode: bool = builtin.mode == .Debug;
 
 /// Whether the vm should print instruction traces during execution.
-pub const trace_execution: bool = is_debug_mode and false;
+pub const trace_execution: bool = is_debug_mode and true;
 
 /// Whether the vm should print the stack in between instruction traces.
 pub const print_stack: bool = is_debug_mode and true;
@@ -95,7 +95,6 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .not => |T| simpleInstruction(T, offset),
 
         // Stack ops
-        // .peek => |op| byteInstruction(op, chunk, offset),
         .pop => |T| simpleInstruction(T, offset),
         .pop_n => |T| byteInstruction(T, chunk, offset),
         .close => |T| simpleInstruction(T, offset),
@@ -128,7 +127,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
             var new_offset: usize = offset + 1;
             const constant: u8 = chunk.instructionAt(new_offset);
             const function: Value = chunk.constantAt(constant);
-            const fun_obj: *Obj.Function = function.asObj(.function);
+            const fun_obj: *Obj.Function = function.objCast(.function);
 
             printf("{s:<16} {d:4} {f}\n", .{ T.toString(), constant, function });
 

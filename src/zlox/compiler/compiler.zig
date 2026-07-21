@@ -609,7 +609,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     };
 
     // Add compiled function to chunk constants and emit closure op
-    self.emitOp1(.closure, self.makeConstant(.Object(&fun_obj.obj)));
+    self.emitOp1(.closure, self.makeConstant(.Object(fun_obj.toObj())));
 
     // Emit closure upvalue bytecode
     var i: u8 = 0;
@@ -685,7 +685,7 @@ pub fn string(self: *const Compiler, _: bool) void {
         lexeme[1..(lexeme.len - 1)],
     ) catch return self.allocErr();
 
-    self.emitConstant(.Object(&str.obj));
+    self.emitConstant(.Object(str.toObj()));
 }
 
 /// Compile a number expression from the current source token.
@@ -1096,7 +1096,7 @@ fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
         return 0;
     };
 
-    return self.makeConstant(.Object(&ident.obj));
+    return self.makeConstant(.Object(ident.toObj()));
 }
 
 /// Write the given `byte` to the chunk currently being compiled.

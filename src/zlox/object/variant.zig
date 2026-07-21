@@ -21,29 +21,25 @@ pub fn Variant(comptime T: Type) type {
         .upvalue => Upvalue,
     };
 
-    // Ensure Obj children have `obj` header field.
-    if (!@hasField(obj_type, "obj")) @compileError(
-        comptimePrint(
-            "Obj child struct '{}' missing 'obj: Obj' header field.",
-            .{obj_type},
-        ),
-    );
+    // Enforce obj fields
+    if (!@hasField(obj_type, "obj")) @compileError(comptimePrint(
+        "Obj child struct '{}' missing 'obj: Obj' header field.",
+        .{obj_type},
+    ));
 
-    // Ensure Obj children have `destroy` function declaration
-    if (!@hasDecl(obj_type, "destroy")) @compileError(
-        comptimePrint(
-            "Obj child struct '{}' missing 'destroy' function declaration.",
-            .{obj_type},
-        ),
-    );
-
-    // Ensure Obj children have `format` function declaration
-    if (!@hasDecl(obj_type, "format")) @compileError(
-        comptimePrint(
-            "Obj child struct '{}' missing 'format' function declaration.",
-            .{obj_type},
-        ),
-    );
+    // Enforce obj functions
+    if (!@hasDecl(obj_type, "destroy")) @compileError(comptimePrint(
+        "Obj child struct '{}' missing 'destroy' function declaration.",
+        .{obj_type},
+    ));
+    if (!@hasDecl(obj_type, "toObj")) @compileError(comptimePrint(
+        "Obj child struct '{}' missing 'toObj' function declaration.",
+        .{obj_type},
+    ));
+    if (!@hasDecl(obj_type, "format")) @compileError(comptimePrint(
+        "Obj child struct '{}' missing 'format' function declaration.",
+        .{obj_type},
+    ));
 
     return obj_type;
 }

@@ -52,5 +52,5 @@ pub fn readConstant(self: *CallFrame) Value {
 /// See also:
 /// - `readConstant`
 pub fn readString(self: *CallFrame) *Obj.String {
-    return self.readConstant().obj.as(.string);
+    return self.readConstant().objCast(.string);
 }
