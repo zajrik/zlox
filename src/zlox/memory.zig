@@ -75,11 +75,6 @@ pub fn createStruct(comptime T: type, initial: T) !*T {
     return result;
 }
 
-/// Free resources at the given pointer.
-pub fn destroy(ptr: anytype) void {
-    return allocator().destroy(ptr);
-}
-
 /// Allocates an array of type `T`, sized for `n` items.
 pub fn alloc(comptime T: type, n: usize) ![]T {
     return allocator().alloc(T, n);
@@ -88,6 +83,21 @@ pub fn alloc(comptime T: type, n: usize) ![]T {
 /// Reallocates memory for `ptr` to the given `new_size`.
 pub fn realloc(ptr: anytype, new_size: usize) !@TypeOf(ptr) {
     return allocator().realloc(ptr, new_size);
+}
+
+/// Allocates a duplicate slice of the given type `T`.
+///
+/// Returns the allocated slice. The caller owns this slice and is responsible for
+/// freeing it.
+///
+/// Shortcut for `mem.allocator().dupe(...)`
+pub fn dupe(comptime T: type, m: []const T) ![]T {
+    return allocator().dupe(T, m);
+}
+
+/// Free resources at the given pointer.
+pub fn destroy(ptr: anytype) void {
+    return allocator().destroy(ptr);
 }
 
 /// Free an allocated array.

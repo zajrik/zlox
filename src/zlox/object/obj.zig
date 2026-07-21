@@ -89,7 +89,7 @@ pub fn takeString(chars: []const u8) !*Obj.String {
 /// See also:
 /// - `Vm.linkObj`
 pub fn copyString(chars: []const u8) !*Obj.String {
-    return takeString(try mem.allocator().dupe(u8, chars));
+    return takeString(try mem.dupe(u8, chars));
 }
 
 /// Destroy this `Obj`, freeing its owned resources.

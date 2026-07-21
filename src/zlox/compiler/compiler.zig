@@ -1257,7 +1257,7 @@ fn createObj(
 fn copyString(self: *const Compiler, chars: []const u8) !*Obj.String {
     return self.createObj(
         .string,
-        Obj.String{ .chars = try mem.allocator().dupe(u8, chars) },
+        Obj.String{ .chars = try mem.dupe(u8, chars) },
     );
 }
 
