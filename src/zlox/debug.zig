@@ -42,9 +42,9 @@ pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {
     var offset: usize = 0;
 
     if (comptime dump_raw) {
-        while (offset < chunk.len()) {
+        while (offset < chunk.len()) : (offset += 1) {
             printf("{d:02} ", .{chunk.instructionAt(offset)});
-            offset += 1;
+            if ((offset + 1) % 16 == 0) printf("\n", .{});
         }
         printf("\n", .{});
         offset = 0;
