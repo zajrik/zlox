@@ -254,7 +254,7 @@ fn declaration(self: *Compiler) void {
 
 /// Compile a function declaration from source tokens.
 fn funDeclaration(self: *Compiler) void {
-    const ident_offset: u8 = self.variableIdentifier("Expected function name.");
+    const ident_offset: u8 = self.variableIdentifier("function name");
 
     // Mark function identifier as defined so it can refer to itself
     self.markDefined();
@@ -265,10 +265,10 @@ fn funDeclaration(self: *Compiler) void {
 
 /// Compile a variable declaration statement from source tokens.
 fn varDeclaration(self: *Compiler) void {
-    const ident_offset: u8 = self.variableIdentifier("Expected variable name.");
+    const ident_offset: u8 = self.variableIdentifier("variable name");
 
     if (self.parser.match(.equal)) self.expression() else self.emitOp(.nil);
-    self.parser.consume(.semicolon, "Expected ';' after variable declaration.");
+    self.parser.expect(.semicolon, "';' after variable declaration");
 
     self.defineVariable(ident_offset);
 }
@@ -294,7 +294,7 @@ fn statement(self: *Compiler) void {
 /// printStmt := "print" exprStmt ";" ;
 fn printStmt(self: *Compiler) void {
     self.expression();
-    self.parser.consume(.semicolon, "Expected ';' after value.");
+    self.parser.expect(.semicolon, "';' after value");
     self.emitOp(.print);
 }
 
@@ -302,9 +302,9 @@ fn printStmt(self: *Compiler) void {
 ///
 /// ifStmt := "if" "(" expression ")" statement ( "else" statement )? ;
 fn ifStmt(self: *Compiler) void {
-    self.parser.consume(.paren_left, "Expected '(' after 'if'.");
+    self.parser.expect(.paren_left, "'(' after 'if'");
     self.expression();
-    self.parser.consume(.paren_right, "Expected ')' after expression.");
+    self.parser.expect(.paren_right, "')' after expression");
 
     // Emit .jump_if_false to jump over then-branch if condition is false. We emit
     // a .pop to pop the value left on the stack by the condition expression and
@@ -336,10 +336,10 @@ fn ifStmt(self: *Compiler) void {
 fn switchStmt(self: *Compiler) void {
     const p: *Parser = self.parser;
 
-    p.consume(.paren_left, "Expected '(' after 'switch'.");
+    p.expect(.paren_left, "'(' after 'switch'");
     self.expression();
-    p.consume(.paren_right, "Expected ')' after expression.");
-    p.consume(.brace_left, "Expected '{' after switch value.");
+    p.expect(.paren_right, "')' after expression");
+    p.expect(.brace_left, "'{' after switch value");
 
     var default_found: bool = false;
 
@@ -371,7 +371,7 @@ fn switchStmt(self: *Compiler) void {
             self.emitOp(.true);
         }
 
-        p.consume(.colon, "Expected ':'.");
+        p.expect(.colon, "':'");
 
         const case_jump: usize = self.emitJump(.jump_if_false);
         self.emitOp(.pop);
@@ -382,7 +382,7 @@ fn switchStmt(self: *Compiler) void {
         self.emitOp(.pop);
     }
 
-    p.consume(.brace_right, "Expected '}' after switch block.");
+    p.expect(.brace_right, "'}' after switch block");
 
     self.patchJumpList(exit_jumps);
 
@@ -395,7 +395,7 @@ fn breakStmt(self: *Compiler) void {
     // Emit an unpatched jump for this break statement and add it to the scope
     if (self.loop_scope) |it| {
         it.addBreak(self.emitJump(.jump)) catch self.allocErr();
-        return self.parser.consume(.semicolon, "Expected ';' after 'break'.");
+        return self.parser.expect(.semicolon, "';' after 'break'");
     }
 
     self.err("'break' cannot be used outside of a loop.");
@@ -408,7 +408,7 @@ fn continueStmt(self: *Compiler) void {
     if (self.loop_scope) |it| {
         self.emitOp2(.loop, 0xff, 0xff);
         it.addContinue(self.instructionOffset() - 2) catch self.allocErr();
-        return self.parser.consume(.semicolon, "Expected ';' after 'continue'.");
+        return self.parser.expect(.semicolon, "';' after 'continue'");
     }
 
     self.err("'continue' cannot be used outside of a loop.");
@@ -428,7 +428,7 @@ fn returnStmt(self: *Compiler) void {
     // Otherwise compile return value expression
     else {
         self.expression();
-        self.parser.consume(.semicolon, "Expected ';' after return value.");
+        self.parser.expect(.semicolon, "';' after return value");
         self.emitOp(.@"return");
     }
 }
@@ -442,9 +442,9 @@ fn whileStmt(self: *Compiler) void {
 
     const loop_start: usize = self.instructionOffset();
 
-    self.parser.consume(.paren_left, "Expected '(' after 'while'.");
+    self.parser.expect(.paren_left, "'(' after 'while'");
     self.expression();
-    self.parser.consume(.paren_right, "Expected ')' after expression.");
+    self.parser.expect(.paren_right, "')' after expression");
 
     const exit_jump: usize = self.emitJump(.jump_if_false);
 
@@ -476,7 +476,7 @@ fn forStmt(self: *Compiler) void {
     self.pushLoopScope();
     defer self.popLoopScope();
 
-    p.consume(.paren_left, "Expected '(' after 'for'.");
+    p.expect(.paren_left, "'(' after 'for'");
 
     // Compile initializer clause
     switch (p.next.type) {
@@ -495,7 +495,7 @@ fn forStmt(self: *Compiler) void {
     // Compile loop condition if present and set exit jump placeholder
     if (!p.match(.semicolon)) {
         self.expression();
-        p.consume(.semicolon, "Expected ';' after loop condition.");
+        p.expect(.semicolon, "';' after loop condition");
 
         exit_jump = self.emitJump(.jump_if_false);
         self.emitOp(.pop);
@@ -508,7 +508,7 @@ fn forStmt(self: *Compiler) void {
 
         self.expression();
         self.emitOp(.pop);
-        p.consume(.paren_right, "Expected ')' after for-clauses.");
+        p.expect(.paren_right, "')' after for-clauses");
 
         // Loop back to start after executing increment expression, update loop_start
         // to point to the increment so the body loops back here after executing
@@ -536,7 +536,7 @@ fn forStmt(self: *Compiler) void {
 /// Compile a block statement from source tokens.
 fn block(self: *Compiler) void {
     while (!self.parser.blockEnd(.brace_right)) self.declaration();
-    self.parser.consume(.brace_right, "Expected '}' after block.");
+    self.parser.expect(.brace_right, "'}' after block");
 }
 
 /// Compile an expression statement from source tokens.
@@ -544,7 +544,7 @@ fn block(self: *Compiler) void {
 /// exprStmt := expression ";" ;
 fn expressionStmt(self: *Compiler) void {
     self.expression();
-    self.parser.consume(.semicolon, "Expected ';' after expression.");
+    self.parser.expect(.semicolon, "';' after expression");
     self.emitOp(.pop);
 }
 
@@ -567,7 +567,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     // instance is freed
     fun_cmp.pushScope();
 
-    p.consume(.paren_left, "Expected '(' after function name.");
+    p.expect(.paren_left, "'(' after function name");
 
     // Compile function parameters, if any
     if (p.next.isNot(.paren_right)) {
@@ -575,7 +575,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
 
         while (true) : (if (p.listEnd(.paren_right)) break) {
             fun_cmp.defineVariable(
-                fun_cmp.variableIdentifier("Expected parameter identifier."),
+                fun_cmp.variableIdentifier("parameter identifier"),
             );
 
             defer arity.* += 1;
@@ -585,7 +585,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
         }
     }
 
-    p.consume(.paren_right, "Expected ')' after parameter list.");
+    p.expect(.paren_right, "')' after parameter list");
 
     // Compile block function body if we see an opening brace
     if (p.match(.brace_left)) {
@@ -596,7 +596,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     else if (p.match(.equal)) {
         fun_cmp.expression();
         fun_cmp.emitOp(.@"return");
-        if (!is_expr) p.consume(.semicolon, "Expected ';' after function body.");
+        if (!is_expr) p.expect(.semicolon, "';' after function body");
     }
 
     // Otherwise emit a compilation error
@@ -675,15 +675,14 @@ fn expr(self: *Compiler, precedence: Precedence) void {
 /// Compile a parenthesized grouping expression from source tokens.
 pub fn grouping(self: *Compiler, _: bool) void {
     self.expression();
-    self.parser.consume(.paren_right, "Expected ')' after expression.");
+    self.parser.expect(.paren_right, "')' after expression");
 }
 
 /// Compile a string expression from the current source token.
 pub fn string(self: *const Compiler, _: bool) void {
-    const lexeme: []const u8 = self.parser.current.lexeme;
-    const str: *Obj.String = self.wrapString(
-        lexeme[1..(lexeme.len - 1)],
-    ) catch return self.allocErr();
+    const token: Token = self.parser.current;
+    const chars: []const u8 = token.lexeme[1..(token.lexeme.len - 1)];
+    const str: *Obj.String = self.wrapString(chars) catch return self.allocErr();
 
     self.emitConstant(str.toValue());
 }
@@ -757,7 +756,7 @@ pub fn unary(self: *Compiler, _: bool) void {
 /// Compile a binary expression from source tokens.
 pub fn binary(self: *Compiler, _: bool) void {
     const operator: Token = self.parser.current;
-    const strategy: ParseStrategy = .forToken(operator);
+    const strategy: ParseStrategy = self.parser.strategy(operator);
 
     // Compile expression right-hand side with precedence + 1
     self.expr(strategy.precedence.next());
@@ -814,10 +813,10 @@ pub fn orExpr(self: *Compiler, _: bool) void {
 pub fn switchExpr(self: *Compiler, _: bool) void {
     const p: *Parser = self.parser;
 
-    p.consume(.paren_left, "Expected '(' after 'switch'.");
+    p.expect(.paren_left, "'(' after 'switch'");
     self.expression();
-    p.consume(.paren_right, "Expected ')' after expression.");
-    p.consume(.brace_left, "Expected '{' after switch value.");
+    p.expect(.paren_right, "')' after expression");
+    p.expect(.brace_left, "'{' after switch value");
 
     var wildcard_found: bool = false;
 
@@ -843,7 +842,7 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
             self.emitOp(.true);
         }
 
-        p.consume(.arrow, "Expected '=>'.");
+        p.expect(.arrow, "'=>'");
 
         const case_jump: usize = self.emitJump(.jump_if_false);
 
@@ -856,7 +855,7 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
         self.emitOp(.pop);
     }
 
-    p.consume(.brace_right, "Expected '}' after switch block.");
+    p.expect(.brace_right, "'}' after switch block");
 
     // If we didn't find a wildcard case then we need to pop switch input expression
     // from the stack and return nil from the switch expression
@@ -897,7 +896,7 @@ fn argumentList(self: *Compiler) u8 {
         }
     }
 
-    p.consume(.paren_right, "Expected ')' after arguments.");
+    p.expect(.paren_right, "')' after arguments");
 
     return count;
 }
@@ -908,8 +907,8 @@ fn argumentList(self: *Compiler) u8 {
 /// for the variable's identifier in the compiling chunk's constants array.
 ///
 /// If the variable identifier cannot be parsed, errors with message `expect`.
-fn variableIdentifier(self: *Compiler, expect: []const u8) u8 {
-    self.parser.consume(.identifier, expect);
+fn variableIdentifier(self: *Compiler, comptime expect: []const u8) u8 {
+    self.parser.expect(.identifier, expect);
 
     // Declare local if we're in a local scope. We just return 0 if so since locals
     // are resolved by identifier tokens while global variables are resolved by

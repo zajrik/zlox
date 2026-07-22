@@ -78,12 +78,12 @@ pub fn advance(self: *Parser) void {
     }
 }
 
-/// Consume a token of the given type `T` from the tokenizer.
+/// Consume an expected token of the given type `T` from the tokenizer.
 ///
-/// Emits error `msg` if a token of the given type is not found.
-pub fn consume(self: *Parser, T: TokenType, msg: []const u8) void {
+/// Emits error `"Expected {msg}."` if a token of the given type is not found.
+pub fn expect(self: *Parser, T: TokenType, comptime msg: []const u8) void {
     if (self.next.is(T)) return self.advance();
-    self.errAtNext(msg);
+    self.errAtNext("Expected " ++ msg ++ ".");
 }
 
 /// Returns whether the next token to be parsed is of type `T`.
