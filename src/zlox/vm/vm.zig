@@ -682,11 +682,10 @@ pub fn freeHeap(self: *Vm) void {
 
 /// Free all compile-time constant strings owned by the interned strings table.
 pub fn freeConstStrings(self: *Vm) void {
-    for (self.strings.entries) |entry| {
-        if (entry.key) |it| {
-            const obj: *Obj = it.toObj();
-            if (obj.flags.is_constant) obj.destroy();
-        }
+    var keys: HashTable.KeyIterator = self.strings.keys();
+    while (keys.next()) |it| {
+        const obj: *Obj = it.toObj();
+        if (obj.flags.is_constant) obj.destroy();
     }
 }
 

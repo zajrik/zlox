@@ -20,7 +20,7 @@ const HashTable: type = @This();
 const max_load: f32 = 0.75;
 
 /// An entry within a hash-table.
-const Entry = struct {
+pub const Entry = struct {
     /// The key associated with this entry.
     ///
     /// An entry with a `null` key is either unused, or a tombstone for a
@@ -42,6 +42,29 @@ const Entry = struct {
             "HashTable.Entry {{ .key = {?f}, .val = {f} }}",
             .{ self.key, self.val },
         );
+    }
+};
+
+/// An iterator over `HashTable` keys.
+pub const KeyIterator = struct {
+    /// The total *potential* number of keys yielded by this iterator.
+    ///
+    /// This is not a guarantee of key count.
+    len: usize,
+
+    /// Pointer to the entries from which this iterator yields keys.
+    entries: [*]Entry,
+
+    /// Returns the next key from this iterator.
+    pub fn next(self: *@This()) ?*Obj.String {
+        while (self.len > 0) {
+            self.len -= 1;
+            const entry: Entry = self.entries[0];
+            self.entries += 1;
+            if (entry.key) |key| return key;
+        }
+
+        return null;
     }
 };
 
@@ -210,4 +233,12 @@ pub fn delete(self: *HashTable, key: *Obj.String) bool {
     entry.* = .tombstone;
 
     return true;
+}
+
+/// Returns an iterator over key strings in this `HashTable`.
+pub fn keys(self: *const HashTable) KeyIterator {
+    return .{
+        .len = self.entries.len,
+        .entries = self.entries.ptr,
+    };
 }
