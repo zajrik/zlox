@@ -156,7 +156,6 @@ pub fn synchronize(self: *Parser) void {
     while (self.next.isNot(.eof)) : (self.advance()) {
         if (self.current.is(.semicolon)) return;
 
-        // zig fmt: off
         switch (self.next.type) {
             .keyword_class,
             .keyword_fun,
@@ -166,9 +165,10 @@ pub fn synchronize(self: *Parser) void {
             .keyword_switch,
             .keyword_while,
             .keyword_print,
-            .keyword_return => return,
-            else => break,
+            .keyword_return,
+            => return,
+
+            else => continue,
         }
-        // zig fmt: on
     }
 }
