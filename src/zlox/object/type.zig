@@ -6,4 +6,5 @@ pub const Type = enum(u3) {
     native,
     upvalue,
     class,
+    instance,
 };
