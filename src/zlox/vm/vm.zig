@@ -124,7 +124,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         },
     );
 
-    defer self.freeConstStrings();
+    defer self.freeInternedConstants();
     defer parser.destroy();
     defer compiler.destroy();
     defer script.destroy();
@@ -674,14 +674,16 @@ pub fn copyString(self: *Vm, chars: []const u8) !*Obj.String {
 
 /// Free all lox objects allocated on the VM's virtual heap.
 pub fn freeHeap(self: *Vm) void {
-    while (self.heap) |obj| {
+    while (self.heap) |obj| : (self.releaseObj(obj)) {
         self.heap = obj.next;
-        self.releaseObj(obj);
+
+        // Remove interned runtime strings before releasing
+        if (obj.as(.string)) |it| _ = self.strings.delete(it);
     }
 }
 
 /// Free all compile-time constant strings owned by the interned strings table.
-pub fn freeConstStrings(self: *Vm) void {
+pub fn freeInternedConstants(self: *Vm) void {
     var keys: HashTable.KeyIterator = self.strings.keys();
     while (keys.next()) |it| {
         const obj: *Obj = it.toObj();
@@ -702,7 +704,7 @@ pub fn defineNative(
         Obj.Native{ .arity = arity, .function = fn_ptr },
     );
 
-    // Link ident string first so we can get an existing interned string, if any,
+    // Link ident string first so we can use the existing interned string, if any,
     // and link the native fn after insertion when the ident string is safe from gc
     _ = self.globals.set(self.linkObj(.string, fn_ident), fn_obj.toValue());
     _ = self.linkObj(.native, fn_obj);
