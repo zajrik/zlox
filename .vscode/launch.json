@@ -2,6 +2,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(gdb) Launch",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/zig-out/bin/zlox",
+            "args": [],
+            "cwd": "${workspaceFolder}",
+            "preLaunchTask": "build",
+            "internalConsoleOptions": "openOnSessionStart"
+        },
+        {
             "name": "(lldb) Launch",
             "type": "lldb",
             "request": "launch",
@@ -9,6 +19,6 @@
             "args": [],
             "cwd": "${workspaceFolder}",
             "preLaunchTask": "build",
-        }
+        },
     ]
 }
