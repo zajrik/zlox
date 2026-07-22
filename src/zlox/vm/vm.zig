@@ -25,6 +25,8 @@ const ExecutionResult = zlox.vm.ExecutionResult;
 const Gc = zlox.vm.Gc;
 const Stack = zlox.vm.Stack;
 
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const Fnv1a_32 = std.hash.Fnv1a_32;
 const Io = std.Io;
 
@@ -152,7 +154,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 
 /// Print a runtime error and stack trace at the current instruction.
 fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
-    printf(fmt, args);
+    printf("Runtime error: " ++ fmt, args);
     printf("\n", .{});
 
     // Print stack trace
@@ -204,21 +206,25 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
     });
 }
 
-/// Pop the top two strings off of the stack, concatenate them, and push the resulting
-/// string to the stack.
+/// Pop the top two values off of the stack, concatenate them into a new string
+/// and push the result to the stack.
 fn concatenate(self: *Vm) !void {
-    const b: []const u8 = self.stack.pop().objCast(.string).chars;
-    const a: []const u8 = self.stack.pop().objCast(.string).chars;
+    const alloc: Allocator = mem.allocator();
 
-    const new_len: usize = a.len + b.len;
-    const new_chars: []u8 = try mem.alloc(u8, new_len);
+    const b: Value = self.stack.pop();
+    const a: Value = self.stack.pop();
 
-    @memcpy(new_chars.ptr, a);
-    @memcpy(new_chars.ptr + a.len, b);
+    var buffer: ArrayList(u8) = .empty;
+    errdefer buffer.deinit(alloc);
 
-    const new_string: *Obj.String = try self.takeString(new_chars);
+    try buffer.print(alloc, "{f}{f}", .{ a, b });
 
-    self.stack.push(new_string.toValue());
+    const chars: []u8 = try buffer.toOwnedSlice(alloc);
+    errdefer alloc.free(chars);
+
+    const result: *Obj.String = try self.takeString(chars);
+
+    self.stack.push(result.toValue());
 }
 
 /// Capture an upvalue from the given pointer to a `local` variable slot on the
@@ -407,8 +413,8 @@ fn run(self: *Vm) !ExecutionResult {
                     self.stack.push(.Number(a_number + b_number));
                 }
 
-                // If both values are strings, conctatenate them
-                else if (a.isObj(.string) and b.isObj(.string)) {
+                // If either value is a string, conctatenate both into a string
+                else if (a.isObj(.string) or b.isObj(.string)) {
                     self.concatenate() catch |err| {
                         self.runtimeError("Error concatenating strings: {any}", .{err});
                         return .runtime_error;
@@ -417,7 +423,10 @@ fn run(self: *Vm) !ExecutionResult {
 
                 // Otherwise error for invalid operands
                 else {
-                    self.runtimeError("Operands must be both numbers or both strings.", .{});
+                    self.runtimeError(
+                        "Invalid operands for '+', got: {s}, {s}",
+                        .{ @tagName(a), @tagName(b) },
+                    );
                     return .runtime_error;
                 }
             },
