@@ -12,45 +12,26 @@ const cmpfmt = std.fmt.comptimePrint;
 
 /// A classic generic last-in, first-out stack structure.
 ///
-/// `reset()` must be called before first use unless manually allocating a Stack
-/// instance on the heap using `create()`.
-pub fn Stack(comptime T: type, max: comptime_int) type {
+/// Initialize a new Stack instance with `Stack.empty`.
+///
+/// `reset()` must be called before first use to set the `Stack.top` pointer to
+/// point to the first open slot.
+pub fn Stack(comptime T: type, comptime capacity: usize) type {
     return struct {
         const Self = @This();
 
+        /// A `Stack` containing no elements.
+        pub const empty: Self = .{};
+
         /// Array holding the values on this stack.
-        values: [max]T,
+        values: [capacity]T = undefined,
 
         /// Pointer to the next slot on this stack.
         ///
         /// When a value is pushed to the stack it will be inserted at this address
         /// and the pointer will be incremented to point to the next slot on the
         /// stack.
-        top: [*]T,
-
-        /// Initialize a new `Stack` instance on the zig stack.
-        ///
-        /// You *must* call `reset()` before using the stack.
-        pub fn init() Self {
-            return .{
-                .values = undefined,
-                .top = undefined,
-            };
-        }
-
-        /// Allocate a new `Stack` instance on the heap, returning a pointer to it.
-        ///
-        /// The caller owns the returned pointer and is responsible for freeing it.
-        pub fn create() !*Self {
-            var stack: *Self = try mem.create(Self);
-            stack.reset();
-            return stack;
-        }
-
-        /// Destroy this `Stack`, freeing its owned resources.
-        pub fn destroy(self: *Self) void {
-            mem.destroy(self);
-        }
+        top: [*]T = undefined,
 
         /// Reset this `Stack` by setting the top pointer to the address of the
         /// first slot in the stack, allowing it to be overwritten on the next push.
@@ -86,8 +67,8 @@ pub fn Stack(comptime T: type, max: comptime_int) type {
 
         /// Push the given `value` to the top of this stack.
         pub fn push(self: *Self, value: T) void {
-            if (self.size() == max) @panic(
-                cmpfmt("Stack({any}): Stack overflow", .{T}),
+            if (self.size() == capacity) @panic(
+                cmpfmt("Stack({any}, {d}): Stack overflow", .{ T, capacity }),
             );
 
             self.top[0] = value;

@@ -44,7 +44,7 @@ upvalue_count: u8 = 0,
 chunk: Chunk,
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(self: *const Function) void {
+pub fn destroy(self: *Function) void {
     defer mem.destroy(self);
     self.chunk.deinit();
 }

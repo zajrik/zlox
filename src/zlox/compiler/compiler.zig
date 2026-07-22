@@ -72,10 +72,10 @@ function: ?*Obj.Function = null,
 strings: *HashTable,
 
 /// Upvalues tracked by this compilation scope.
-upvalues: [cmn.U8_SIZE]Upvalue,
+upvalues: [cmn.U8_SIZE]Upvalue = undefined,
 
 /// Local variables tracked during compilation.
-locals: [cmn.U8_SIZE]Local,
+locals: [cmn.U8_SIZE]Local = undefined,
 
 /// The number of local variables in scope at a given point during compilation.
 local_count: u8 = 0,
@@ -103,8 +103,6 @@ pub fn create(
 ) !*Compiler {
     const compiler: *Compiler = try mem.createStruct(Compiler, .{
         .enclosing = enclosing,
-        .upvalues = undefined,
-        .locals = undefined,
         .parser = parser,
         .strings = interned_strings,
     });
@@ -112,7 +110,7 @@ pub fn create(
     // Initialize compiled function object
     compiler.function = try compiler.createObj(
         .function,
-        Obj.Function{ .type = T, .chunk = .init() },
+        Obj.Function{ .type = T, .chunk = .empty },
     );
 
     // If the function type is not `script` and the current token is an identifier,

@@ -1,4 +1,9 @@
 //! A simple hash-table implementation mapping lox string object keys to lox values.
+//!
+//! Initialize a new HashTable with `HashTable.empty`.
+//!
+//! A HashTable owns allocated memory that must be released at the end of its
+//! lifetime by calling `Chunk.deinit()`.
 
 const std = @import("std");
 const zlox = @import("../.lib.zig");
@@ -19,7 +24,7 @@ const HashTable: type = @This();
 
 const max_load: f32 = 0.75;
 
-/// An entry within a hash-table.
+/// An entry within a `HashTable`.
 pub const Entry = struct {
     /// The key associated with this entry.
     ///
@@ -56,7 +61,7 @@ pub const KeyIterator = struct {
     entries: [*]Entry,
 
     /// Returns the next key from this iterator.
-    pub fn next(self: *@This()) ?*Obj.String {
+    pub fn next(self: *KeyIterator) ?*Obj.String {
         while (self.len > 0) {
             self.len -= 1;
             const entry: Entry = self.entries[0];
@@ -68,28 +73,20 @@ pub const KeyIterator = struct {
     }
 };
 
+/// A `HashTable` containing no entries.
+pub const empty: HashTable = .{};
+
 /// The number of entries within this hash-table.
 count: usize = 0,
 
 /// Array slice containing all entries within this hash-table.
 ///
 /// The length of this slice is the capacity of the table.
-entries: []Entry,
+entries: []Entry = undefined,
 
-/// Allocates a new `HashTable` on the heap.
-///
-/// Returns a pointer to the allocated table. The caller owns this table and is
-/// responsible for freeing it.
-pub fn create() !*HashTable {
-    const table: *HashTable = try mem.create(HashTable);
-    table.entries = &.{};
-    return table;
-}
-
-/// Destroy this `HashTable`, freeing its owned resources.
-pub fn destroy(self: *HashTable) void {
+/// Deinitialize this `HashTable`, freeing its owned resources.
+pub fn deinit(self: *HashTable) void {
     mem.free(self.entries);
-    mem.destroy(self);
 }
 
 /// Resize this table to the given `capacity`.

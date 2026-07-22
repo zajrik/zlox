@@ -84,7 +84,7 @@ pub fn collect(self: *Gc) !void {
 
     try self.markRoots();
     try self.traceReferences();
-    self.sweepTable(self.vm.strings);
+    self.sweepTable(&self.vm.strings);
     try self.sweep();
 
     self.vm.next_gc = self.vm.heap_size * 2;
@@ -111,7 +111,7 @@ pub fn markRoots(self: *Gc) !void {
     while (upvalue) |it| : (upvalue = it.next) try self.markObject(it.toObj());
 
     // Mark globals
-    try self.markTable(self.vm.globals);
+    try self.markTable(&self.vm.globals);
 }
 
 /// Trace through marked object references to mark any further reachable objects.

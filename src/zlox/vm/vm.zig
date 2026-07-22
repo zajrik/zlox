@@ -40,16 +40,16 @@ const Vm: type = @This();
 io: Io,
 
 /// Function call frame stack.
-frame_stack: Stack(CallFrame, cmn.FRAME_MAX) = undefined,
+frame_stack: Stack(CallFrame, cmn.FRAME_MAX) = .empty,
 
 /// Virtual machine value stack.
-stack: Stack(Value, cmn.STACK_MAX) = undefined,
+stack: Stack(Value, cmn.STACK_MAX) = .empty,
 
 /// Contains all runtime-interned strings.
-strings: *HashTable,
+strings: HashTable = .empty,
 
 /// Contains all runtime global variables.
-globals: *HashTable,
+globals: HashTable = .empty,
 
 /// Linked list of open upvalues.
 ///
@@ -81,8 +81,6 @@ next_gc: usize = 1024 * 1024,
 pub fn create(io: Io) !*Vm {
     const vm: *Vm = try mem.createStruct(Vm, .{
         .io = io,
-        .strings = try .create(),
-        .globals = try .create(),
         .open_upvalues = null,
         .heap = null,
     });
@@ -97,8 +95,8 @@ pub fn create(io: Io) !*Vm {
 /// Destroy this `Vm`, freeing its owned resources.
 pub fn destroy(self: *Vm) void {
     defer mem.destroy(self);
-    self.strings.destroy();
-    self.globals.destroy();
+    self.strings.deinit();
+    self.globals.deinit();
     self.gc.destroy();
 }
 
@@ -115,7 +113,7 @@ pub fn interpret(self: *Vm, source: []const u8) ExecutionResult {
 fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     var tokenizer: Tokenizer = .init(source);
     const parser: *Parser = try .create(&tokenizer);
-    const compiler: *Compiler = try .create(.script, parser, self.strings, null);
+    const compiler: *Compiler = try .create(.script, parser, &self.strings, null);
     const script: *Obj.Function = try compiler.compile() orelse return .compile_error;
 
     const closure: *Obj.Closure = try self.createObj(

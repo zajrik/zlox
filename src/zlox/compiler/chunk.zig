@@ -1,8 +1,9 @@
 //! A chunk of compiled lox instructions and constant values.
 //!
-//! Initialize a new chunk on the stack by calling `Chunk.init()`. A chunk owns
-//! allocated memory that must be released at the end of its lifecycle by calling
-//! `Chunk.deinit()`.
+//! Initialize a new Chunk instance with `Chunk.empty`.
+//!
+//! A chunk owns allocated memory that must be released at the end of its lifetime
+//! by calling `Chunk.deinit()`.
 
 const std = @import("std");
 const zlox = @import("../.lib.zig");
@@ -20,34 +21,25 @@ const exit = std.process.exit;
 
 const Chunk: type = @This();
 
+/// An empty `Chunk` containing no instructions.
+pub const empty: Chunk = .{};
+
 /// Compiled instruction opcodes and operands.
-instructions: ArrayList(u8),
+instructions: ArrayList(u8) = .empty,
 
 /// Compiled line data for instructions in this chunk.
 ///
 /// Mirrors `instructions` layout where an instruction offset will map to the
 /// line number of that instruction.
-lines: ArrayList(u16),
+lines: ArrayList(u16) = .empty,
 
 /// Compiled constant values in this chunk.
-constants: ArrayList(Value),
-
-/// Initialize a `Chunk` instance on the stack.
-///
-/// A chunk owns allocated memory that must be released by calling `Chunk.deinit()`
-/// at the end of the chunk's lifecycle.
-pub fn init() Chunk {
-    return .{
-        .instructions = .empty,
-        .lines = .empty,
-        .constants = .empty,
-    };
-}
+constants: ArrayList(Value) = .empty,
 
 /// Release all allocated memory owned by this chunk.
-pub fn deinit(self: Chunk) void {
-    @constCast(&self.instructions).deinit(mem.allocator());
-    @constCast(&self.lines).deinit(mem.allocator());
+pub fn deinit(self: *Chunk) void {
+    self.instructions.deinit(mem.allocator());
+    self.lines.deinit(mem.allocator());
 
     // Free compile-time constant non-string objs
     for (self.constants.items) |c| {
@@ -56,7 +48,7 @@ pub fn deinit(self: Chunk) void {
         }
     }
 
-    @constCast(&self.constants).deinit(mem.allocator());
+    self.constants.deinit(mem.allocator());
 }
 
 /// Returns the number of instructions compiled to this chunk.
