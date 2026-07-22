@@ -36,6 +36,11 @@ pub fn toObj(self: *Native) *Obj {
     return &self.obj;
 }
 
+/// Cast this `Obj.Variant` to an object `Value`.
+pub fn toValue(self: *Native) Value {
+    return .Object(self.toObj());
+}
+
 /// Custom formatter for `Obj.Native` values.
 pub fn format(_: *const Native, writer: *Writer) !void {
     try writer.writeAll("<native fn>");

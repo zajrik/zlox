@@ -133,7 +133,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     if (script.chunk.isEmpty()) return .ok;
 
     // Push script closure to stack to match reserved local slot 0
-    self.stack.push(.Object(closure.toObj()));
+    self.stack.push(closure.toValue());
 
     // Push callframe to execute script closure
     self.frame_stack.push(CallFrame{
@@ -218,7 +218,7 @@ fn concatenate(self: *Vm) !void {
 
     const new_string: *Obj.String = try self.takeString(new_chars);
 
-    self.stack.push(.Object(new_string.toObj()));
+    self.stack.push(new_string.toValue());
 }
 
 /// Capture an upvalue from the given pointer to a `local` variable slot on the
@@ -546,7 +546,7 @@ fn run(self: *Vm) !ExecutionResult {
                     };
                 }
 
-                self.stack.push(.Object(&self.linkObj(.closure, closure).obj));
+                self.stack.push(self.linkObj(.closure, closure).toValue());
             },
 
             .@"return" => {
@@ -704,6 +704,6 @@ pub fn defineNative(
 
     // Link ident string first so we can get an existing interned string, if any,
     // and link the native fn after insertion when the ident string is safe from gc
-    _ = self.globals.set(self.linkObj(.string, fn_ident), .Object(fn_obj.toObj()));
+    _ = self.globals.set(self.linkObj(.string, fn_ident), fn_obj.toValue());
     _ = self.linkObj(.native, fn_obj);
 }

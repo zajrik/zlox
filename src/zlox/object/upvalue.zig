@@ -50,6 +50,11 @@ pub fn toObj(self: *Upvalue) *Obj {
     return &self.obj;
 }
 
+/// Cast this `Obj.Variant` to an object `Value`.
+pub fn toValue(self: *Upvalue) Value {
+    return .Object(self.toObj());
+}
+
 /// Close this upvalue, hoisting the value of the variable it captures onto the
 /// heap.
 pub fn close(self: *Upvalue) void {

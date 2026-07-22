@@ -7,6 +7,7 @@ const mem = zlox.mem;
 
 const Chunk = zlox.compiler.Chunk;
 const Obj = zlox.object.Obj;
+const Value = zlox.object.Value;
 
 const Writer = std.Io.Writer;
 
@@ -51,6 +52,11 @@ pub fn destroy(self: *const Function) void {
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
 pub fn toObj(self: *Function) *Obj {
     return &self.obj;
+}
+
+/// Cast this `Obj.Variant` to an object `Value`.
+pub fn toValue(self: *Function) Value {
+    return .Object(self.toObj());
 }
 
 /// Custom formatter for `Obj.Function` values.

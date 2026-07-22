@@ -6,6 +6,7 @@ const zlox = @import("../.lib.zig");
 const mem = zlox.mem;
 
 const Obj = zlox.object.Obj;
+const Value = zlox.object.Value;
 
 const Writer = std.Io.Writer;
 
@@ -34,6 +35,11 @@ pub fn destroy(self: *const String) void {
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
 pub fn toObj(self: *String) *Obj {
     return &self.obj;
+}
+
+/// Cast this `Obj.Variant` to an object `Value`.
+pub fn toValue(self: *String) Value {
+    return .Object(self.toObj());
 }
 
 /// Custom formatter for `Obj.String` values.
