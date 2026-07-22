@@ -26,6 +26,7 @@
         ],
         "body": [
             "fn ${1:name}(self: *const ${TM_FILENAME_BASE/(.+)/${1:/pascalcase}/}$2) ${3:void} {",
+            "    _ = self;",
             "    $0",
             "}",
         ]
@@ -39,6 +40,7 @@
         ],
         "body": [
             "pub fn ${1:name}(self: *const ${TM_FILENAME_BASE/(.+)/${1:/pascalcase}/}$2) ${3:void} {",
+            "    _ = self;",
             "    $0",
             "}",
         ]
