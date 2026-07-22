@@ -28,7 +28,7 @@ function: FnPtr,
 
 /// Free allocated memory owned by this obj.
 pub fn destroy(self: *const Native) void {
-    defer mem.destroy(self);
+    mem.destroy(self);
 }
 
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
@@ -41,7 +41,7 @@ pub fn toValue(self: *Native) Value {
     return .Object(self.toObj());
 }
 
-/// Custom formatter for `Obj.Native` values.
+/// Custom formatter for `Obj` values of this variant.
 pub fn format(_: *const Native, writer: *Writer) !void {
     try writer.writeAll("<native fn>");
 }

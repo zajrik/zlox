@@ -43,7 +43,7 @@ pub fn toValue(self: *Closure) Value {
     return .Object(self.toObj());
 }
 
-/// Custom formatter for `Obj.Closure` values.
+/// Custom formatter for `Obj` values of this variant.
 pub fn format(self: *const Closure, writer: *Writer) !void {
     try self.function.format(writer);
 }

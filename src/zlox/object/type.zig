@@ -5,4 +5,5 @@ pub const Type = enum(u3) {
     closure,
     native,
     upvalue,
+    class,
 };

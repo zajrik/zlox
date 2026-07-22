@@ -59,7 +59,7 @@ pub fn toValue(self: *Function) Value {
     return .Object(self.toObj());
 }
 
-/// Custom formatter for `Obj.Function` values.
+/// Custom formatter for `Obj` values of this variant.
 pub fn format(self: *const Function, writer: *Writer) !void {
     if (self.type == .script) {
         return try writer.writeAll("<script>");

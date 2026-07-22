@@ -244,12 +244,27 @@ fn popLoopScope(self: *Compiler) void {
 /// Compile a declaration from source tokens.
 fn declaration(self: *Compiler) void {
     switch (self.parser.next.type) {
+        .keyword_class => do(self.parser.advance(), self.classDeclaration()),
         .keyword_fun => do(self.parser.advance(), self.funDeclaration()),
         .keyword_var => do(self.parser.advance(), self.varDeclaration()),
         else => self.statement(),
     }
 
     if (self.parser.panic_mode) self.parser.synchronize();
+}
+
+/// Compile a class declaration from source tokens.
+fn classDeclaration(self: *Compiler) void {
+    self.parser.expect(.identifier, "class name");
+
+    const ident: u8 = self.makeIdentConstant(self.parser.current);
+    self.declareLocal();
+
+    self.emitOp1(.class, ident);
+    self.defineVariable(ident);
+
+    self.parser.expect(.brace_left, "'{' before class body");
+    self.parser.expect(.brace_right, "'}' after class body");
 }
 
 /// Compile a function declaration from source tokens.

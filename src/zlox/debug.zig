@@ -44,6 +44,7 @@ pub fn disassembleChunk(chunk: *Chunk, name: []const u8) void {
     if (comptime dump_raw) {
         while (offset < chunk.len()) : (offset += 1) {
             printf("{d:02} ", .{chunk.instructionAt(offset)});
+            if ((offset + 1) % 8 == 0) printf(" ", .{});
             if ((offset + 1) % 16 == 0) printf("\n", .{});
         }
         printf("\n", .{});
@@ -150,6 +151,8 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         },
 
         .@"return" => |T| simpleInstruction(T, offset),
+
+        .class => |T| constantInstruction(T, chunk, offset),
 
         _ => {
             printf("Unknown opcode {d}\n", .{offset});

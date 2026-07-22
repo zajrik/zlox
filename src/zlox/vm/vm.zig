@@ -577,6 +577,16 @@ fn run(self: *Vm) !ExecutionResult {
                 self.stack.push(result);
             },
 
+            .class => {
+                const class_ident: *Obj.String = frame.readString();
+                const class_obj: *Obj.Class = try self.createObj(
+                    .class,
+                    Obj.Class{ .identifier = class_ident },
+                );
+
+                self.stack.push(class_obj.toValue());
+            },
+
             _ => return .runtime_error,
         }
     }

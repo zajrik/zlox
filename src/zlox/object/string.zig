@@ -42,7 +42,7 @@ pub fn toValue(self: *String) Value {
     return .Object(self.toObj());
 }
 
-/// Custom formatter for `Obj.String` values.
+/// Custom formatter for `Obj` values of this variant.
 pub fn format(self: *const String, writer: *Writer) !void {
     try writer.print("{s}", .{self.chars});
 }

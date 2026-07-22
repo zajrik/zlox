@@ -62,7 +62,7 @@ pub fn close(self: *Upvalue) void {
     self.location = &self.closed;
 }
 
-/// Custom formatter for `Obj.Upvalue` values.
+/// Custom formatter for `Obj` values of this variant.
 pub fn format(self: *const Upvalue, writer: *Writer) !void {
     try self.location.*.format(writer);
 }

@@ -200,6 +200,10 @@ pub const OpCode = enum(u8) {
     ///   we're currently inside of.
     @"return",
 
+    /// ### `OpCode.class(offset: constant_offset)`
+    /// - Creates a class object with the identifier obtained from the operand.
+    class,
+
     _,
 
     /// Convert the given byte `value` to its equivalent `OpCode` value.

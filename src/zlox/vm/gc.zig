@@ -157,7 +157,10 @@ pub fn markObject(self: *Gc, obj: *Obj) !void {
 
     // Add objects with additional references to the stack to visit next
     switch (obj.type) {
-        .closure, .upvalue => try self.stack.append(mem.allocator(), obj),
+        .closure,
+        .upvalue,
+        => try self.stack.append(mem.allocator(), obj),
+
         else => return,
     }
 }
