@@ -1251,12 +1251,11 @@ fn createObj(
     // Pre-hash and intern string objects
     if (T == .string) {
         const hash: u32 = Fnv1a_32.hash(variant.chars);
-        const interned: ?*Obj.String = self.strings.findString(variant.chars, hash);
 
         // Return interned string if it exists
-        if (interned) |str| {
+        if (self.strings.findString(variant.chars, hash)) |it| {
             object.destroy();
-            return str;
+            return it;
         }
 
         object.hash = hash;

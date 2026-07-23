@@ -113,8 +113,8 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
 
         /// Swap the values on this stack at the given offsets from the top of this
         /// stack.
-        pub fn swap(self: *Self, offset_1: usize, offset_2: usize) void {
-            _ = self.replace(offset_1, self.replace(offset_2, self.peek(offset_1)));
+        pub fn swap(self: *Self, a: usize, b: usize) void {
+            _ = self.replace(a, self.replace(b, self.peek(a)));
         }
 
         /// Custom formatter for `Stack` values.
@@ -128,9 +128,9 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
             try writer.writeAll("        |  ");
             defer writer.writeAll("\n") catch {};
 
-            var it: [*]const T = &self.values;
-            while (@intFromPtr(it) < @intFromPtr(self.top)) : (it += 1) {
-                try writer.print("[ {f} ]", .{it[0]});
+            var i: usize = 0;
+            while (i < self.size()) : (i += 1) {
+                try writer.print("[ {f} ]", .{self.values[i]});
             }
         }
     };
