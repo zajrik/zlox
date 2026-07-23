@@ -3,7 +3,6 @@
 const std = @import("std");
 const zlox = @import("../.lib.zig");
 
-const cmn = zlox.common;
 const debug = zlox.debug;
 const mem = zlox.mem;
 const native = zlox.vm.native;
@@ -30,6 +29,9 @@ const ArrayList = std.ArrayList;
 const Fnv1a_32 = std.hash.Fnv1a_32;
 const Io = std.Io;
 
+const FRAME_MAX = zlox.common.FRAME_MAX;
+const STACK_MAX = zlox.common.STACK_MAX;
+
 const printf = std.debug.print;
 
 // =================================================================================================
@@ -40,10 +42,10 @@ const Vm: type = @This();
 io: Io,
 
 /// Function call frame stack.
-frame_stack: Stack(CallFrame, cmn.FRAME_MAX) = .empty,
+frame_stack: Stack(CallFrame, FRAME_MAX) = .empty,
 
 /// Virtual machine value stack.
-stack: Stack(Value, cmn.STACK_MAX) = .empty,
+stack: Stack(Value, STACK_MAX) = .empty,
 
 /// Contains all runtime-interned strings.
 strings: HashTable = .empty,
@@ -55,19 +57,14 @@ globals: HashTable = .empty,
 ///
 /// The head of the list is the open upvalue capturing the local variable highest
 /// on the stack relative to other captured locals at the point the list is observed.
-open_upvalues: ?*Obj.Upvalue,
+open: ?*Obj.Upvalue = null,
 
 /// Linked list of heap-allocated `Obj` values.
 ///
 /// Contains all lox objects created by the VM at runtime, to be used by the
 /// garbage collector to reach unreferenced objects after tracing living object
 /// references.
-heap: ?*Obj,
-
-/// Garbage collector instance.
-///
-/// This is owned by the VM and must be freed when the VM is freed.
-gc: *Gc = undefined,
+heap: ?*Obj = null,
 
 /// The number of bytes allocated by objects linked to the VM's heap.
 heap_size: usize = 0,
@@ -75,20 +72,19 @@ heap_size: usize = 0,
 /// The threshold of bytes allocated at which the next GC sweep should trigger.
 next_gc: usize = 1024 * 1024,
 
+/// Garbage collector instance.
+///
+/// This is owned by the VM and must be freed when the VM is freed.
+gc: *Gc = undefined,
+
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(io: Io) !*Vm {
-    const vm: *Vm = try mem.createStruct(Vm, .{
-        .io = io,
-        .open_upvalues = null,
-        .heap = null,
-    });
-
+    const vm: *Vm = try mem.createStruct(Vm, .{ .io = io });
     vm.frame_stack.reset();
     vm.stack.reset();
     vm.gc = try .create(vm);
-
     return vm;
 }
 
@@ -144,52 +140,61 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 
     try native.bootstrapNatives(self);
 
-    return self.run() catch |err| it: {
-        self.runtimeError("An unexpected error occurred: {any}", .{err});
-        break :it .runtime_error;
+    return self.run() catch |e| switch (e) {
+        // If we catch a runtime error here, it's already been reported
+        error.runtime_error => .runtime_error,
+
+        // Otherwise report unexpected error
+        else => self.errFmt(
+            "An unexpected error occurred: {s}",
+            .{@errorName(e)},
+        ),
     };
 }
 
 /// Print a runtime error and stack trace at the current instruction.
-fn runtimeError(self: *Vm, comptime fmt: []const u8, args: anytype) void {
+fn err(self: *Vm, comptime fmt: []const u8) error{runtime_error} {
+    return self.errFmt(fmt, .{});
+}
+
+/// Print a runtime error and stack trace at the current instruction.
+///
+/// Accepts a format string and a tuple of format arguments.
+fn errFmt(self: *Vm, comptime fmt: []const u8, args: anytype) error{runtime_error} {
     printf("Runtime error: " ++ fmt, args);
     printf("\n", .{});
 
     // Print stack trace
-    var i: usize = self.frame_stack.size();
-    while (i > 0) : (i -= 1) {
-        const frame: *CallFrame = &self.frame_stack.values[i - 1];
+    var i: usize = 0;
+    while (i < self.frame_stack.size()) : (i += 1) {
+        const frame: *CallFrame = self.frame_stack.slot(i);
         const function: *Obj.Function = frame.closure.function;
         const instruction_offset: usize = frame.ip - function.chunk.ip() - 1;
 
         printf("[line {d}] in ", .{function.chunk.lineAt(instruction_offset)});
 
-        if (function.identifier) |identifier| {
-            printf("{f}()\n", .{identifier});
+        if (function.identifier) |it| {
+            printf("{f}()\n", .{it});
         } else {
             printf("script\n", .{});
         }
     }
 
     self.stack.reset();
-}
-
-/// Returns the current callframe off of the frame stack.
-fn currentFrame(self: *const Vm) *CallFrame {
-    return self.frame_stack.slot(0);
+    return error.runtime_error;
 }
 
 /// Perform a binary operation with the top two number values on the stack.
-fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!void {
+fn binaryOp(self: *Vm, op: OpCode) !void {
     if (self.stack.peek(0).isNot(.number) or self.stack.peek(1).isNot(.number)) {
-        self.runtimeError("Operands must be numbers.", .{});
-        return error.invalid_operand;
+        return self.err("Operands must be numbers");
     }
 
     const b: Value = self.stack.pop();
     const a: Value = self.stack.pop();
 
     self.stack.push(switch (op) {
+        .add => .Number(a.number + b.number),
         .subtract => .Number(a.number - b.number),
         .multiply => .Number(a.number * b.number),
         .divide => .Number(a.number / b.number),
@@ -197,32 +202,11 @@ fn binaryOp(self: *Vm, op: OpCode) error{ invalid_operator, invalid_operand }!vo
         .greater => .Bool(a.number > b.number),
         .less => .Bool(a.number < b.number),
 
-        else => {
-            self.runtimeError("Invalid binary operator: '{s}'", .{@tagName(op)});
-            return error.invalid_operator;
-        },
+        else => return self.errFmt(
+            "Invalid binary operator: '{s}'",
+            .{@tagName(op)},
+        ),
     });
-}
-
-/// Pop the top two values off of the stack, concatenate them into a new string
-/// and push the result to the stack.
-fn concatenate(self: *Vm) !void {
-    const alloc: Allocator = mem.allocator();
-
-    const b: Value = self.stack.pop();
-    const a: Value = self.stack.pop();
-
-    var buffer: ArrayList(u8) = .empty;
-    errdefer buffer.deinit(alloc);
-
-    try buffer.print(alloc, "{f}{f}", .{ a, b });
-
-    const chars: []u8 = try buffer.toOwnedSlice(alloc);
-    errdefer alloc.free(chars);
-
-    const result: *Obj.String = try self.takeString(chars);
-
-    self.stack.push(result.toValue());
 }
 
 /// Capture an upvalue from the given pointer to a `local` variable slot on the
@@ -235,7 +219,7 @@ fn concatenate(self: *Vm) !void {
 /// the garbage collector.
 fn captureUpvalue(self: *Vm, local: *Value) !*Obj.Upvalue {
     var upvalue: ?*Obj.Upvalue = null;
-    var next: ?*Obj.Upvalue = self.open_upvalues;
+    var next: ?*Obj.Upvalue = self.open;
 
     // Walk the list of open upvalues, starting at the upvalue that captures the
     // local variable highest on the stack relative to other captured local vars
@@ -275,7 +259,7 @@ fn captureUpvalue(self: *Vm, local: *Value) !*Obj.Upvalue {
     // If `upvalue` IS null then there is no captured local higher on the stack
     // than the given local so we can insert `capture` at the head of the list as
     // the highest captured local on the stack
-    (if (upvalue) |it| &it.next else &self.open_upvalues).* = capture;
+    (if (upvalue) |it| &it.next else &self.open).* = capture;
 
     return capture;
 }
@@ -284,10 +268,9 @@ fn captureUpvalue(self: *Vm, local: *Value) !*Obj.Upvalue {
 /// open upvalue capturing a local higher on the stack than the given one, as well
 /// as any open upvalues capturing locals above it on the stack.
 fn closeUpvalues(self: *Vm, local: *const Value) void {
-    while (self.open_upvalues) |upvalue| {
-        if (@intFromPtr(upvalue.location) < @intFromPtr(local)) break;
-        upvalue.close();
-        self.open_upvalues = upvalue.next;
+    while (self.open) |it| : (self.open = it.next) {
+        if (@intFromPtr(it.location) < @intFromPtr(local)) break;
+        it.close();
     }
 }
 
@@ -296,24 +279,17 @@ fn closeUpvalues(self: *Vm, local: *const Value) void {
 ///
 /// Emits a runtime error if `callee` is not a callable function, method, or class
 /// initializer.
-///
-/// Returns whether the `callee` is able to be called (no errors emitted).
-fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
+fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
     if (callee.is(.obj)) switch (callee.obj.type) {
-        .closure => return self.callFun(callee.objCast(.closure), arg_count),
         .native => {
             const native_obj: *Obj.Native = callee.objCast(.native);
             const native_fun: Obj.Native.FnPtr = native_obj.function;
 
-            if (arg_count != native_obj.arity) {
-                self.runtimeError(
-                    "Expected {d} arguments, got {d}",
-                    .{ native_obj.arity, arg_count },
-                );
-                return false;
-            }
+            if (arg_count != native_obj.arity) return self.errFmt(
+                "Expected {d} arguments, got {d}",
+                .{ native_obj.arity, arg_count },
+            );
 
-            // Call native function, capturing its returned value
             const result: Value = native_fun(
                 self.io,
                 arg_count,
@@ -324,31 +300,31 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) bool {
             self.stack.top -= arg_count + 1;
 
             self.stack.push(result);
-            return true;
         },
+
+        .closure => return self.callFun(
+            callee.objCast(.closure),
+            arg_count,
+        ),
+
         else => {},
     };
 
-    self.runtimeError("Can only call functions, methods, and class initializers.", .{});
-    return false;
+    return self.err(
+        "Can only call functions, methods, and class initializers",
+    );
 }
 
 /// Call the given `function`, using the top `arg_count` stack values as arguments.
-///
-/// Returns whether the function's instructions are able to begin executing.
-fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) bool {
-    if (arg_count != closure.function.arity) {
-        self.runtimeError(
-            "Expected {d} arguments, got {d}",
-            .{ closure.function.arity, arg_count },
-        );
-        return false;
-    }
+fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) !void {
+    if (arg_count != closure.function.arity) return self.errFmt(
+        "Expected {d} arguments, got {d}",
+        .{ closure.function.arity, arg_count },
+    );
 
-    if (self.frame_stack.size() == cmn.FRAME_MAX) {
-        self.runtimeError("Stack overflow.", .{});
-        return false;
-    }
+    if (self.frame_stack.size() == FRAME_MAX) return self.err(
+        "Callframe stack overflow",
+    );
 
     // Push callframe for the given function
     self.frame_stack.push(CallFrame{
@@ -356,8 +332,6 @@ fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) bool {
         .ip = closure.function.chunk.ip(),
         .slots = @ptrCast(self.stack.top - 1 - arg_count),
     });
-
-    return true;
 }
 
 // Instruction loop ================================================================================
@@ -368,7 +342,7 @@ fn run(self: *Vm) !ExecutionResult {
 
     while (true) {
         // Grab the current frame off of the callframe stack
-        const frame: *CallFrame = self.currentFrame();
+        const frame: *CallFrame = self.frame_stack.slot(0);
 
         if (comptime debug.trace_execution) {
             if (debug.print_stack) printf("{f}", .{&self.stack});
@@ -381,9 +355,9 @@ fn run(self: *Vm) !ExecutionResult {
             );
         }
 
-        const instruction: OpCode = .fromByte(frame.readByte());
+        const op: u8 = frame.readByte();
 
-        switch (instruction) {
+        switch (OpCode.fromByte(op)) {
             // Constant ops
             .constant => self.stack.push(frame.readConstant()),
             .nil => self.stack.push(.Nil),
@@ -406,27 +380,24 @@ fn run(self: *Vm) !ExecutionResult {
 
                 // If both values are numbers, add them
                 if (a.is(.number) and b.is(.number)) {
-                    const b_number: f64 = self.stack.pop().number;
-                    const a_number: f64 = self.stack.pop().number;
-                    self.stack.push(.Number(a_number + b_number));
+                    try self.binaryOp(.add);
+                    continue;
                 }
 
-                // If either value is a string, conctatenate both into a string
-                else if (a.isObj(.string) or b.isObj(.string)) {
-                    self.concatenate() catch |err| {
-                        self.runtimeError("Error concatenating strings: {any}", .{err});
-                        return .runtime_error;
-                    };
-                }
-
-                // Otherwise error for invalid operands
-                else {
-                    self.runtimeError(
+                // Otherwise try to concatenate values into a string
+                const c: *Obj.String = a.concat(b) catch |e| return switch (e) {
+                    error.invalid_operand => self.errFmt(
                         "Invalid operands for '+', got: {s}, {s}",
                         .{ @tagName(a), @tagName(b) },
-                    );
-                    return .runtime_error;
-                }
+                    ),
+                    else => self.errFmt(
+                        "Error concatenating values: {s}",
+                        .{@errorName(e)},
+                    ),
+                };
+
+                self.stack.popN(2);
+                self.stack.push(self.linkObj(.string, c).toValue());
             },
             .subtract => try self.binaryOp(.subtract),
             .multiply => try self.binaryOp(.multiply),
@@ -435,8 +406,7 @@ fn run(self: *Vm) !ExecutionResult {
             .negate => {
                 const value: Value = self.stack.peek(0);
                 if (value.isNot(.number)) {
-                    self.runtimeError("Operand must be a number.", .{});
-                    return .runtime_error;
+                    return self.err("Operand must be a number");
                 }
                 _ = self.stack.replace(0, .Number(-value.number));
             },
@@ -469,15 +439,13 @@ fn run(self: *Vm) !ExecutionResult {
                 // runtime error and delete the entry from the globals table
                 if (self.globals.set(ident, self.stack.peek(0))) {
                     _ = self.globals.delete(ident);
-                    self.runtimeError("Undefined variable '{f}'.", .{ident});
-                    return .runtime_error;
+                    return self.errFmt("Undefined variable '{f}'", .{ident});
                 }
             },
             .global_get => {
                 const ident: *Obj.String = frame.readString();
                 const value: Value = self.globals.get(ident) orelse {
-                    self.runtimeError("Undefined variable '{f}'.", .{ident});
-                    return .runtime_error;
+                    return self.errFmt("Undefined variable '{f}'", .{ident});
                 };
                 self.stack.push(value);
             },
@@ -520,9 +488,7 @@ fn run(self: *Vm) !ExecutionResult {
 
             .call => {
                 const arg_count: u8 = frame.readByte();
-                if (!self.callValue(self.stack.peek(arg_count), arg_count)) {
-                    return .runtime_error;
-                }
+                try self.callValue(self.stack.peek(arg_count), arg_count);
             },
 
             .closure => {
@@ -585,7 +551,7 @@ fn run(self: *Vm) !ExecutionResult {
                 self.stack.push(class_obj.toValue());
             },
 
-            _ => return .runtime_error,
+            _ => return self.errFmt("Unknown opcode: {d}", .{op}),
         }
     }
 }
@@ -617,26 +583,25 @@ pub fn createObj(
 ///
 /// The size of the created object will be noted so that we can keep track of
 /// when the GC needs to run.
-pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.Variant(T) {
+pub fn linkObj(self: *Vm, comptime T: Obj.Type, object: *Obj.Variant(T)) *Obj.Variant(T) {
     // Pre-hash and intern string objects
     if (T == .string) {
-        const hash: u32 = Fnv1a_32.hash(variant.chars);
-        const interned: ?*Obj.String = self.strings.findString(variant.chars, hash);
+        const hash: u32 = Fnv1a_32.hash(object.chars);
 
         // Return interned string if it exists
-        if (interned) |str| {
-            variant.destroy();
-            return str;
+        if (self.strings.findString(object.chars, hash)) |it| {
+            object.destroy();
+            return it;
         }
 
-        variant.hash = hash;
-        _ = self.strings.set(variant, .Nil);
+        object.hash = hash;
+        _ = self.strings.set(object, .Nil);
     }
 
     if (comptime debug.stress_gc) self.gc.collect() catch {};
 
     self.heap_size += @sizeOf(Obj.Variant(T));
-    if (T == .string) self.heap_size += @sizeOf(u8) * variant.chars.len;
+    if (T == .string) self.heap_size += @sizeOf(u8) * object.chars.len;
 
     // Run GC if we've exceeded the GC threshold. This should only fail if we're
     // out of memory when allocating memory for tracking marked objs before tracing,
@@ -644,16 +609,16 @@ pub fn linkObj(self: *Vm, comptime T: Obj.Type, variant: *Obj.Variant(T)) *Obj.V
     // a rainy-day fund of memory in the GC that can be freed if that happens and
     // then try running the GC again, but Bob didn't bother in the book so I'm not
     // likely to bother here unless it becomes a problem for me personally (it won't)
-    if (self.heap_size > self.next_gc) self.gc.collect() catch |err| {
-        self.runtimeError("Error running garbage collector: {any}", .{err});
+    if (self.heap_size > self.next_gc) self.gc.collect() catch |e| {
+        self.errFmt("Error running garbage collector: {s}", .{@errorName(e)}) catch {};
         std.process.exit(1);
     };
 
     // Link object for GC tracing
-    variant.obj.next = self.heap;
-    self.heap = variant.toObj();
+    object.obj.next = self.heap;
+    self.heap = object.toObj();
 
-    return variant;
+    return object;
 }
 
 /// Destroy an object linked to the VM, making note of the released bytes so that

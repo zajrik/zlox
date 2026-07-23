@@ -107,7 +107,7 @@ pub fn markRoots(self: *Gc) !void {
     }
 
     // Mark open upvalues
-    var upvalue: ?*Obj.Upvalue = self.vm.open_upvalues;
+    var upvalue: ?*Obj.Upvalue = self.vm.open;
     while (upvalue) |it| : (upvalue = it.next) try self.markObject(it.toObj());
 
     // Mark globals

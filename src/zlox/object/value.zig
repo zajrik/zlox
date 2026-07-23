@@ -1,8 +1,12 @@
 const std = @import("std");
 const zlox = @import("../.lib.zig");
 
+const mem = zlox.mem;
+
 const Obj = zlox.object.Obj;
 
+const Allocator = std.mem.Allocator;
+const ArrayList = std.ArrayList;
 const Writer = std.Io.Writer;
 
 // =================================================================================================
@@ -116,6 +120,26 @@ pub const Value: type = union(Value.Type) {
     /// Returns `null` if this value is not an object of the given type.
     pub fn asObj(self: Value, comptime T: Obj.Type) ?*Obj.Variant(T) {
         return if (self.is(.obj)) self.obj.as(T) else null;
+    }
+
+    /// Concatenate this value with `other` if at least one of the two is a string.
+    ///
+    /// Returns an error if neither is a string, or if something went wrong while
+    /// allocating the concatenated string.
+    pub fn concat(self: Value, other: Value) !*Obj.String {
+        if (!self.isObj(.string) and !other.isObj(.string)) {
+            return error.invalid_operand;
+        }
+
+        var buffer: ArrayList(u8) = .empty;
+        const alloc: Allocator = mem.allocator();
+        errdefer buffer.deinit(alloc);
+
+        try buffer.print(alloc, "{f}{f}", .{ self, other });
+        const chars: []u8 = try buffer.toOwnedSlice(alloc);
+        errdefer alloc.free(chars);
+
+        return try Obj.takeString(chars);
     }
 
     /// Custom formatter for `Value` values.
