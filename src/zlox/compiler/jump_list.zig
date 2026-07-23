@@ -1,5 +1,8 @@
 //! Base node of a linked list structure for declaring multiple jump instructions
 //! that will all be resolved to the same endpoint.
+//!
+//! Initialize an empty jump list with `JumpList.empty` and deinitialize when finished
+//! with `deinit()`.
 
 const zlox = @import("../.lib.zig");
 
@@ -11,21 +14,14 @@ const Jump = zlox.compiler.Jump;
 
 const JumpList: type = @This();
 
+/// An empty jump list containing no tracked jumps.
+pub const empty: JumpList = .{};
+
 /// The first jump in the jump list.
 head: ?*Jump = null,
 
-/// Allocate a new `JumpList` on the heap.
-///
-/// Returns a pointer to the allocated jump list. The caller owns this jump list
-/// and is responsible for freeing it.
-pub fn create() !*JumpList {
-    return try mem.createStruct(JumpList, .{});
-}
-
-/// Destroy this `JumpList`, freeing any allocated `Jump` structs it links, as
-/// well as its own allocated memory.
-pub fn destroy(self: *JumpList) void {
-    defer mem.destroy(self);
+/// Deinitialize this `JumpList`, freeing any `Jump` structs it has allocated.
+pub fn deinit(self: *JumpList) void {
     while (self.head) |it| : (it.destroy()) self.head = it.next;
 }
 

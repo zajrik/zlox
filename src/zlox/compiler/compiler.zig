@@ -356,8 +356,8 @@ fn switchStmt(self: *Compiler) void {
 
     var default_found: bool = false;
 
-    const exit_jumps: *JumpList = JumpList.create() catch return self.allocErr();
-    defer exit_jumps.destroy();
+    var exit_jumps: JumpList = .empty;
+    defer exit_jumps.deinit();
 
     while (!p.blockEnd(.brace_right)) {
         if (!p.match(.keyword_case) and !p.match(.keyword_default)) {
@@ -376,9 +376,7 @@ fn switchStmt(self: *Compiler) void {
 
         // Compile default case
         else {
-            if (default_found) p.err(
-                "A switch statement may only have a single 'default' case.",
-            );
+            if (default_found) p.err("Multiple 'default' cases.");
             default_found = true;
 
             self.emitOp(.true);
@@ -390,14 +388,14 @@ fn switchStmt(self: *Compiler) void {
         self.emitOp(.pop);
         self.statement();
 
-        self.addJump(exit_jumps);
+        self.addJump(&exit_jumps);
         self.patchJump(case_jump);
         self.emitOp(.pop);
     }
 
     p.expect(.brace_right, "'}' after switch block");
 
-    self.patchJumpList(exit_jumps);
+    self.patchJumpList(&exit_jumps);
 
     // Pop condition value
     self.emitOp(.pop);
@@ -592,18 +590,14 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
             );
 
             defer arity.* += 1;
-            if (arity.* == 255) p.err(
-                "A function can't have more than 255 parameters.",
-            );
+            if (arity.* == 255) p.err("Too many parameters (255 max).");
         }
     }
 
     p.expect(.paren_right, "')' after parameter list");
 
     // Compile block function body if we see an opening brace
-    if (p.match(.brace_left)) {
-        fun_cmp.block();
-    }
+    if (p.match(.brace_left)) fun_cmp.block()
 
     // Compile expression body if we see `=`
     else if (p.match(.equal)) {
@@ -613,9 +607,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     }
 
     // Otherwise emit a compilation error
-    else {
-        p.err("Expected '{' or '=' before function body.");
-    }
+    else p.err("Expected '{' or '=' before function body.");
 
     const fun_obj: *Obj.Function = fun_cmp.endCompilation() orelse {
         return p.err("Error compiling function.");
@@ -833,8 +825,8 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
 
     var wildcard_found: bool = false;
 
-    const exit_jumps: *JumpList = JumpList.create() catch return self.allocErr();
-    defer exit_jumps.destroy();
+    var exit_jumps: JumpList = .empty;
+    defer exit_jumps.deinit();
 
     while (!p.blockEnd(.brace_right)) {
         // Compile expression case
@@ -846,9 +838,7 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
 
         // Compile wildcard case
         else {
-            if (wildcard_found) p.err(
-                "A switch expression may only have a single wildcard case.",
-            );
+            if (wildcard_found) p.err("Multiple wildcard cases.");
             wildcard_found = true;
 
             p.advance();
@@ -863,7 +853,7 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
         self.emitOp1(.pop_n, 2);
 
         self.expression();
-        self.addJump(exit_jumps);
+        self.addJump(&exit_jumps);
         self.patchJump(case_jump);
         self.emitOp(.pop);
     }
@@ -874,7 +864,7 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
     // from the stack and return nil from the switch expression
     if (!wildcard_found) self.emitOps(.pop, .nil);
 
-    self.patchJumpList(exit_jumps);
+    self.patchJumpList(&exit_jumps);
 }
 
 /// Compile a function expression from source tokens.
@@ -903,9 +893,7 @@ fn argumentList(self: *Compiler) u8 {
             self.expression();
 
             defer count += 1;
-            if (count == 255) p.err(
-                "A function call may only have up to 255 arguments.",
-            );
+            if (count == 255) p.err("Too many arguments (255 max).");
         }
     }
 
