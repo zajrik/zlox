@@ -43,7 +43,7 @@ const parseFloat = std.fmt.parseFloat;
 const do = zlox.common.do;
 const splitBytes = zlox.common.splitBytes;
 
-// ============================================================================
+// =============================================================================
 
 const Compiler: type = @This();
 
@@ -196,7 +196,7 @@ fn endCompilation(self: *const Compiler) ?*Obj.Function {
     return self.function;
 }
 
-// Scope management methods ===================================================
+// Scope management methods ====================================================
 
 /// Begin a new lexical scope.
 fn pushScope(self: *Compiler) void {
@@ -237,7 +237,7 @@ fn popLoopScope(self: *Compiler) void {
     }
 }
 
-// Statement compilation methods ==============================================
+// Statement compilation methods ===============================================
 
 /// Compile a declaration from source tokens.
 fn declaration(self: *Compiler) void {
@@ -632,7 +632,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     }
 }
 
-// Expression compilation methods =============================================
+// Expression compilation methods ==============================================
 
 /// Compile an expression from source tokens.
 fn expression(self: *Compiler) void {
@@ -1230,7 +1230,7 @@ fn patchContinues(self: *const Compiler, loop_start: usize) void {
     }
 }
 
-// Object creation methods ====================================================
+// Object creation methods =====================================================
 
 /// Allocate a new compile-time constant `Obj` of the given `type` with the given
 /// `variant` payload.
@@ -1277,7 +1277,7 @@ fn wrapString(self: *const Compiler, chars: []const u8) !*Obj.String {
     return self.createObj(.string, Obj.String{ .chars = chars });
 }
 
-// Error reporting convenience methods ========================================
+// Error reporting convenience methods =========================================
 
 /// Report an error at the current token.
 ///

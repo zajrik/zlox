@@ -32,7 +32,7 @@ const Io = std.Io;
 
 const printf = std.debug.print;
 
-// ============================================================================
+// =============================================================================
 
 const Vm: type = @This();
 
@@ -360,7 +360,7 @@ fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) bool {
     return true;
 }
 
-// Instruction loop ===========================================================
+// Instruction loop ============================================================
 
 /// Run instructions from the currently loaded chunk.
 fn run(self: *Vm) !ExecutionResult {
@@ -590,7 +590,7 @@ fn run(self: *Vm) !ExecutionResult {
     }
 }
 
-// Object management functions ================================================
+// Object management functions =================================================
 
 /// Allocate a new `Obj` of the given `type` with the given `variant` payload.
 ///

@@ -9,7 +9,7 @@ const mem = zlox.mem;
 const Chunk = zlox.compiler.Chunk;
 const Jump = zlox.compiler.Jump;
 
-// ============================================================================
+// =============================================================================
 
 const LoopScope: type = @This();
 

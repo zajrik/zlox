@@ -5,7 +5,7 @@ const Obj = zlox.object.Obj;
 
 const Writer = std.Io.Writer;
 
-// ============================================================================
+// =============================================================================
 
 /// Represents a lox value.
 pub const Value: type = union(Value.Type) {

@@ -10,7 +10,7 @@ const Stack = zlox.vm.Stack;
 
 const printf = std.debug.print;
 
-// ============================================================================
+// =============================================================================
 
 /// Whether we've compiled in debug mode.
 pub const is_debug_mode: bool = builtin.mode == .Debug;
