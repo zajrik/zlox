@@ -56,9 +56,20 @@ pub inline fn len(self: *const Chunk) usize {
     return self.instructions.items.len;
 }
 
-/// Returns whether this chunk has any instructions to execute.
+/// Returns whether this chunk has no instructions to execute.
 pub fn isEmpty(self: *const Chunk) bool {
-    return self.instructions.items.len == 0;
+    return self.len() == 0;
+}
+
+/// Returns whether this chunk has at least one instruction to execute.
+pub fn isNotEmpty(self: *const Chunk) bool {
+    return self.len() > 0;
+}
+
+/// Returns whether this chunk's instructions end with a `.@"return"` instruction.
+pub fn hasReturn(self: *const Chunk) bool {
+    return self.isNotEmpty() and
+        self.instructionAt(self.len() - 1) == OpCode.@"return".toByte();
 }
 
 /// Returns a pointer to the first compiled instruction in this chunk.

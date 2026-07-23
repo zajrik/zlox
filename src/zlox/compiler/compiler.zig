@@ -181,7 +181,7 @@ fn endCompilation(self: *const Compiler) ?*Obj.Function {
     // Emit nil return to allow functions to return nil by default if they do not
     // specify a return value of their own
     if (self.function) |fun| {
-        self.emitDefaultReturn();
+        if (!fun.chunk.hasReturn()) self.emitDefaultReturn();
 
         if ((comptime debug.dump_chunk) and !self.parser.had_error) {
             const chunk_name: []const u8 = it: {
