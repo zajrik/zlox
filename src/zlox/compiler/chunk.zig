@@ -15,8 +15,6 @@ const ArrayList = std.ArrayList;
 const OpCode = zlox.compiler.OpCode;
 const Value = zlox.object.Value;
 
-const exit = std.process.exit;
-
 // =================================================================================================
 
 const Chunk: type = @This();
@@ -27,19 +25,20 @@ pub const empty: Chunk = .{};
 /// Compiled instruction opcodes and operands.
 instructions: ArrayList(u8) = .empty,
 
+/// Compiled constant values in this chunk.
+constants: ArrayList(Value) = .empty,
+
 /// Compiled line data for instructions in this chunk.
 ///
 /// Mirrors `instructions` layout where an instruction offset will map to the
 /// line number of that instruction.
 lines: ArrayList(u16) = .empty,
 
-/// Compiled constant values in this chunk.
-constants: ArrayList(Value) = .empty,
-
 /// Release all allocated memory owned by this chunk.
 pub fn deinit(self: *Chunk) void {
-    self.instructions.deinit(mem.allocator());
-    self.lines.deinit(mem.allocator());
+    defer self.instructions.deinit(mem.allocator());
+    defer self.constants.deinit(mem.allocator());
+    defer self.lines.deinit(mem.allocator());
 
     // Free compile-time constant non-string objs
     for (self.constants.items) |c| {
@@ -47,8 +46,6 @@ pub fn deinit(self: *Chunk) void {
             if (it.isNot(.string)) it.destroy();
         }
     }
-
-    self.constants.deinit(mem.allocator());
 }
 
 /// Returns the number of instructions compiled to this chunk.
@@ -98,8 +95,7 @@ pub inline fn constantAt(self: *const Chunk, offset: usize) Value {
 }
 
 /// Write the given `byte` to this chunk.
-pub fn writeByte(self: *Chunk, byte: u8, line: u16) void {
-    errdefer exit(1);
+pub fn writeByte(self: *Chunk, byte: u8, line: u16) !void {
     try self.instructions.append(mem.allocator(), byte);
     try self.lines.append(mem.allocator(), line);
 }
@@ -107,9 +103,9 @@ pub fn writeByte(self: *Chunk, byte: u8, line: u16) void {
 /// Add the given constant `value` to this chunk's constants array.
 ///
 /// Returns the offset of the added value within this chunk's constants array.
-pub fn addConstant(self: *Chunk, value: Value) u8 {
-    self.constants.append(mem.allocator(), value) catch exit(1);
-    return @as(u8, @truncate(self.constants.items.len)) - 1;
+pub fn addConstant(self: *Chunk, value: Value) !usize {
+    try self.constants.append(mem.allocator(), value);
+    return self.constants.items.len - 1;
 }
 
 /// Find the constant offset of the given `value` if it exists within this chunk's
@@ -120,6 +116,5 @@ pub fn findConstant(self: *const Chunk, value: Value) ?u8 {
     for (self.constants.items, 0..) |constant, offset| {
         if (constant.equals(value)) return @truncate(offset);
     }
-
     return null;
 }

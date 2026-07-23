@@ -1090,14 +1090,17 @@ fn makeConstant(self: *const Compiler, value: Value) u8 {
     // it already exists.
     if (self.chunk().findConstant(value)) |offset| return offset;
 
-    const offset: u8 = self.chunk().addConstant(value);
+    const offset: usize = self.chunk().addConstant(value) catch {
+        self.allocErr();
+        return 0;
+    };
 
     if (offset > cmn.U8_MAX) {
         self.err("Too many constants in one chunk.");
         return 0;
     }
 
-    return offset;
+    return @truncate(offset);
 }
 
 /// Push an identifier's string to the current chunk's constants array, returning
@@ -1113,7 +1116,7 @@ fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
 
 /// Write the given `byte` to the chunk currently being compiled.
 fn emitByte(self: *const Compiler, byte: u8) void {
-    self.chunk().writeByte(byte, self.parser.current.line);
+    self.chunk().writeByte(byte, self.parser.current.line) catch self.allocErr();
 }
 
 /// Write the given `op` to the chunk currently being compiled.
