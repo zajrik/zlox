@@ -10,7 +10,7 @@ const Dir = std.Io.Dir;
 const ExecutionResult = zlox.vm.ExecutionResult;
 const Vm = zlox.vm.Vm;
 
-// =============================================================================
+// =================================================================================================
 
 pub fn main(init: std.process.Init) !void {
     mem.initArena(init.arena);

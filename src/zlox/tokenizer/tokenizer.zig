@@ -10,7 +10,7 @@ const TokenType = zlox.tokenizer.TokenType;
 const do = zlox.common.do;
 const allocfmt = zlox.mem.allocfmt;
 
-// =============================================================================
+// =================================================================================================
 
 const Tokenizer: type = @This();
 

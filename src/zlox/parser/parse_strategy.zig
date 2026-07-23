@@ -27,7 +27,7 @@ const Token = zlox.tokenizer.Token;
 const TokenType = zlox.tokenizer.TokenType;
 const Precedence = zlox.parser.Precedence;
 
-// =============================================================================
+// =================================================================================================
 
 const ParseStrategy: type = @This();
 

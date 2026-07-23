@@ -8,7 +8,7 @@ const Writer = std.Io.Writer;
 
 const cmpfmt = std.fmt.comptimePrint;
 
-// =============================================================================
+// =================================================================================================
 
 /// A classic generic last-in, first-out stack structure.
 ///

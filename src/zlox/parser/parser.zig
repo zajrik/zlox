@@ -23,7 +23,7 @@ const TokenType = zlox.tokenizer.TokenType;
 
 const printf = std.debug.print;
 
-// =============================================================================
+// =================================================================================================
 
 const Parser: type = @This();
 
@@ -120,7 +120,7 @@ pub fn strategy(_: *const Parser, token: Token) ParseStrategy {
     return ParseStrategy.forToken(token);
 }
 
-// Error management ============================================================
+// Error management ================================================================================
 
 /// Output error `msg` at the given `token`.
 pub fn errAt(self: *Parser, token: Token, msg: []const u8) void {

@@ -10,7 +10,7 @@ const zlox = @import(".lib.zig");
 const Allocator = std.mem.Allocator;
 const ArenaAllocator = std.heap.ArenaAllocator;
 
-// =============================================================================
+// =================================================================================================
 
 var _arena: *ArenaAllocator = undefined;
 var _allocator: Allocator = undefined;
