@@ -205,14 +205,21 @@ pub const OpCode = enum(u8) {
     ///   the function object the closure is wrapping.
     closure,
 
+    /// ### `OpCode.class(offset: constant_offset)`
+    /// - Creates a class object with the identifier obtained from the operand.
+    class,
+
+    /// ### `OpCode.method(offset: constant_offset)`
+    /// - Assigns the closure on top of the stack as a method on the class object
+    ///   below it on the stack, popping the closure off of the stack.
+    ///
+    ///   The identifier of the method is expected a constant offset operand.
+    method,
+
     /// ### `OpCode.return()`
     /// - Returns the value at the top of the stack from whatever call frame
     ///   we're currently inside of.
     @"return",
-
-    /// ### `OpCode.class(offset: constant_offset)`
-    /// - Creates a class object with the identifier obtained from the operand.
-    class,
 
     _,
 

@@ -16,7 +16,7 @@ const Writer = std.Io.Writer;
 const Function: type = @This();
 
 /// Enum representing the distinction between different functions declarations.
-pub const Type = enum(u2) { script, function, method };
+pub const Type = enum(u2) { script, function, initializer, method };
 
 /// The base lox object header.
 obj: Obj = undefined,
@@ -64,7 +64,7 @@ pub fn format(self: *const Function, writer: *Writer) !void {
     if (self.type == .script) {
         return try writer.writeAll("<script>");
     } else if (self.identifier) |identifier| {
-        return try writer.print("<fn {f}>", .{identifier});
+        return try writer.print("<fn {f}()>", .{identifier});
     }
-    return try writer.writeAll("<anon fn>");
+    return try writer.writeAll("<anon fn()>");
 }

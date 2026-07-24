@@ -153,9 +153,10 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
             return new_offset;
         },
 
-        .@"return" => |T| simpleInstruction(T, offset),
-
         .class => |T| constantInstruction(T, chunk, offset),
+        .method => |T| constantInstruction(T, chunk, offset),
+
+        .@"return" => |T| simpleInstruction(T, offset),
 
         _ => {
             printf("Unknown opcode {d}\n", .{offset});

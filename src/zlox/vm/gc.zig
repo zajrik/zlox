@@ -159,6 +159,9 @@ pub fn markObject(self: *Gc, obj: *Obj) !void {
     switch (obj.type) {
         .closure,
         .upvalue,
+        .class,
+        .instance,
+        .method,
         => try self.stack.append(mem.allocator(), obj),
 
         else => return,
@@ -173,10 +176,19 @@ pub fn visitObject(self: *Gc, obj: *Obj) !void {
         .closure => |T| for (obj.cast(T).upvalues) |upvalue| {
             try self.markObject(upvalue.toObj());
         },
+        .class => |T| {
+            const class: *Obj.Class = obj.cast(T);
+            try self.markTable(&class.methods);
+        },
         .instance => |T| {
             const instance: *Obj.Instance = obj.cast(T);
             try self.markObject(instance.class.toObj());
             try self.markTable(&instance.fields);
+        },
+        .method => |T| {
+            const method: *Obj.Method = obj.cast(T);
+            try self.markValue(method.receiver);
+            try self.markObject(method.closure.toObj());
         },
         else => return,
     }

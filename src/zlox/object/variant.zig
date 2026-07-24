@@ -10,6 +10,7 @@ const Native = zlox.object.Obj.Native;
 const Upvalue = zlox.object.Obj.Upvalue;
 const Class = zlox.object.Obj.Class;
 const Instance = zlox.object.Obj.Instance;
+const Method = zlox.object.Obj.Method;
 
 const comptimePrint = std.fmt.comptimePrint;
 
@@ -23,6 +24,7 @@ pub fn Variant(comptime T: Type) type {
         .upvalue => Upvalue,
         .class => Class,
         .instance => Instance,
+        .method => Method,
     };
 
     // Enforce obj fields

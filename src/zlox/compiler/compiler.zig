@@ -254,15 +254,33 @@ fn declaration(self: *Compiler) void {
 /// Compile a class declaration from source tokens.
 fn classDeclaration(self: *Compiler) void {
     self.parser.expect(.identifier, "class name");
-
-    const ident: u8 = self.makeIdentConstant(self.parser.current);
+    const class: Token = self.parser.current;
+    const ident: u8 = self.makeIdentConstant(class);
     self.declareLocal();
 
     self.emitOp1(.class, ident);
     self.defineVariable(ident);
 
+    // Load class object back onto the stack for any method instructions
+    self.variableGetSet(class, false);
+
     self.parser.expect(.brace_left, "'{' before class body");
+    while (true) : (if (self.parser.blockEnd(.brace_right)) break) {
+        self.methodDeclaration();
+    }
     self.parser.expect(.brace_right, "'}' after class body");
+
+    // Pop class object off of the stack
+    self.emitOp(.pop);
+}
+
+/// Compile a class method declaration from source tokens.
+fn methodDeclaration(self: *Compiler) void {
+    const ident: u8 = self.variableIdentifier("method name");
+    const init: bool = std.mem.eql(u8, self.parser.current.lexeme, "init");
+
+    self.compileFun(if (init) .initializer else .method, false);
+    self.emitOp1(.method, ident);
 }
 
 /// Compile a function declaration from source tokens.

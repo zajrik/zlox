@@ -273,6 +273,26 @@ fn closeUpvalues(self: *Vm, local: *const Value) void {
     }
 }
 
+/// Attempt to bind a method with the given `ident` from the given `class` to the
+/// receiver (class instance) at the top of the stack.
+///
+/// Replaces the receiver on the stack with the bound method.
+///
+/// Returns `null` if the method doesn't exist on the given class, returns an error
+/// if something went wrong while allocating the bound method object.
+fn bindMethod(self: *Vm, class: *Obj.Class, ident: *Obj.String) !?void {
+    const method: Value = class.methods.get(ident) orelse return null;
+    const bound_method: *Obj.Method = try self.createObj(
+        .method,
+        Obj.Method{
+            .receiver = self.stack.peek(0),
+            .closure = method.objCast(.closure),
+        },
+    );
+
+    _ = self.stack.replace(0, bound_method.toValue());
+}
+
 /// Attempt to call the given `callee` as a function using the top `arg_count` values
 /// from the stack as its arguments.
 ///
@@ -316,6 +336,11 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             (self.stack.top - 1 - arg_count)[0] = instance.toValue();
             return;
         },
+
+        .method => return self.callFun(
+            callee.objCast(.method).closure,
+            arg_count,
+        ),
 
         else => {},
     };
@@ -503,8 +528,13 @@ fn run(self: *Vm) !ExecutionResult {
                     continue;
                 }
 
-                // Return nil if prop/field/method doesn't exist
-                _ = self.stack.replace(0, .Nil);
+                // If we couldn't find a property/field, try it as a method. If a
+                // method is found, it'll be on the stack ready to be called so we
+                // can continue to the next instruction
+                try self.bindMethod(inst_obj.class, property) orelse {
+                    // Return nil if prop/field/method doesn't exist
+                    _ = self.stack.replace(0, .Nil);
+                };
             },
 
             // Control flow ops
@@ -565,6 +595,24 @@ fn run(self: *Vm) !ExecutionResult {
                 self.stack.push((try self.linkObj(.closure, closure)).toValue());
             },
 
+            .class => {
+                const class_ident: *Obj.String = frame.readString();
+                const class_obj: *Obj.Class = try self.createObj(
+                    .class,
+                    Obj.Class{ .identifier = class_ident },
+                );
+
+                self.stack.push(class_obj.toValue());
+            },
+
+            .method => {
+                const closure: Value = self.stack.peek(0);
+                const class: *Obj.Class = self.stack.peek(1).objCast(.class);
+
+                _ = try class.methods.set(frame.readString(), closure);
+                _ = self.stack.pop();
+            },
+
             .@"return" => {
                 // Pop return value from value stack
                 const result: Value = self.stack.pop();
@@ -582,16 +630,6 @@ fn run(self: *Vm) !ExecutionResult {
                 // Discard callframe value stack slots and push return value to stack
                 self.stack.top = frame.slots;
                 self.stack.push(result);
-            },
-
-            .class => {
-                const class_ident: *Obj.String = frame.readString();
-                const class_obj: *Obj.Class = try self.createObj(
-                    .class,
-                    Obj.Class{ .identifier = class_ident },
-                );
-
-                self.stack.push(class_obj.toValue());
             },
 
             _ => return self.errFmt("Unknown opcode: {d}", .{op}),
