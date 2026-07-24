@@ -15,6 +15,7 @@ const cmn = zlox.common;
 const debug = zlox.debug;
 
 const Chunk = zlox.compiler.Chunk;
+const ClassContext = zlox.compiler.ClassContext;
 const ExprFn = zlox.compiler.ExprFn;
 const Jump = zlox.compiler.Jump;
 const JumpList = zlox.compiler.JumpList;
@@ -47,15 +48,22 @@ const splitBytes = zlox.common.splitBytes;
 
 const Compiler: type = @This();
 
+/// Parser instance primed with the source we're compiling.
+///
+/// Not owned by the compiler.
+parser: *Parser,
+
 /// Enclosing compiler, used for tracking and resolving upvalues.
 ///
 /// The root compiler should always have a null `enclosing` value.
 enclosing: ?*Compiler = null,
 
-/// Parser instance primed with the source we're compiling.
+/// Pointer to a pointer pointing to the root class context node, provided by the
+/// vm when the compiler is created and passed to nested compilers when compiling
+/// nested functions.
 ///
-/// Not owned by the compiler.
-parser: *Parser,
+/// Used for tracking class compilation within nested compilation scopes.
+class_context: *?*ClassContext,
 
 /// The currently-compiling function object.
 ///
@@ -92,18 +100,21 @@ loop_scope: ?*LoopScope = null,
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(
-    /// The type of function to compiled.
+    /// The type of function to be compiled.
     T: Obj.Function.Type,
     /// Parser instance primed with source input to compile.
     parser: *Parser,
-    /// Table for interning strings at compile time.
-    interned_strings: *HashTable,
     /// Enclosing compiler, if any.
     enclosing: ?*Compiler,
+    /// Pointer to a pointer pointing to the root class context node.
+    class_context: *?*ClassContext,
+    /// Table for interning strings at compile time.
+    interned_strings: *HashTable,
 ) !*Compiler {
     const compiler: *Compiler = try mem.createStruct(Compiler, .{
-        .enclosing = enclosing,
         .parser = parser,
+        .enclosing = enclosing,
+        .class_context = class_context,
         .strings = interned_strings,
     });
 
@@ -121,14 +132,27 @@ pub fn create(
         );
     }
 
-    // Reserve local slot 0 for the compiled function itself
+    // Reserve local slot 0 for the callframe root object, which will either be the
+    // compiled function itself or the bound `this` receiver in class instance methods
+    const root_ident: []const u8 = switch (T) {
+        .method, .initializer => "this",
+        else => "",
+    };
     compiler.local_count += 1;
     compiler.locals[0] = Local{
-        .identifier = Token.init(.identifier, "", 0, 0),
         .depth = 0,
+        .identifier = Token.init(.identifier, root_ident, 0, 0),
     };
 
     return compiler;
+}
+
+/// Create a nested compiler for compiling a function declaration.
+///
+/// Returns a pointer to the created compiler. The caller owns this pointer and is
+/// responsible for freeing it.
+fn createNestedCompiler(self: *Compiler, T: Obj.Function.Type) !*Compiler {
+    return try .create(T, self.parser, self, self.class_context, self.strings);
 }
 
 /// Destroy this `Compiler`, freeing its owned resources.
@@ -257,6 +281,11 @@ fn classDeclaration(self: *Compiler) void {
     const class: Token = self.parser.current;
     const ident: u8 = self.makeIdentConstant(class);
     self.declareLocal();
+
+    // Initialize a new class context for this class
+    var class_context: ClassContext = .{ .enclosing = self.class_context.* };
+    self.class_context.* = &class_context;
+    defer self.class_context.* = class_context.enclosing;
 
     self.emitOp1(.class, ident);
     self.defineVariable(ident);
@@ -577,7 +606,7 @@ fn expressionStmt(self: *Compiler) void {
     self.emitOp(.pop);
 }
 
-// Statement/expression compilation overlap functions =========================
+// Statement/expression compilation overlap functions ==============================================
 
 /// Compile a function statement or expression of the given `type` from source tokens.
 fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
@@ -586,7 +615,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     // Load identifier into the current token if this is a labeled function expression
     if (is_expr and p.next.is(.identifier)) p.advance();
 
-    const fun_cmp: *Compiler = Compiler.create(T, p, self.strings, self) catch {
+    const fun_cmp: *Compiler = self.createNestedCompiler(T) catch {
         return p.err("Error compiling function.");
     };
     defer fun_cmp.destroy();
@@ -727,6 +756,14 @@ pub fn literal(self: *const Compiler, _: bool) void {
         .keyword_false => self.emitOp(.false),
         else => return,
     }
+}
+
+/// Compile a `this` expression from the current source token.
+pub fn this(self: *Compiler, _: bool) void {
+    if (self.class_context.* == null) return self.err(
+        "Can't use 'this' outside of a class body",
+    );
+    self.variable(false);
 }
 
 /// Compile a variable/identifier get/set expression from the current source token.

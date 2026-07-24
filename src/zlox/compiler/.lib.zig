@@ -1,6 +1,7 @@
 //! Namespace containing all members of the `compiler` directory.
 
 pub const Chunk = @import("chunk.zig");
+pub const ClassContext = @import("class_context.zig");
 pub const Compiler = @import("compiler.zig");
 pub const ExprFn = @import("expr_fn.zig").ExprFn;
 pub const Jump = @import("jump.zig");

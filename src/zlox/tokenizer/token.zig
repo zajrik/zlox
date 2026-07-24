@@ -51,9 +51,9 @@ pub fn isDiscard(self: Token) bool {
 
 /// Returns whether this token is equal to `other`.
 ///
-/// Tokens are equal if their types and lexemes are equal.
+/// Tokens are considered equal if their lexemes are equal.
 pub fn equals(self: Token, other: Token) bool {
-    return self.is(other.type) and std.mem.eql(u8, self.lexeme, other.lexeme);
+    return std.mem.eql(u8, self.lexeme, other.lexeme);
 }
 
 /// Custom formatter for `Token` values.

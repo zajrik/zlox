@@ -8,6 +8,7 @@ const mem = zlox.mem;
 const native = zlox.vm.native;
 
 const Chunk = zlox.compiler.Chunk;
+const ClassContext = zlox.compiler.ClassContext;
 const Compiler = zlox.compiler.Compiler;
 const OpCode = zlox.compiler.OpCode;
 
@@ -107,8 +108,17 @@ pub fn interpret(self: *Vm, source: []const u8) ExecutionResult {
 /// Returns the result of compilation or an error to be replaced with `.compile_error`.
 fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     var tokenizer: Tokenizer = .init(source);
+    var class_context: ?*ClassContext = null;
+
     const parser: *Parser = try .create(&tokenizer);
-    const compiler: *Compiler = try .create(.script, parser, &self.strings, null);
+    const compiler: *Compiler = try .create(
+        .script,
+        parser,
+        null,
+        &class_context,
+        &self.strings,
+    );
+
     const script: *Obj.Function = try compiler.compile() orelse return .compile_error;
 
     const closure: *Obj.Closure = try self.createObj(
@@ -337,11 +347,14 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             return;
         },
 
-        .method => return self.callFun(
-            callee.objCast(.method).closure,
-            arg_count,
-        ),
+        .method => {
+            const method: *Obj.Method = callee.objCast(.method);
+            // Replace method closure on stack with method receiver
+            (self.stack.top - 1 - arg_count)[0] = method.receiver;
+            return self.callFun(method.closure, arg_count);
+        },
 
+        // Fall through for non-callable values
         else => {},
     };
 
