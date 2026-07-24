@@ -22,60 +22,6 @@ const exit = std.process.exit;
 
 const HashTable: type = @This();
 
-const max_load: f32 = 0.75;
-
-/// An entry within a `HashTable`.
-pub const Entry = struct {
-    /// The key associated with this entry.
-    ///
-    /// An entry with a `null` key is either unused, or a tombstone for a
-    /// deleted entry.
-    key: ?*Obj.String,
-
-    /// The value associated with this entry.
-    val: Value,
-
-    /// An empty `Entry` struct.
-    const empty: Entry = .{ .key = null, .val = .Nil };
-
-    /// A tombstone `Entry` value, inserted in place of deleted entries.
-    const tombstone: Entry = .{ .key = null, .val = .Bool(true) };
-
-    /// Custom formatter for `Entry` values.
-    pub fn format(self: Entry, writer: *Writer) !void {
-        try writer.print(
-            "HashTable.Entry {{ .key = {?f}, .val = {f} }}",
-            .{ self.key, self.val },
-        );
-    }
-};
-
-/// An iterator over `HashTable` keys.
-pub const KeyIterator = struct {
-    /// The total *potential* number of keys yielded by this iterator.
-    ///
-    /// This is not a guarantee of key count.
-    len: usize,
-
-    /// Pointer to the entries from which this iterator yields keys.
-    entries: [*]Entry,
-
-    /// Returns the next key from this iterator.
-    pub fn next(self: *KeyIterator) ?*Obj.String {
-        while (self.len > 0) {
-            self.len -= 1;
-            const entry: Entry = self.entries[0];
-            self.entries += 1;
-            if (entry.key) |key| return key;
-        }
-
-        return null;
-    }
-};
-
-/// A `HashTable` containing no entries.
-pub const empty: HashTable = .{};
-
 /// The number of entries within this hash-table.
 count: usize = 0,
 
@@ -83,6 +29,12 @@ count: usize = 0,
 ///
 /// The length of this slice is the capacity of the table.
 entries: []Entry = undefined,
+
+/// Maximum load factor before resizing.
+const max_load: f32 = 0.75;
+
+/// A `HashTable` containing no entries.
+pub const empty: HashTable = .{};
 
 /// Deinitialize this `HashTable`, freeing its owned resources.
 pub fn deinit(self: *HashTable) void {
@@ -173,9 +125,9 @@ pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj.St
 /// Set a value in this table under the given `key`.
 ///
 /// Returns whether the entry was empty before the given value was set.
-pub fn set(self: *HashTable, key: *Obj.String, val: Value) bool {
-    errdefer exit(1);
-
+///
+/// Returns an error if a resize was necessary but allocation failed.
+pub fn set(self: *HashTable, key: *Obj.String, val: Value) !bool {
     const new_count: f64 = @as(f64, @floatFromInt(self.count + 1));
     const max_load_capacity: f64 = @as(f64, @floatFromInt(self.entries.len)) * max_load;
 
@@ -239,3 +191,52 @@ pub fn keys(self: *const HashTable) KeyIterator {
         .entries = self.entries.ptr,
     };
 }
+
+/// An entry within a `HashTable`.
+pub const Entry = struct {
+    /// The key associated with this entry.
+    ///
+    /// An entry with a `null` key is either unused, or a tombstone for a
+    /// deleted entry.
+    key: ?*Obj.String,
+
+    /// The value associated with this entry.
+    val: Value,
+
+    /// An empty `Entry` struct.
+    const empty: Entry = .{ .key = null, .val = .Nil };
+
+    /// A tombstone `Entry` value, inserted in place of deleted entries.
+    const tombstone: Entry = .{ .key = null, .val = .Bool(true) };
+
+    /// Custom formatter for `Entry` values.
+    pub fn format(self: Entry, writer: *Writer) !void {
+        try writer.print(
+            "HashTable.Entry {{ .key = {?f}, .val = {f} }}",
+            .{ self.key, self.val },
+        );
+    }
+};
+
+/// An iterator over `HashTable` keys.
+pub const KeyIterator = struct {
+    /// The total *potential* number of keys yielded by this iterator.
+    ///
+    /// This is not a guarantee of key count.
+    len: usize,
+
+    /// Pointer to the entries from which this iterator yields keys.
+    entries: [*]Entry,
+
+    /// Returns the next key from this iterator.
+    pub fn next(self: *KeyIterator) ?*Obj.String {
+        while (self.len > 0) {
+            const entry: Entry = self.entries[0];
+            self.len -= 1;
+            self.entries += 1;
+            if (entry.key) |key| return key;
+        }
+
+        return null;
+    }
+};

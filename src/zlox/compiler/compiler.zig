@@ -1241,16 +1241,14 @@ fn createObj(
 
     // Pre-hash and intern string objects
     if (T == .string) {
-        const hash: u32 = Fnv1a_32.hash(variant.chars);
-
         // Return interned string if it exists
-        if (self.strings.findString(variant.chars, hash)) |it| {
+        object.hash = Fnv1a_32.hash(variant.chars);
+        if (self.strings.findString(variant.chars, object.hash)) |it| {
             object.destroy();
             return it;
         }
 
-        object.hash = hash;
-        _ = self.strings.set(object, .Nil);
+        _ = try self.strings.set(object, .Nil);
     }
 
     return object;

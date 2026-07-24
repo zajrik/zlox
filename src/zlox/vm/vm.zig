@@ -59,11 +59,10 @@ globals: HashTable = .empty,
 /// on the stack relative to other captured locals at the point the list is observed.
 open: ?*Obj.Upvalue = null,
 
-/// Linked list of heap-allocated `Obj` values.
+/// The virtual heap of the VM, implemented as a linked list of `Obj` values.
 ///
 /// Contains all lox objects created by the VM at runtime, to be used by the
-/// garbage collector to reach unreferenced objects after tracing living object
-/// references.
+/// GC to reach unreferenced objects after tracing living object references.
 heap: ?*Obj = null,
 
 /// The number of bytes allocated by objects linked to the VM's heap.
@@ -397,7 +396,7 @@ fn run(self: *Vm) !ExecutionResult {
                 };
 
                 self.stack.popN(2);
-                self.stack.push(self.linkObj(.string, c).toValue());
+                self.stack.push((try self.linkObj(.string, c)).toValue());
             },
             .subtract => try self.binaryOp(.subtract),
             .multiply => try self.binaryOp(.multiply),
@@ -429,7 +428,7 @@ fn run(self: *Vm) !ExecutionResult {
             // Variable define/get/set etc. ops
             .global_define => {
                 const ident: *Obj.String = frame.readString();
-                _ = self.globals.set(ident, self.stack.peek(0));
+                _ = try self.globals.set(ident, self.stack.peek(0));
                 _ = self.stack.pop();
             },
             .global_set => {
@@ -437,7 +436,7 @@ fn run(self: *Vm) !ExecutionResult {
 
                 // If the global variable isn't defined before setting, throw a
                 // runtime error and delete the entry from the globals table
-                if (self.globals.set(ident, self.stack.peek(0))) {
+                if (try self.globals.set(ident, self.stack.peek(0))) {
                     _ = self.globals.delete(ident);
                     return self.errFmt("Undefined variable '{f}'", .{ident});
                 }
@@ -519,7 +518,7 @@ fn run(self: *Vm) !ExecutionResult {
                     };
                 }
 
-                self.stack.push(self.linkObj(.closure, closure).toValue());
+                self.stack.push((try self.linkObj(.closure, closure)).toValue());
             },
 
             .@"return" => {
@@ -583,38 +582,39 @@ pub fn createObj(
 ///
 /// The size of the created object will be noted so that we can keep track of
 /// when the GC needs to run.
-pub fn linkObj(self: *Vm, comptime T: Obj.Type, object: *Obj.Variant(T)) *Obj.Variant(T) {
+pub fn linkObj(self: *Vm, comptime T: Obj.Type, object: *Obj.Variant(T)) !*Obj.Variant(T) {
     // Pre-hash and intern string objects
     if (T == .string) {
-        const hash: u32 = Fnv1a_32.hash(object.chars);
-
         // Return interned string if it exists
-        if (self.strings.findString(object.chars, hash)) |it| {
+        object.hash = Fnv1a_32.hash(object.chars);
+        if (self.strings.findString(object.chars, object.hash)) |it| {
             object.destroy();
             return it;
         }
 
-        object.hash = hash;
-        _ = self.strings.set(object, .Nil);
+        _ = self.strings.set(object, .Nil) catch |e| return self.errFmt(
+            "Error interning string: {s}",
+            .{@errorName(e)},
+        );
     }
 
     if (comptime debug.stress_gc) self.gc.collect() catch {};
 
-    self.heap_size += @sizeOf(Obj.Variant(T));
-    if (T == .string) self.heap_size += @sizeOf(u8) * object.chars.len;
-
-    // Run GC if we've exceeded the GC threshold. This should only fail if we're
-    // out of memory when allocating memory for tracking marked objs before tracing,
-    // at which point things are out of our hands 💀 We could potentially allocate
+    // Run GC if we exceed the GC threshold. This should only fail if we're out of
+    // memory when allocating memory for tracking marked objs before tracing, at
+    // which point things are out of our hands 💀 We could potentially allocate
     // a rainy-day fund of memory in the GC that can be freed if that happens and
     // then try running the GC again, but Bob didn't bother in the book so I'm not
     // likely to bother here unless it becomes a problem for me personally (it won't)
-    if (self.heap_size > self.next_gc) self.gc.collect() catch |e| {
-        self.errFmt("Error running garbage collector: {s}", .{@errorName(e)}) catch {};
-        std.process.exit(1);
-    };
 
-    // Link object for GC tracing
+    self.heap_size += @sizeOf(Obj.Variant(T));
+    if (T == .string) self.heap_size += @sizeOf(u8) * object.chars.len;
+    if (self.heap_size > self.next_gc) self.gc.collect() catch |e| return self.errFmt(
+        "Error running garbage collector: {s}",
+        .{@errorName(e)},
+    );
+
+    // Link object to vm heap for gc tracing
     object.obj.next = self.heap;
     self.heap = object.toObj();
 
@@ -688,6 +688,6 @@ pub fn defineNative(
 
     // Link ident string first so we can use the existing interned string, if any,
     // and link the native fn after insertion when the ident string is safe from gc
-    _ = self.globals.set(self.linkObj(.string, fn_ident), fn_obj.toValue());
-    _ = self.linkObj(.native, fn_obj);
+    _ = try self.globals.set(try self.linkObj(.string, fn_ident), fn_obj.toValue());
+    _ = try self.linkObj(.native, fn_obj);
 }
