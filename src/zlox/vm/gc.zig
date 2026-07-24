@@ -173,6 +173,11 @@ pub fn visitObject(self: *Gc, obj: *Obj) !void {
         .closure => |T| for (obj.cast(T).upvalues) |upvalue| {
             try self.markObject(upvalue.toObj());
         },
+        .instance => |T| {
+            const instance: *Obj.Instance = obj.cast(T);
+            try self.markObject(instance.class.toObj());
+            try self.markTable(&instance.fields);
+        },
         else => return,
     }
 }

@@ -306,6 +306,17 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             arg_count,
         ),
 
+        .class => {
+            const instance: *Obj.Instance = try self.createObj(
+                .instance,
+                Obj.Instance{ .class = callee.objCast(.class) },
+            );
+
+            // Replace class object on stack with instance
+            (self.stack.top - 1 - arg_count)[0] = instance.toValue();
+            return;
+        },
+
         else => {},
     };
 
