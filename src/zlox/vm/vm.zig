@@ -474,6 +474,39 @@ fn run(self: *Vm) !ExecutionResult {
                 self.stack.push(upvalue.location.*);
             },
 
+            .property_set => {
+                // Peek instance on stack
+                const inst_val: Value = self.stack.peek(1);
+                const inst_obj: *Obj.Instance = inst_val.asObj(.instance) orelse {
+                    return self.err("Only class instances have properties");
+                };
+
+                // Set property/field on instance
+                const property: *Obj.String = frame.readString();
+                _ = try inst_obj.fields.set(property, self.stack.peek(0));
+
+                // Pop instance from stack, leaving set expression value
+                _ = self.stack.swap(0, 1);
+                _ = self.stack.pop();
+            },
+            .property_get => {
+                // Peek instance on stack
+                const inst_val: Value = self.stack.peek(0);
+                const inst_obj: *Obj.Instance = inst_val.asObj(.instance) orelse {
+                    return self.err("Only class instances have properties");
+                };
+
+                // Try getting property/field from instance
+                const property: *Obj.String = frame.readString();
+                if (inst_obj.fields.get(property)) |it| {
+                    _ = self.stack.replace(0, it);
+                    continue;
+                }
+
+                // Return nil if prop/field/method doesn't exist
+                _ = self.stack.replace(0, .Nil);
+            },
+
             // Control flow ops
             .jump_if_false => {
                 const offset: u16 = frame.readShort();

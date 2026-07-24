@@ -878,6 +878,19 @@ pub fn call(self: *Compiler, _: bool) void {
     self.emitOp1(.call, arg_count);
 }
 
+/// Compile a dot expression from source tokens.
+pub fn dot(self: *Compiler, can_assign: bool) void {
+    self.parser.expect(.identifier, "property name after '.'");
+    const ident = self.makeIdentConstant(self.parser.current);
+
+    if (can_assign and self.parser.match(.equal)) {
+        self.expression();
+        self.emitOp1(.property_set, ident);
+    } else {
+        self.emitOp1(.property_get, ident);
+    }
+}
+
 /// Compile a series of argument expressions for a function call, returning the
 /// number of compiled arguments.
 ///

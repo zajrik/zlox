@@ -115,6 +115,9 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .upvalue_set => |T| byteInstruction(T, chunk, offset),
         .upvalue_get => |T| byteInstruction(T, chunk, offset),
 
+        .property_set => |T| constantInstruction(T, chunk, offset),
+        .property_get => |T| constantInstruction(T, chunk, offset),
+
         // Control flow ops
         .jump_if_false => |T| jumpInstruction(T, 1, chunk, offset),
         .jump_if_true => |T| jumpInstruction(T, 1, chunk, offset),

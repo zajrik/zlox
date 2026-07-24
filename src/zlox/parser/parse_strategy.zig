@@ -22,6 +22,7 @@ const andExpr = Compiler.andExpr;
 const switchExpr = Compiler.switchExpr;
 const funExpr = Compiler.funExpr;
 const call = Compiler.call;
+const dot = Compiler.dot;
 
 const Token = zlox.tokenizer.Token;
 const TokenType = zlox.tokenizer.TokenType;
@@ -64,7 +65,7 @@ const strategies: [token_count]ParseStrategy = .{
     strat(.brace_left,       null,       null,     .none      ),
     strat(.brace_right,      null,       null,     .none      ),
     strat(.comma,            null,       null,     .none      ),
-    strat(.dot,              null,       null,     .call      ),
+    strat(.dot,              null,       dot,      .call      ),
     strat(.semicolon,        null,       null,     .none      ),
     strat(.question,         null,       null,     .none      ),
     strat(.colon,            null,       null,     .none      ),

@@ -160,6 +160,16 @@ pub const OpCode = enum(u8) {
     ///   pushing it to the top of the stack.
     upvalue_get,
 
+    /// ### `OpCode.property_set(offset: constant_offset)`
+    /// - Set the value of the property with the identifier obtained from the operand
+    ///   on the class instance on the stack below the value we're setting.
+    property_set,
+
+    /// ### `OpCode.property_get(offset: constant_offset)`
+    /// - Get the value of the property with the itdentifer obtained from the operand
+    ///   on the class instance at the top of the stack.
+    property_get,
+
     /// ### `OpCode.jump_if_false(offset: jump_offset)`
     /// - Jump over a number of instructions obtained from the operand if the value
     ///   at the top of the stack is `false`.
