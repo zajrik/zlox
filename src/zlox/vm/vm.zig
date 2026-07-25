@@ -136,7 +136,6 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         },
     );
 
-
     if (script.chunk.isEmpty()) return .ok;
 
     // Push script closure to stack to match reserved local slot 0

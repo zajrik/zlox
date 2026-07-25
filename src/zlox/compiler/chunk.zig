@@ -49,7 +49,7 @@ pub fn deinit(self: *Chunk) void {
 }
 
 /// Returns the number of instructions compiled to this chunk.
-pub inline fn len(self: *const Chunk) usize {
+pub fn len(self: *const Chunk) usize {
     return self.instructions.items.len;
 }
 
@@ -70,27 +70,27 @@ pub fn hasReturn(self: *const Chunk) bool {
 }
 
 /// Returns a pointer to the first compiled instruction in this chunk.
-pub inline fn ip(self: *const Chunk) [*]u8 {
+pub fn ip(self: *const Chunk) [*]u8 {
     return self.instructions.items.ptr;
 }
 
 /// Returns a pointer to the instruction at the given offset.
-pub inline fn ipAt(self: *const Chunk, offset: usize) *u8 {
+pub fn ipAt(self: *const Chunk, offset: usize) *u8 {
     return &self.instructions.items[offset];
 }
 
 /// Returns the instruction at the given offset.
-pub inline fn instructionAt(self: *const Chunk, offset: usize) u8 {
+pub fn instructionAt(self: *const Chunk, offset: usize) u8 {
     return self.instructions.items[offset];
 }
 
 /// Returns the line number at the given offset.
-pub inline fn lineAt(self: *const Chunk, offset: usize) u16 {
+pub fn lineAt(self: *const Chunk, offset: usize) u16 {
     return self.lines.items[offset];
 }
 
 /// Returns the constant value at the given offset.
-pub inline fn constantAt(self: *const Chunk, offset: usize) Value {
+pub fn constantAt(self: *const Chunk, offset: usize) Value {
     return self.constants.items[offset];
 }
 

@@ -1,7 +1,11 @@
-pub const U8_MAX = 255;
+const std = @import("std");
+
+const maxInt = std.math.maxInt;
+
+pub const U8_MAX = maxInt(u8);
 pub const U8_SIZE = U8_MAX + 1;
 
-pub const U16_MAX = 65535;
+pub const U16_MAX = maxInt(u16);
 pub const U16_SIZE = U16_MAX + 1;
 
 pub const FRAME_MAX = 64;

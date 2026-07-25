@@ -43,6 +43,7 @@ pub fn toValue(self: *Method) Value {
 
 /// Custom formatter for `Obj` values of this variant.
 pub fn format(self: *const Method, writer: *Writer) !void {
+    // SAFETY: Class methods can't be declared without identifiers
     const class: *Obj.String = self.receiver.objCast(.instance).class.identifier;
     const method: *Obj.String = self.closure.function.identifier.?;
 

@@ -63,7 +63,7 @@ enclosing: ?*Compiler = null,
 /// nested functions.
 ///
 /// Used for tracking class compilation within nested compilation scopes.
-class_context: *?*ClassContext,
+context: *?*ClassContext,
 
 /// The currently-compiling function object.
 ///
@@ -107,14 +107,14 @@ pub fn create(
     /// Enclosing compiler, if any.
     enclosing: ?*Compiler,
     /// Pointer to a pointer pointing to the root class context node.
-    class_context: *?*ClassContext,
+    context: *?*ClassContext,
     /// Table for interning strings at compile time.
     interned_strings: *HashTable,
 ) !*Compiler {
     const compiler: *Compiler = try mem.createStruct(Compiler, .{
         .parser = parser,
         .enclosing = enclosing,
-        .class_context = class_context,
+        .context = context,
         .strings = interned_strings,
     });
 
@@ -127,6 +127,7 @@ pub fn create(
     // If the function type is not `script` and the current token is an identifier,
     // capture its lexeme to use as the function identifier string
     if (T != .script and parser.current.is(.identifier)) {
+        // SAFETY: compiler.function was just allocated above 🫠
         compiler.function.?.identifier = try compiler.wrapString(
             parser.current.lexeme,
         );
@@ -152,7 +153,7 @@ pub fn create(
 /// Returns a pointer to the created compiler. The caller owns this pointer and is
 /// responsible for freeing it.
 fn createNestedCompiler(self: *Compiler, T: Obj.Function.Type) !*Compiler {
-    return try .create(T, self.parser, self, self.class_context, self.strings);
+    return try .create(T, self.parser, self, self.context, self.strings);
 }
 
 /// Destroy this `Compiler`, freeing its owned resources.
@@ -162,15 +163,16 @@ pub fn destroy(self: *const Compiler) void {
 
 /// Returns a pointer to the `Chunk` of the currently-compiling function object.
 ///
-/// This will panic if called after compilation finishes and any compilation errors
-/// were emitted.
+/// SAFETY: This will panic if called after compilation finishes and any compilation
+/// errors were emitted. `self.function` is guaranteed to be not-`null` within any
+/// compiler method after `compile()` has been called until `compile()` returns.
 fn chunk(self: *const Compiler) *Chunk {
     return &self.function.?.chunk;
 }
 
 /// Returns the offset at which the next instruction will be inserted.
 ///
-/// Autocomplete-able shortcut for `self.chunk.?.len()`.
+/// Autocomplete-able shortcut for `self.function.?chunk.len()`.
 fn instructionOffset(self: *const Compiler) usize {
     return self.chunk().len();
 }
@@ -193,6 +195,8 @@ pub fn compile(self: *Compiler) !?*Obj.Function {
         if (comptime debug.dump_chunk) {
             debug.disassembleChunk(self.chunk(), "code");
         }
+
+        // SAFETY: function is guaranteed not-null until this point
         self.function.?.destroy();
         self.function = null;
     }
@@ -283,9 +287,9 @@ fn classDeclaration(self: *Compiler) void {
     self.declareLocal();
 
     // Initialize a new class context for this class
-    var class_context: ClassContext = .{ .enclosing = self.class_context.* };
-    self.class_context.* = &class_context;
-    defer self.class_context.* = class_context.enclosing;
+    var context: ClassContext = .{ .enclosing = self.context.* };
+    self.context.* = &context;
+    defer self.context.* = context.enclosing;
 
     self.emitOp1(.class, ident);
     self.defineVariable(ident);
@@ -474,6 +478,7 @@ fn continueStmt(self: *Compiler) void {
 
 /// Compile a return statement from source tokens.
 fn returnStmt(self: *Compiler) void {
+    // SAFETY: function is always not-null during compilation
     if (self.function.?.type == .script) self.err(
         "Can't return from top-level code.",
     );
@@ -629,6 +634,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
 
     // Compile function parameters, if any
     if (p.next.isNot(.paren_right)) {
+        // SAFETY: function is always not-null during compilation
         const arity: *u8 = &fun_cmp.function.?.arity;
 
         while (true) : (if (p.listEnd(.paren_right)) break) {
@@ -760,7 +766,7 @@ pub fn literal(self: *const Compiler, _: bool) void {
 
 /// Compile a `this` expression from the current source token.
 pub fn this(self: *Compiler, _: bool) void {
-    if (self.class_context.* == null) return self.err(
+    if (self.context.* == null) return self.err(
         "Can't use 'this' outside of a class body",
     );
     self.variable(false);
@@ -1110,6 +1116,7 @@ fn resolveUpvalue(self: *Compiler, identifier: Token) ?u8 {
 /// If an upvalue with the given offset/locality already exists, its offset will
 /// be returned.
 fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
+    // SAFETY: function is always not-null during compilation
     const upvalue_count: u8 = self.function.?.upvalue_count;
 
     // Check for existing compiled upvalue matching the given offset/locality
@@ -1132,6 +1139,7 @@ fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
         .is_local = is_local,
     };
 
+    // SAFETY: function is always not-null during compilation
     self.function.?.upvalue_count += 1;
     return upvalue_count;
 }
