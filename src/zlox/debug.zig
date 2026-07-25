@@ -126,6 +126,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .loop => |T| jumpInstruction(T, -1, chunk, offset),
 
         .call => |T| byteInstruction(T, chunk, offset),
+        .invoke => |T| invokeInstruction(T, chunk, offset),
 
         .closure => |T| {
             var new_offset: usize = offset + 1;
@@ -201,6 +202,21 @@ fn jumpInstruction(comptime op: OpCode, sign: i2, chunk: *const Chunk, offset: u
     printf(
         "{s:<16} {d:4} -> {d}\n",
         .{ op.toString(), offset, @as(i32, @intCast(offset)) + 3 + jump },
+    );
+
+    return offset + 3;
+}
+
+/// Print the given `OpCode`, followed by the identifier offset operand and the arg
+/// count operand following it in the given `chunk`.
+fn invokeInstruction(comptime op: OpCode, chunk: *const Chunk, offset: usize) usize {
+    const ident_offset: u8 = chunk.instructionAt(offset + 1);
+    const arg_count: u8 = chunk.instructionAt(offset + 2);
+    const ident: Value = chunk.constantAt(ident_offset);
+
+    printf(
+        "{s:<16} ({d} args) {d:4} '{f}'\n",
+        .{ op.toString(), arg_count, ident_offset, ident },
     );
 
     return offset + 3;

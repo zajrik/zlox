@@ -407,6 +407,42 @@ fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) !void {
     });
 }
 
+/// Invoke a method with the given `ident` on the receiver found on the stack below
+/// `arg_count` argument values.
+fn invoke(self: *Vm, ident: *Obj.String, arg_count: u8) !void {
+    const receiver: Value = self.stack.peek(arg_count);
+    const instance: *Obj.Instance = receiver.asObj(.instance) orelse {
+        return self.err("Can't call method on non-instance value");
+    };
+
+    // If the "method" is actually a function field, call it as a function rather
+    // than performing a method lookup and invocation
+    if (instance.fields.get(ident)) |it| {
+        // Replace receiver with field function
+        (self.stack.top - 1 - arg_count)[0] = it;
+        try self.callValue(it, arg_count);
+    }
+
+    // Otherwise perform invoke the method
+    try self.invokeFromClass(instance.class, ident, arg_count);
+}
+
+/// Invoke a method with the given `ident` from the given `class` on the receiver
+/// on the stack using the given `arg_count` arguments.
+///
+/// The method will be called using the receiver already on the stack below
+/// the method arguments.
+///
+/// Returns an error if the given method is undefined.
+fn invokeFromClass(self: *Vm, class: *Obj.Class, ident: *Obj.String, arg_count: u8) !void {
+    if (class.methods.get(ident)) |method| return try self.callFun(
+        method.objCast(.closure),
+        arg_count,
+    );
+
+    return self.errFmt("Undefined method '{f}'", .{ident});
+}
+
 // Instruction loop ================================================================================
 
 /// Run instructions from the currently loaded chunk.
@@ -478,9 +514,9 @@ fn run(self: *Vm) !ExecutionResult {
 
             .negate => {
                 const value: Value = self.stack.peek(0);
-                if (value.isNot(.number)) {
-                    return self.err("Operand must be a number");
-                }
+                if (value.isNot(.number)) return self.err(
+                    "Operand must be a number",
+                );
                 _ = self.stack.replace(0, .Number(-value.number));
             },
 
@@ -600,6 +636,11 @@ fn run(self: *Vm) !ExecutionResult {
             .call => {
                 const arg_count: u8 = frame.readByte();
                 try self.callValue(self.stack.peek(arg_count), arg_count);
+            },
+            .invoke => {
+                const ident: *Obj.String = frame.readString();
+                const arg_count: u8 = frame.readByte();
+                try self.invoke(ident, arg_count);
             },
 
             .closure => {

@@ -947,14 +947,23 @@ pub fn call(self: *Compiler, _: bool) void {
 /// Compile a dot expression from source tokens.
 pub fn dot(self: *Compiler, can_assign: bool) void {
     self.parser.expect(.identifier, "property name after '.'");
-    const ident = self.makeIdentConstant(self.parser.current);
 
+    const ident: u8 = self.makeIdentConstant(self.parser.current);
+
+    // If we can assign and see equal, set property
     if (can_assign and self.parser.match(.equal)) {
         self.expression();
         self.emitOp1(.property_set, ident);
-    } else {
-        self.emitOp1(.property_get, ident);
     }
+
+    // If we see an open paren, compile method invocation
+    else if (self.parser.match(.paren_left)) {
+        const arg_count: u8 = self.argumentList();
+        self.emitOp2(.invoke, ident, arg_count);
+    }
+
+    // Otherwise get property
+    else self.emitOp1(.property_get, ident);
 }
 
 /// Compile a series of argument expressions for a function call, returning the

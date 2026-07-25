@@ -200,6 +200,11 @@ pub const OpCode = enum(u8) {
     ///   The function value will be on the stack, followed by all of its arguments.
     call,
 
+    /// ### `OpCode.call(offset: const_offset, arg_count: byte)`
+    /// - Invoke a method with the name obtained from `offset` on the receiver on
+    ///   the stack, using `arg_count` values on the stack above it as arguments.
+    invoke,
+
     /// ### `OpCode.closure(offset: constant_offset)`
     /// - Create a closure at runtime. Must be followed by an offset pointing to
     ///   the function object the closure is wrapping.
