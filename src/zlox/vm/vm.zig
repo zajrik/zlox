@@ -90,11 +90,7 @@ pub fn create(io: Io) !*Vm {
     vm.frame_stack.reset();
     vm.stack.reset();
     vm.gc = try .create(vm);
-
-    // SAFETY: 🤌
     vm.init_string = try vm.copyString("init");
-    vm.init_string.?.obj.flags.is_constant = true;
-
     return vm;
 }
 
@@ -104,7 +100,6 @@ pub fn destroy(self: *Vm) void {
     self.strings.deinit();
     self.globals.deinit();
     self.gc.destroy();
-    self.init_string = null;
 }
 
 /// Interpret the given lox source code by compiling it to lox bytecode and running it.
