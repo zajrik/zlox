@@ -119,7 +119,14 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         &self.strings,
     );
 
+    defer self.freeInternedConstants();
+    defer parser.destroy();
+    defer compiler.destroy();
+    defer self.freeHeap();
+
     const script: *Obj.Function = try compiler.compile() orelse return .compile_error;
+    errdefer script.destroy();
+    defer script.destroy();
 
     const closure: *Obj.Closure = try self.createObj(
         .closure,
@@ -129,11 +136,6 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         },
     );
 
-    defer self.freeInternedConstants();
-    defer parser.destroy();
-    defer compiler.destroy();
-    defer script.destroy();
-    defer self.freeHeap();
 
     if (script.chunk.isEmpty()) return .ok;
 
