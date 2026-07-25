@@ -490,6 +490,11 @@ fn returnStmt(self: *Compiler) void {
 
     // Otherwise compile return value expression
     else {
+        // SAFETY: 👀
+        if (self.function.?.type == .initializer) self.err(
+            "Can't return value from class initializer.",
+        );
+
         self.expression();
         self.parser.expect(.semicolon, "';' after return value");
         self.emitOp(.@"return");
@@ -1216,7 +1221,13 @@ fn emitConstant(self: *const Compiler, value: Value) void {
 
 /// Write default return instructions to the chunk currently being compiled.
 fn emitDefaultReturn(self: *const Compiler) void {
-    self.emitOps(.nil, .@"return");
+    // SAFETY: function is always not-null during compilation
+    if (self.function.?.type == .initializer) {
+        self.emitOp1(.local_get, 0);
+        self.emitOp(.@"return");
+    } else {
+        self.emitOps(.nil, .@"return");
+    }
 }
 
 /// Write a jump `op` followed by placeholder bytes for the jump offset operand.

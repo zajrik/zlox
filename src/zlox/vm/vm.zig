@@ -77,6 +77,11 @@ next_gc: usize = 1024 * 1024,
 /// This is owned by the VM and must be freed when the VM is freed.
 gc: *Gc = undefined,
 
+/// `init` function identifier string, for looking up class initializers.
+///
+/// This
+init_string: ?*Obj.String = null,
+
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
@@ -85,6 +90,11 @@ pub fn create(io: Io) !*Vm {
     vm.frame_stack.reset();
     vm.stack.reset();
     vm.gc = try .create(vm);
+
+    // SAFETY: 🤌
+    vm.init_string = try vm.copyString("init");
+    vm.init_string.?.obj.flags.is_constant = true;
+
     return vm;
 }
 
@@ -94,6 +104,7 @@ pub fn destroy(self: *Vm) void {
     self.strings.deinit();
     self.globals.deinit();
     self.gc.destroy();
+    self.init_string = null;
 }
 
 /// Interpret the given lox source code by compiling it to lox bytecode and running it.
@@ -345,6 +356,19 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
 
             // Replace class object on stack with instance
             (self.stack.top - 1 - arg_count)[0] = instance.toValue();
+
+            // Call initializer if present
+            // SAFETY: init_string is definitely defined at this point
+            if (instance.class.methods.get(self.init_string.?)) |init| {
+                return self.callFun(init.objCast(.closure), arg_count);
+            }
+
+            // Otherwise error for mismatched arity on an empty initializer
+            else if (arg_count != 0) return self.errFmt(
+                "Expected 0 arguments, got {d}",
+                .{arg_count},
+            );
+
             return;
         },
 

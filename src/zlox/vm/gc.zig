@@ -110,8 +110,9 @@ pub fn markRoots(self: *Gc) !void {
     var upvalue: ?*Obj.Upvalue = self.vm.open;
     while (upvalue) |it| : (upvalue = it.next) try self.markObject(it.toObj());
 
-    // Mark globals
+    // Mark globals, etc.
     try self.markTable(&self.vm.globals);
+    if (self.vm.init_string) |it| try self.markObject(it.toObj());
 }
 
 /// Trace through marked object references to mark any further reachable objects.
