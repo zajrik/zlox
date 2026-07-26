@@ -17,9 +17,6 @@ var _allocator: Allocator = undefined;
 var _initialized: bool = false;
 var _is_arena: bool = false;
 
-/// Growth factor for expanding array/table capacity.
-const growth_factor: usize = 2;
-
 /// Initialize the memory module with the given `arena` allocator.
 ///
 /// The memory module may only be initialized once.
@@ -103,13 +100,6 @@ pub fn destroy(ptr: anytype) void {
 /// Free an allocated array.
 pub fn free(ptr: anytype) void {
     return allocator().free(ptr);
-}
-
-/// Increase the given `capacity` by a predefined growth factor.
-///
-/// Returns the increased capacity.
-pub fn growCapacity(capacity: usize) usize {
-    return if (capacity < 8) 8 else capacity * growth_factor;
 }
 
 /// Returns an interpolated string using `std.fmt.allocPrint`, allocating as needed.

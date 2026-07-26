@@ -41,6 +41,17 @@ pub fn deinit(self: *HashTable) void {
     mem.free(self.entries);
 }
 
+/// Increase the given `capacity` by a predefined growth factor (`2`).
+///
+/// The growth factor is defined such that the resulting capacity is always a power
+/// of `2` to support bit-twiddling our backing-array key-hash indexing rather than
+/// using the modulus of the hash and capacity, which is much, much slower.
+///
+/// Returns the increased capacity.
+fn grow(capacity: usize) usize {
+    return if (capacity < 8) 8 else capacity * 2;
+}
+
 /// Resize this table to the given `capacity`.
 ///
 /// A new backing array of the given capacity will be allocated, existing entries
@@ -60,11 +71,8 @@ fn resize(self: *HashTable, capacity: usize) !void {
 
     // Move existing entries to new entries array
     for (self.entries) |entry| if (entry.key) |key| {
-        const dest_entry: *Entry = findEntry(entries, key);
-        dest_entry.key = key;
-        dest_entry.val = entry.val;
+        findEntry(entries, key).* = .{ .key = key, .val = entry.val };
         self.count += 1;
-
         if (self.count >= capacity) break;
     };
 
@@ -74,10 +82,10 @@ fn resize(self: *HashTable, capacity: usize) !void {
 
 /// Find an `Entry` with the given `key` in the given `entries` slice.
 fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
-    var index: usize = key.hash % entries.len;
+    var index: usize = key.hash & (entries.len - 1);
     var tombstone: ?*Entry = null;
 
-    while (true) : (index = (index + 1) % entries.len) {
+    while (true) : (index = (index + 1) & (entries.len - 1)) {
         const entry: *Entry = &entries[index];
 
         // If entry key is null but value is nil, it's an empty slot. If the value
@@ -102,9 +110,9 @@ fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
 pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj.String {
     if (self.count == 0 or self.entries.len == 0) return null;
 
-    var index: usize = hash % self.entries.len;
+    var index: usize = hash & (self.entries.len - 1);
 
-    while (true) : (index = (index + 1) % self.entries.len) {
+    while (true) : (index = (index + 1) & (self.entries.len - 1)) {
         const entry: *Entry = &self.entries[index];
 
         // If entry key isn't null, check that it's the one we're looking for
@@ -128,11 +136,12 @@ pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj.St
 ///
 /// Returns an error if a resize was necessary but allocation failed.
 pub fn set(self: *HashTable, key: *Obj.String, val: Value) !bool {
-    const new_count: f64 = @as(f64, @floatFromInt(self.count + 1));
-    const max_load_capacity: f64 = @as(f64, @floatFromInt(self.entries.len)) * max_load;
+    const new_count: f128 = @floatFromInt(self.count + 1);
+    const entries: f128 = @floatFromInt(self.entries.len);
+    const max_load_capacity: f128 = entries * max_load;
 
     if (new_count > max_load_capacity) {
-        try self.resize(mem.growCapacity(self.entries.len));
+        try self.resize(grow(self.entries.len));
     }
 
     const entry: *Entry = findEntry(self.entries, key);
