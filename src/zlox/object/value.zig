@@ -12,6 +12,8 @@ const Writer = std.Io.Writer;
 // =================================================================================================
 
 /// Represents a lox value.
+///
+/// Implemented as a tagged union of possible lox value types.
 pub const Value: type = union(Value.Type) {
     /// Represents the type variants of a lox value.
     pub const Type = enum { nil, bool, number, obj };
@@ -40,6 +42,12 @@ pub const Value: type = union(Value.Type) {
 
     /// The constant `nil` lox Value.
     pub const Nil: Value = .nil;
+
+    /// The constant `true` lox Value.
+    pub const True: Value = .Bool(true);
+
+    /// The constant `false` lox Value.
+    pub const False: Value = .Bool(false);
 
     /// Creates a bool `Value` from the given `value`.
     pub fn Bool(value: Value.Variant(.bool)) Value {

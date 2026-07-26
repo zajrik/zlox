@@ -216,7 +216,7 @@ pub const Entry = struct {
     const empty: Entry = .{ .key = null, .val = .Nil };
 
     /// A tombstone `Entry` value, inserted in place of deleted entries.
-    const tombstone: Entry = .{ .key = null, .val = .Bool(true) };
+    const tombstone: Entry = .{ .key = null, .val = .True };
 
     /// Custom formatter for `Entry` values.
     pub fn format(self: Entry, writer: *Writer) !void {

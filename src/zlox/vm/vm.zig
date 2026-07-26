@@ -473,8 +473,8 @@ fn run(self: *Vm) !ExecutionResult {
             // Constant ops
             .constant => stack.push(frame.readConstant()),
             .nil => stack.push(.Nil),
-            .true => stack.push(.Bool(true)),
-            .false => stack.push(.Bool(false)),
+            .true => stack.push(.True),
+            .false => stack.push(.False),
 
             // Comparison ops
             .equal => {
