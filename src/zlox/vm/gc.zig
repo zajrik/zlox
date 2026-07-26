@@ -148,7 +148,7 @@ pub fn sweep(self: *const Gc) !void {
 ///
 /// Only affects `Obj` values.
 pub fn markValue(self: *Gc, value: Value) !void {
-    if (value.is(.obj)) try self.markObject(value.obj);
+    if (value.as(.obj)) |it| try self.markObject(it);
 }
 
 /// Mark the given object as alive, allowing it to live through this GC cycle.

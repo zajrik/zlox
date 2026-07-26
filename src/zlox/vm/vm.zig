@@ -214,13 +214,13 @@ fn binaryOp(self: *Vm, op: OpCode) !void {
 
     self.stack.popN(2);
     self.stack.push(switch (op) {
-        .add => .Number(a.number + b.number),
-        .subtract => .Number(a.number - b.number),
-        .multiply => .Number(a.number * b.number),
-        .divide => .Number(a.number / b.number),
+        .add => .Number(a.cast(.number) + b.cast(.number)),
+        .subtract => .Number(a.cast(.number) - b.cast(.number)),
+        .multiply => .Number(a.cast(.number) * b.cast(.number)),
+        .divide => .Number(a.cast(.number) / b.cast(.number)),
 
-        .greater => .Bool(a.number > b.number),
-        .less => .Bool(a.number < b.number),
+        .greater => .Bool(a.cast(.number) > b.cast(.number)),
+        .less => .Bool(a.cast(.number) < b.cast(.number)),
 
         else => return self.errFmt(
             "Invalid binary operator: '{s}'",
@@ -320,9 +320,9 @@ fn bindMethod(self: *Vm, class: *Obj.Class, ident: *Obj.String) !?void {
 /// Emits a runtime error if `callee` is not a callable function, method, or class
 /// initializer.
 fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
-    if (callee.is(.obj)) switch (callee.obj.type) {
-        .native => {
-            const native_obj: *Obj.Native = callee.objCast(.native);
+    if (callee.as(.obj)) |it| switch (it.type) {
+        .native => |T| {
+            const native_obj: *Obj.Native = it.cast(T);
             const native_fun: Obj.Native.FnPtr = native_obj.function;
 
             if (arg_count != native_obj.arity) return self.errFmt(
@@ -343,15 +343,12 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             return;
         },
 
-        .closure => return self.callFun(
-            callee.objCast(.closure),
-            arg_count,
-        ),
+        .closure => |T| return self.callFun(it.cast(T), arg_count),
 
-        .class => {
+        .class => |T| {
             const instance: *Obj.Instance = try self.createObj(
                 .instance,
-                Obj.Instance{ .class = callee.objCast(.class) },
+                Obj.Instance{ .class = it.cast(T) },
             );
 
             // Replace class object on stack with instance
@@ -372,8 +369,8 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             return;
         },
 
-        .method => {
-            const method: *Obj.Method = callee.objCast(.method);
+        .method => |T| {
+            const method: *Obj.Method = it.cast(T);
             // Replace method closure on stack with method receiver
             self.stack.slot(arg_count).* = method.receiver;
             return self.callFun(method.closure, arg_count);
@@ -520,7 +517,7 @@ fn run(self: *Vm) !ExecutionResult {
                 if (value.isNot(.number)) return self.err(
                     "Operand must be a number",
                 );
-                _ = stack.replace(0, .Number(-value.number));
+                _ = stack.replace(0, .Number(-value.cast(.number)));
             },
 
             // Logical ops

@@ -107,7 +107,14 @@ pub const Value: type = union(Value.Type) {
     ///
     /// Returns `null` if the value is not of the given variant type.
     pub fn as(self: Value, comptime T: Value.Type) ?Value.Variant(T) {
-        return if (self.isNot(T)) null else switch (T) {
+        return if (self.is(T)) self.cast(T) else null;
+    }
+
+    /// Cast this value to the zig representation of the given variant type `T`.
+    ///
+    /// Panics if the value is not of the given variant type.
+    pub fn cast(self: Value, comptime T: Value.Type) Value.Variant(T) {
+        return switch (T) {
             .nil => self.nil,
             .bool => self.bool,
             .number => self.number,
