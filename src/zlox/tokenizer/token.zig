@@ -34,6 +34,14 @@ pub fn init(T: TokenType, lexeme: []const u8, line: u16, column: u16) Token {
     };
 }
 
+/// Create a synthetic identifier token with the given lexeme.
+///
+/// Tokens are considered equal if their lexemes match, so this can be used for
+/// easily matching reserved identifiers.
+pub fn identifier(lexeme: []const u8) Token {
+    return Token.init(.identifier, lexeme, 0, 0);
+}
+
 /// Returns whether this token is of the given type `T`.
 pub fn is(self: Token, T: TokenType) bool {
     return self.type == T;

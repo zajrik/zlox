@@ -14,7 +14,7 @@ const grouping = Compiler.grouping;
 const string = Compiler.string;
 const number = Compiler.number;
 const literal = Compiler.literal;
-const variable = Compiler.variable;
+const variable = Compiler.variableExpr;
 const unary = Compiler.unary;
 const binary = Compiler.binary;
 const orExpr = Compiler.orExpr;
@@ -23,6 +23,7 @@ const switchExpr = Compiler.switchExpr;
 const funExpr = Compiler.funExpr;
 const call = Compiler.call;
 const dot = Compiler.dot;
+const super = Compiler.super;
 const this = Compiler.this;
 
 const Token = zlox.tokenizer.Token;
@@ -114,7 +115,7 @@ const strategies: [token_count]ParseStrategy = .{
     strat(.keyword_or,       null,       orExpr,   .@"or"     ),
     strat(.keyword_print,    null,       null,     .none      ),
     strat(.keyword_return,   null,       null,     .none      ),
-    strat(.keyword_super,    null,       null,     .none      ),
+    strat(.keyword_super,    super,      null,     .none      ),
     strat(.keyword_switch,   switchExpr, null,     .none      ),
     strat(.keyword_this,     this,       null,     .none      ),
     strat(.keyword_true,     literal,    null,     .none      ),

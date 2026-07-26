@@ -170,6 +170,15 @@ pub const OpCode = enum(u8) {
     ///   on the class instance at the top of the stack.
     property_get,
 
+    /// ### `OpCode.super_get(offset: constant_offset)`
+    /// - Get the super method with the identifier obtained from the operand, pushing
+    ///   it to the stack.
+    ///
+    ///   `super` and `this` will be on the stack (top-down order) when this op
+    ///   begins, and `super` will be popped off when executed, leaving the super
+    ///   method on the stack above `this`.
+    super_get,
+
     /// ### `OpCode.jump_if_false(offset: jump_offset)`
     /// - Jump over a number of instructions obtained from the operand if the value
     ///   at the top of the stack is `false`.
@@ -205,6 +214,14 @@ pub const OpCode = enum(u8) {
     ///   the stack, using `arg_count` values on the stack above it as arguments.
     invoke,
 
+    /// ### `OpCode.super_invoke(offset: const_offset, arg_count: byte)`
+    /// - Invoke a super method with the name obtained from `offset` from the superclass
+    ///   popped from the top of the stack.
+    ///
+    ///   The method will be invoked on the subclass instance receiver on the stack,
+    ///   using `arg_count` values on the stack above it as arguments.
+    super_invoke,
+
     /// ### `OpCode.closure(offset: constant_offset)`
     /// - Create a closure at runtime. Must be followed by an offset pointing to
     ///   the function object the closure is wrapping.
@@ -213,6 +230,12 @@ pub const OpCode = enum(u8) {
     /// ### `OpCode.class(offset: constant_offset)`
     /// - Creates a class object with the identifier obtained from the operand.
     class,
+
+    /// ### `OpCode.inherit()`
+    /// - Set a superclass for the class on the stack using the superclass on the
+    ///   stack below it. The subclass will be left on the stack for any methods
+    ///   to be attached to.
+    inherit,
 
     /// ### `OpCode.method(offset: constant_offset)`
     /// - Assigns the closure on top of the stack as a method on the class object

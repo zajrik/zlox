@@ -13,7 +13,7 @@ const Local: type = @This();
 identifier: Token,
 
 /// Scope depth of this local.
-depth: i32,
+depth: i32 = 0,
 
 /// Whether this local has been captured in a closure.
 is_captured: bool = false,

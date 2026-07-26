@@ -118,6 +118,8 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         .property_set => |T| constantInstruction(T, chunk, offset),
         .property_get => |T| constantInstruction(T, chunk, offset),
 
+        .super_get => |T| constantInstruction(T, chunk, offset),
+
         // Control flow ops
         .jump_if_false => |T| jumpInstruction(T, 1, chunk, offset),
         .jump_if_true => |T| jumpInstruction(T, 1, chunk, offset),
@@ -127,6 +129,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
 
         .call => |T| byteInstruction(T, chunk, offset),
         .invoke => |T| invokeInstruction(T, chunk, offset),
+        .super_invoke => |T| invokeInstruction(T, chunk, offset),
 
         .closure => |T| {
             var new_offset: usize = offset + 1;
@@ -155,6 +158,7 @@ pub fn disassembleInstruction(chunk: *Chunk, offset: usize) usize {
         },
 
         .class => |T| constantInstruction(T, chunk, offset),
+        .inherit => |T| simpleInstruction(T, offset),
         .method => |T| constantInstruction(T, chunk, offset),
 
         .@"return" => |T| simpleInstruction(T, offset),

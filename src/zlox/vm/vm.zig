@@ -202,13 +202,14 @@ fn errFmt(self: *Vm, comptime fmt: []const u8, args: anytype) error{runtime_erro
 
 /// Perform a binary operation with the top two number values on the stack.
 fn binaryOp(self: *Vm, op: OpCode) !void {
-    if (self.stack.peek(0).isNot(.number) or self.stack.peek(1).isNot(.number)) {
+    const b: Value = self.stack.peek(0);
+    const a: Value = self.stack.peek(1);
+
+    if (a.isNot(.number) or b.isNot(.number)) {
         return self.err("Operands must be numbers");
     }
 
-    const b: Value = self.stack.pop();
-    const a: Value = self.stack.pop();
-
+    self.stack.popN(2);
     self.stack.push(switch (op) {
         .add => .Number(a.number + b.number),
         .subtract => .Number(a.number - b.number),
@@ -336,6 +337,7 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             self.stack.top -= arg_count + 1;
 
             self.stack.push(result);
+            return;
         },
 
         .closure => return self.callFun(
@@ -350,7 +352,7 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             );
 
             // Replace class object on stack with instance
-            (self.stack.top - 1 - arg_count)[0] = instance.toValue();
+            self.stack.slot(arg_count).* = instance.toValue();
 
             // Call initializer if present
             // SAFETY: init_string is definitely defined at this point
@@ -370,7 +372,7 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
         .method => {
             const method: *Obj.Method = callee.objCast(.method);
             // Replace method closure on stack with method receiver
-            (self.stack.top - 1 - arg_count)[0] = method.receiver;
+            self.stack.slot(arg_count).* = method.receiver;
             return self.callFun(method.closure, arg_count);
         },
 
@@ -398,7 +400,7 @@ fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) !void {
     self.frame_stack.push(CallFrame{
         .closure = closure,
         .ip = closure.function.chunk.ip(),
-        .slots = @ptrCast(self.stack.top - 1 - arg_count),
+        .slots = @ptrCast(self.stack.slot(arg_count)),
     });
 }
 
@@ -414,7 +416,7 @@ fn invoke(self: *Vm, ident: *Obj.String, arg_count: u8) !void {
     // than performing a method lookup and invocation
     if (instance.fields.get(ident)) |it| {
         // Replace receiver with field function
-        (self.stack.top - 1 - arg_count)[0] = it;
+        self.stack.slot(arg_count).* = it;
         try self.callValue(it, arg_count);
     }
 
@@ -444,12 +446,15 @@ fn invokeFromClass(self: *Vm, class: *Obj.Class, ident: *Obj.String, arg_count: 
 fn run(self: *Vm) !ExecutionResult {
     printf("\n== begin execution ==\n", .{});
 
+    const stack: *Stack(Value, STACK_MAX) = &self.stack;
+
     while (true) {
-        // Grab the current frame off of the callframe stack
+        // Grab the current frame off of the callframe stack every loop. This
+        // lets us enter and exit callframes with just frame_stack.push/pop
         const frame: *CallFrame = self.frame_stack.slot(0);
 
         if (comptime debug.trace_execution) {
-            if (debug.print_stack) printf("{f}", .{&self.stack});
+            if (debug.print_stack) printf("{f}", .{stack});
 
             _ = debug.disassembleInstruction(
                 &frame.closure.function.chunk,
@@ -463,24 +468,24 @@ fn run(self: *Vm) !ExecutionResult {
 
         switch (OpCode.fromByte(op)) {
             // Constant ops
-            .constant => self.stack.push(frame.readConstant()),
-            .nil => self.stack.push(.Nil),
-            .true => self.stack.push(.Bool(true)),
-            .false => self.stack.push(.Bool(false)),
+            .constant => stack.push(frame.readConstant()),
+            .nil => stack.push(.Nil),
+            .true => stack.push(.Bool(true)),
+            .false => stack.push(.Bool(false)),
 
             // Comparison ops
             .equal => {
-                const b: Value = self.stack.pop();
-                const a: Value = self.stack.pop();
-                self.stack.push(.Bool(a.equals(b)));
+                const b: Value = stack.pop();
+                const a: Value = stack.pop();
+                stack.push(.Bool(a.equals(b)));
             },
             .greater => try self.binaryOp(.greater),
             .less => try self.binaryOp(.less),
 
             // Arithmetic ops
             .add => {
-                const b: Value = self.stack.peek(0);
-                const a: Value = self.stack.peek(1);
+                const b: Value = stack.peek(0);
+                const a: Value = stack.peek(1);
 
                 // If both values are numbers, add them
                 if (a.is(.number) and b.is(.number)) {
@@ -500,48 +505,48 @@ fn run(self: *Vm) !ExecutionResult {
                     ),
                 };
 
-                self.stack.popN(2);
-                self.stack.push((try self.linkObj(.string, c)).toValue());
+                stack.popN(2);
+                stack.push((try self.linkObj(.string, c)).toValue());
             },
             .subtract => try self.binaryOp(.subtract),
             .multiply => try self.binaryOp(.multiply),
             .divide => try self.binaryOp(.divide),
 
             .negate => {
-                const value: Value = self.stack.peek(0);
+                const value: Value = stack.peek(0);
                 if (value.isNot(.number)) return self.err(
                     "Operand must be a number",
                 );
-                _ = self.stack.replace(0, .Number(-value.number));
+                _ = stack.replace(0, .Number(-value.number));
             },
 
             // Logical ops
-            .not => _ = self.stack.replace(0, .Bool(self.stack.peek(0).isFalsey())),
+            .not => _ = stack.replace(0, .Bool(stack.peek(0).isFalsey())),
 
             // Stack ops
-            .pop => _ = self.stack.pop(),
-            .pop_n => self.stack.popN(frame.readByte()),
+            .pop => _ = stack.pop(),
+            .pop_n => stack.popN(frame.readByte()),
             .close => {
-                self.closeUpvalues(self.stack.slot(0));
-                _ = self.stack.pop();
+                self.closeUpvalues(stack.slot(0));
+                _ = stack.pop();
             },
-            .copy => self.stack.copy(0),
-            .swap => self.stack.swap(0, 1),
+            .copy => stack.copy(0),
+            .swap => stack.swap(0, 1),
 
-            .print => printf("{f}\n", .{self.stack.pop()}),
+            .print => printf("{f}\n", .{stack.pop()}),
 
             // Variable define/get/set etc. ops
             .global_define => {
                 const ident: *Obj.String = frame.readString();
-                _ = try self.globals.set(ident, self.stack.peek(0));
-                _ = self.stack.pop();
+                _ = try self.globals.set(ident, stack.peek(0));
+                _ = stack.pop();
             },
             .global_set => {
                 const ident: *Obj.String = frame.readString();
 
                 // If the global variable isn't defined before setting, throw a
                 // runtime error and delete the entry from the globals table
-                if (try self.globals.set(ident, self.stack.peek(0))) {
+                if (try self.globals.set(ident, stack.peek(0))) {
                     _ = self.globals.delete(ident);
                     return self.errFmt("Undefined variable '{f}'", .{ident});
                 }
@@ -551,41 +556,41 @@ fn run(self: *Vm) !ExecutionResult {
                 const value: Value = self.globals.get(ident) orelse {
                     return self.errFmt("Undefined variable '{f}'", .{ident});
                 };
-                self.stack.push(value);
+                stack.push(value);
             },
 
-            .local_set => frame.slots[frame.readByte()] = self.stack.peek(0),
-            .local_get => self.stack.push(frame.slots[frame.readByte()]),
+            .local_set => frame.slots[frame.readByte()] = stack.peek(0),
+            .local_get => stack.push(frame.slots[frame.readByte()]),
 
             .upvalue_set => {
                 const offset: u8 = frame.readByte();
                 const upvalue: *Obj.Upvalue = frame.closure.upvalues[offset];
-                upvalue.location.* = self.stack.peek(0);
+                upvalue.location.* = stack.peek(0);
             },
             .upvalue_get => {
                 const offset: u8 = frame.readByte();
                 const upvalue: *Obj.Upvalue = frame.closure.upvalues[offset];
-                self.stack.push(upvalue.location.*);
+                stack.push(upvalue.location.*);
             },
 
             .property_set => {
                 // Peek instance on stack
-                const inst_val: Value = self.stack.peek(1);
+                const inst_val: Value = stack.peek(1);
                 const inst_obj: *Obj.Instance = inst_val.asObj(.instance) orelse {
                     return self.err("Only class instances have properties");
                 };
 
                 // Set property/field on instance
                 const property: *Obj.String = frame.readString();
-                _ = try inst_obj.fields.set(property, self.stack.peek(0));
+                _ = try inst_obj.fields.set(property, stack.peek(0));
 
                 // Pop instance from stack, leaving set expression value
-                _ = self.stack.swap(0, 1);
-                _ = self.stack.pop();
+                _ = stack.swap(0, 1);
+                _ = stack.pop();
             },
             .property_get => {
                 // Peek instance on stack
-                const inst_val: Value = self.stack.peek(0);
+                const inst_val: Value = stack.peek(0);
                 const inst_obj: *Obj.Instance = inst_val.asObj(.instance) orelse {
                     return self.err("Only class instances have properties");
                 };
@@ -593,7 +598,7 @@ fn run(self: *Vm) !ExecutionResult {
                 // Try getting property/field from instance
                 const property: *Obj.String = frame.readString();
                 if (inst_obj.fields.get(property)) |it| {
-                    _ = self.stack.replace(0, it);
+                    _ = stack.replace(0, it);
                     continue;
                 }
 
@@ -602,22 +607,35 @@ fn run(self: *Vm) !ExecutionResult {
                 // can continue to the next instruction
                 try self.bindMethod(inst_obj.class, property) orelse {
                     // Return nil if prop/field/method doesn't exist
-                    _ = self.stack.replace(0, .Nil);
+                    _ = stack.replace(0, .Nil);
+                };
+            },
+
+            .super_get => {
+                const ident: *Obj.String = frame.readString();
+                const super: *Obj.Class = stack.pop().objCast(.class);
+
+                // UNSAFE?: bindMethod() allocates a bound method object which can
+                // trigger a GC while the superclass is off the stack and vulnerable
+
+                try self.bindMethod(super, ident) orelse {
+                    // Return nil if super method doesn't exist
+                    _ = stack.replace(0, .Nil);
                 };
             },
 
             // Control flow ops
             .jump_if_false => {
                 const offset: u16 = frame.readShort();
-                if (self.stack.peek(0).isFalsey()) frame.ip += offset;
+                if (stack.peek(0).isFalsey()) frame.ip += offset;
             },
             .jump_if_true => {
                 const offset: u16 = frame.readShort();
-                if (!self.stack.peek(0).isFalsey()) frame.ip += offset;
+                if (!stack.peek(0).isFalsey()) frame.ip += offset;
             },
             .jump_if_not_nil => {
                 const offset: u16 = frame.readShort();
-                if (self.stack.peek(0).isNot(.nil)) frame.ip += offset;
+                if (stack.peek(0).isNot(.nil)) frame.ip += offset;
             },
             .jump => {
                 const offset: u16 = frame.readShort();
@@ -630,12 +648,18 @@ fn run(self: *Vm) !ExecutionResult {
 
             .call => {
                 const arg_count: u8 = frame.readByte();
-                try self.callValue(self.stack.peek(arg_count), arg_count);
+                try self.callValue(stack.peek(arg_count), arg_count);
             },
             .invoke => {
                 const ident: *Obj.String = frame.readString();
                 const arg_count: u8 = frame.readByte();
                 try self.invoke(ident, arg_count);
+            },
+            .super_invoke => {
+                const ident: *Obj.String = frame.readString();
+                const arg_count: u8 = frame.readByte();
+                const superclass: *Obj.Class = stack.pop().objCast(.class);
+                try self.invokeFromClass(superclass, ident, arg_count);
             },
 
             .closure => {
@@ -666,7 +690,7 @@ fn run(self: *Vm) !ExecutionResult {
                     };
                 }
 
-                self.stack.push((try self.linkObj(.closure, closure)).toValue());
+                stack.push((try self.linkObj(.closure, closure)).toValue());
             },
 
             .class => {
@@ -676,20 +700,31 @@ fn run(self: *Vm) !ExecutionResult {
                     Obj.Class{ .identifier = class_ident },
                 );
 
-                self.stack.push(class_obj.toValue());
+                stack.push(class_obj.toValue());
+            },
+
+            .inherit => {
+                const superclass: Value = stack.peek(1);
+                if (!superclass.isObj(.class)) return self.err(
+                    "Superclass must be a class.",
+                );
+
+                // Add all methods from superclass to subclass
+                const subclass: *Obj.Class = stack.peek(0).objCast(.class);
+                try subclass.methods.addAll(&superclass.objCast(.class).methods);
             },
 
             .method => {
-                const closure: Value = self.stack.peek(0);
-                const class: *Obj.Class = self.stack.peek(1).objCast(.class);
+                const closure: Value = stack.peek(0);
+                const class: *Obj.Class = stack.peek(1).objCast(.class);
 
                 _ = try class.methods.set(frame.readString(), closure);
-                _ = self.stack.pop();
+                _ = stack.pop();
             },
 
             .@"return" => {
                 // Pop return value from value stack
-                const result: Value = self.stack.pop();
+                const result: Value = stack.pop();
 
                 // Close any open upvalues on the stack within this callframe's scope
                 self.closeUpvalues(@ptrCast(frame.slots));
@@ -697,13 +732,13 @@ fn run(self: *Vm) !ExecutionResult {
                 // Pop callframe from frame stack, exiting if it was the root callframe
                 if (self.frame_stack.discard() == 0) {
                     // Pop script function
-                    _ = self.stack.pop();
+                    _ = stack.pop();
                     return .ok;
                 }
 
                 // Discard callframe value stack slots and push return value to stack
-                self.stack.top = frame.slots;
-                self.stack.push(result);
+                stack.top = frame.slots;
+                stack.push(result);
             },
 
             _ => return self.errFmt("Unknown opcode: {d}", .{op}),

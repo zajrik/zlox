@@ -135,14 +135,12 @@ pub fn create(
 
     // Reserve local slot 0 for the callframe root object, which will either be the
     // compiled function itself or the bound `this` receiver in class instance methods
-    const root_ident: []const u8 = switch (T) {
-        .method, .initializer => "this",
-        else => "",
-    };
     compiler.local_count += 1;
     compiler.locals[0] = Local{
-        .depth = 0,
-        .identifier = Token.init(.identifier, root_ident, 0, 0),
+        .identifier = Token.identifier(switch (T) {
+            .method, .initializer => "this",
+            else => "",
+        }),
     };
 
     return compiler;
@@ -282,23 +280,56 @@ fn declaration(self: *Compiler) void {
 /// Compile a class declaration from source tokens.
 fn classDeclaration(self: *Compiler) void {
     self.parser.expect(.identifier, "class name");
-    const class: Token = self.parser.current;
-    const ident: u8 = self.makeIdentConstant(class);
-    self.declareLocal();
+
+    // Declare variable for the parsed class name
+    const ident: Token = self.parser.current;
+    const constant: u8 = self.makeIdentConstant(ident);
+    self.declare();
+
+    // Mark declared class name as defined
+    self.emitOp1(.class, constant);
+    self.define(constant);
 
     // Initialize a new class context for this class
     var context: ClassContext = .{ .enclosing = self.context.* };
     self.context.* = &context;
     defer self.context.* = context.enclosing;
 
-    self.emitOp1(.class, ident);
-    self.defineVariable(ident);
+    // If we parse an inherited class, set up a scope for the class body to contain
+    // `super` as a local. We'll also defer ending the scope because defer is 🤌
+    if (self.parser.match(.less)) {
+        self.pushScope();
+        context.has_superclass = true;
+    }
+    defer if (context.has_superclass) self.popScope();
 
-    // Load class object back onto the stack for any method instructions
-    self.variableGetSet(class, false);
+    // If a superclass is given, we want to load it and the subclass onto the stack
+    // and execute an `inherit` instruction to create the inherited class
+    if (context.has_superclass) {
+        self.parser.expect(.identifier, "superclass name");
+        self.variableExpr(false);
 
+        if (self.parser.current.equals(ident)) self.err(
+            "A class can't inherit from itself.",
+        );
+
+        // Define `super` local using the superclass on the stack from the
+        // variable expression above
+        self.addLocal(.identifier("super"));
+        self.define(0);
+
+        // Load subclass onto the stack for inherit op and any methods in body
+        self.variableExprFor(ident, false);
+        self.emitOp(.inherit);
+    }
+
+    // Otherwise just load the class object onto the stack for any method ops
+    else self.variableExprFor(ident, false);
+
+    // Compile class body, emitting instructions to attach compiled methods to the
+    // class object on the stack
     self.parser.expect(.brace_left, "'{' before class body");
-    while (true) : (if (self.parser.blockEnd(.brace_right)) break) {
+    while (!self.parser.blockEnd(.brace_right)) {
         self.methodDeclaration();
     }
     self.parser.expect(.brace_right, "'}' after class body");
@@ -308,8 +339,13 @@ fn classDeclaration(self: *Compiler) void {
 }
 
 /// Compile a class method declaration from source tokens.
+///
+/// The declaration compiles to instructions to load the method closure onto the
+/// stack and attach it to the class on the stack below it.
 fn methodDeclaration(self: *Compiler) void {
-    const ident: u8 = self.variableIdentifier("method name");
+    self.parser.expect(.identifier, "method name");
+
+    const ident: u8 = self.makeIdentConstant(self.parser.current);
     const init: bool = std.mem.eql(u8, self.parser.current.lexeme, "init");
 
     self.compileFun(if (init) .initializer else .method, false);
@@ -317,6 +353,12 @@ fn methodDeclaration(self: *Compiler) void {
 }
 
 /// Compile a function declaration from source tokens.
+///
+/// The declaration compiles to instructions to load the function closure onto the
+/// stack and associate it with a variable of the same name.
+///
+/// The closure will remain on the stack for local functions, or popped when
+/// .global_define is executed for global functions
 fn funDeclaration(self: *Compiler) void {
     const ident_offset: u8 = self.variableIdentifier("function name");
 
@@ -324,7 +366,7 @@ fn funDeclaration(self: *Compiler) void {
     self.markDefined();
 
     self.compileFun(.function, false);
-    self.defineVariable(ident_offset);
+    self.define(ident_offset);
 }
 
 /// Compile a variable declaration statement from source tokens.
@@ -334,7 +376,7 @@ fn varDeclaration(self: *Compiler) void {
     if (self.parser.match(.equal)) self.expression() else self.emitOp(.nil);
     self.parser.expect(.semicolon, "';' after variable declaration");
 
-    self.defineVariable(ident_offset);
+    self.define(ident_offset);
 }
 
 /// Compile a statement from source tokens.
@@ -643,7 +685,7 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
         const arity: *u8 = &fun_cmp.function.?.arity;
 
         while (true) : (if (p.listEnd(.paren_right)) break) {
-            fun_cmp.defineVariable(
+            fun_cmp.define(
                 fun_cmp.variableIdentifier("parameter identifier"),
             );
 
@@ -685,6 +727,8 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
 // Expression compilation methods ==================================================================
 
 /// Compile an expression from source tokens.
+///
+/// This expression will load the value of the parsed expression onto the stack.
 fn expression(self: *Compiler) void {
     self.expr(.assignment);
 }
@@ -736,12 +780,16 @@ fn expr(self: *Compiler, precedence: Precedence) void {
 }
 
 /// Compile a parenthesized grouping expression from source tokens.
+///
+/// This expression will load the value of the parsed grouping onto the stack.
 pub fn grouping(self: *Compiler, _: bool) void {
     self.expression();
     self.parser.expect(.paren_right, "')' after expression");
 }
 
 /// Compile a string expression from the current source token.
+///
+/// This expression will load the value of the parsed string onto the stack.
 pub fn string(self: *const Compiler, _: bool) void {
     const token: Token = self.parser.current;
     const chars: []const u8 = token.lexeme[1..(token.lexeme.len - 1)];
@@ -751,6 +799,8 @@ pub fn string(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a number expression from the current source token.
+///
+/// This expression will load the value of the parsed number onto the stack.
 pub fn number(self: *const Compiler, _: bool) void {
     const value: f64 = parseFloat(f64, self.parser.current.lexeme) catch {
         return self.err("Invalid number literal.");
@@ -760,6 +810,8 @@ pub fn number(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a literal expression from the current source token.
+///
+/// This expression will load the value of the parsed literal onto the stack.
 pub fn literal(self: *const Compiler, _: bool) void {
     switch (self.parser.current.type) {
         .keyword_nil => self.emitOp(.nil),
@@ -769,22 +821,58 @@ pub fn literal(self: *const Compiler, _: bool) void {
     }
 }
 
+/// Compile a `super` method expression from the current source token.
+pub fn super(self: *Compiler, _: bool) void {
+    self.parser.expect(.dot, "'.' after 'super'");
+    self.parser.expect(.identifier, "superclass method name");
+
+    const context: *ClassContext = self.context.* orelse return self.err(
+        "Can't use `super` outside of a class body",
+    );
+
+    if (!context.has_superclass) return self.err(
+        "Can't use `super` in a class with no superclass",
+    );
+
+    // Capture super method identifier
+    const ident: u8 = self.makeIdentConstant(self.parser.current);
+
+    // Load `this` onto the stack for the following op
+    self.variableExprFor(.identifier("this"), false);
+
+    // Emit .super_invoke op if we see an argument list
+    if (self.parser.match(.paren_left)) {
+        const arg_count: u8 = self.argumentList();
+        self.variableExprFor(.identifier("super"), false);
+        self.emitOp2(.super_invoke, ident, arg_count);
+    }
+
+    // Otherwise emit .super_get
+    else {
+        self.variableExprFor(.identifier("super"), false);
+        self.emitOp1(.super_get, ident);
+    }
+}
+
 /// Compile a `this` expression from the current source token.
+///
+/// This expression will load the value of `this` in the current context onto the stack.
 pub fn this(self: *Compiler, _: bool) void {
     if (self.context.* == null) return self.err(
         "Can't use 'this' outside of a class body",
     );
-    self.variable(false);
+    self.variableExpr(false);
 }
 
-/// Compile a variable/identifier get/set expression from the current source token.
-pub fn variable(self: *Compiler, can_assign: bool) void {
-    self.variableGetSet(self.parser.current, can_assign);
-}
-
-/// Compile a variable/identifier get/set expression, emitting bytecode to get/set
-/// the value for that variable/identifier.
-fn variableGetSet(self: *Compiler, identifier: Token, can_assign: bool) void {
+/// Compile a variable get/set-expression for a variable with the given identifier
+/// token, emitting bytecode to get/set the value for the variable.
+///
+/// A get-expression will load the value of the referenced variable onto the stack.
+/// A set-expression will set the value of the referenced variable to the value of
+/// the following expression, leaving that value on the stack.
+///
+/// Compiles a set-expression if `can_assign` is `true`.
+fn variableExprFor(self: *Compiler, identifier: Token, can_assign: bool) void {
     var var_offset: u8 = 0;
     var set_op: OpCode = undefined;
     var get_op: OpCode = undefined;
@@ -809,6 +897,18 @@ fn variableGetSet(self: *Compiler, identifier: Token, can_assign: bool) void {
     } else {
         self.emitOp1(get_op, var_offset);
     }
+}
+
+/// Compile a variable get/set-expression for a variable with the identifier found
+/// at the current parsed token.
+///
+/// A get-expression will load the value of the referenced variable onto the stack.
+/// A set-expression will set the value of the referenced variable to the value of
+/// the following expression, leaving that value on the stack.
+///
+/// Compiles a set-expression if `can_assign` is `true`.
+pub fn variableExpr(self: *Compiler, can_assign: bool) void {
+    self.variableExprFor(self.parser.current, can_assign);
 }
 
 /// Compile a unary expression from source tokens.
@@ -1004,7 +1104,7 @@ fn variableIdentifier(self: *Compiler, comptime expect: []const u8) u8 {
     // their runtime-constant identifier strings loaded into the VM before the
     // lox bytecode is executed
     if (self.scope_depth > 0) {
-        self.declareLocal();
+        self.declare();
         return 0;
     }
 
@@ -1016,9 +1116,8 @@ fn variableIdentifier(self: *Compiler, comptime expect: []const u8) u8 {
 /// Does nothing if we're currently in the global scope. Global variables are declared
 /// and defined separately from local variables.
 ///
-/// The local will be considered uninitialized/undefined until `markDefined()`
-/// is called.
-fn declareLocal(self: *Compiler) void {
+/// The local will be considered uninitialized/undefined until `define()` is called.
+fn declare(self: *Compiler) void {
     if (self.scope_depth == 0) return;
 
     const identifier: Token = self.parser.current;
@@ -1039,6 +1138,13 @@ fn declareLocal(self: *Compiler) void {
     );
 
     // Add declared local to locals array
+    self.addLocal(identifier);
+}
+
+/// Add a local with the given `identifier` to the locals array for this compilation scope.
+///
+/// The local will be considered uninitialized/undefined until `define()` is called.
+fn addLocal(self: *Compiler, identifier: Token) void {
     self.local_count += 1;
     self.locals[self.local_count - 1] = Local{
         .identifier = identifier,
@@ -1097,7 +1203,7 @@ fn resolveLocal(self: *const Compiler, identifier: Token) ?u8 {
 /// If we're in the global scope, emit bytecode to define the global variable,
 /// passing the offset of the global variable's constant identifier string as
 /// the operand.
-fn defineVariable(self: *Compiler, ident_const_offset: u8) void {
+fn define(self: *Compiler, ident_const_offset: u8) void {
     if (self.scope_depth > 0) return self.markDefined();
     self.emitOp1(.global_define, ident_const_offset);
 }
@@ -1166,7 +1272,7 @@ fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
 fn makeConstant(self: *const Compiler, value: Value) u8 {
     // Check for existing constant matching this value and return its offset if
     // it already exists.
-    if (self.chunk().findConstant(value)) |offset| return offset;
+    if (self.chunk().findConstant(value)) |it| return it;
 
     const offset: usize = self.chunk().addConstant(value) catch {
         self.allocErr();

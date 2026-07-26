@@ -6,4 +6,7 @@ const ClassContext: type = @This();
 ///
 /// The presence of this indicates we are compiling a locally defined class within
 /// the method body of an enclosing class.
-enclosing: ?*ClassContext = null
+enclosing: ?*ClassContext = null,
+
+/// Whether the class in context has a superclass.
+has_superclass: bool = false,

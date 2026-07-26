@@ -148,10 +148,10 @@ pub fn set(self: *HashTable, key: *Obj.String, val: Value) !bool {
 }
 
 /// Add all entries from `other` to this table.
-pub fn addAll(self: *HashTable, other: *HashTable) void {
+pub fn addAll(self: *HashTable, other: *HashTable) !void {
     for (other.entries) |entry| {
         if (entry.key) |key| {
-            _ = self.set(key, entry.value);
+            _ = try self.set(key, entry.val);
         }
     }
 }
