@@ -15,6 +15,18 @@ const Writer = std.Io.Writer;
 ///
 /// Implemented as a tagged union of possible lox value types.
 pub const Value: type = union(Value.Type) {
+    /// A `void` standin for a `nil` lox Value.
+    nil: Value.Variant(.nil),
+
+    /// Holds the `bool` value of this Value if it is a `bool`.
+    bool: Value.Variant(.bool),
+
+    /// Holds the `f64` value of this Value if it is a `number`.
+    number: Value.Variant(.number),
+
+    /// Holds a pointer to a heap-allocated lox object.
+    obj: Value.Variant(.obj),
+
     /// Represents the type variants of a lox value.
     pub const Type = enum { nil, bool, number, obj };
 
@@ -28,18 +40,6 @@ pub const Value: type = union(Value.Type) {
         };
     }
 
-    /// A `void` standin for a `nil` lox Value.
-    nil: Value.Variant(.nil),
-
-    /// Holds the `bool` value of this Value if it is a `bool`.
-    bool: Value.Variant(.bool),
-
-    /// Holds the `f64` value of this Value if it is a `number`.
-    number: Value.Variant(.number),
-
-    /// Holds a pointer to a heap-allocated lox object.
-    obj: Value.Variant(.obj),
-
     /// The constant `nil` lox Value.
     pub const Nil: Value = .nil;
 
@@ -49,14 +49,14 @@ pub const Value: type = union(Value.Type) {
     /// The constant `false` lox Value.
     pub const False: Value = .Bool(false);
 
-    /// Creates a bool `Value` from the given `value`.
-    pub fn Bool(value: Value.Variant(.bool)) Value {
-        return Value{ .bool = value };
+    /// Creates a bool `Value` from the given `boolean`.
+    pub fn Bool(boolean: Value.Variant(.bool)) Value {
+        return Value{ .bool = boolean };
     }
 
-    /// Creates a number `Value` from the given `value`.
-    pub fn Number(value: Value.Variant(.number)) Value {
-        return Value{ .number = value };
+    /// Creates a number `Value` from the given `number`.
+    pub fn Number(number: Value.Variant(.number)) Value {
+        return Value{ .number = number };
     }
 
     /// Creates an object `Value` from the given `obj`.
@@ -110,6 +110,13 @@ pub const Value: type = union(Value.Type) {
         return if (self.is(T)) self.cast(T) else null;
     }
 
+    /// Returns this value safely cast to an object variant of type `T`.
+    ///
+    /// Returns `null` if this value is not an object of the given type.
+    pub fn asObj(self: Value, comptime T: Obj.Type) ?*Obj.Variant(T) {
+        return if (self.is(.obj)) self.obj.as(T) else null;
+    }
+
     /// Cast this value to the zig representation of the given variant type `T`.
     ///
     /// It is illegal behavior to call this with the wrong type.
@@ -124,17 +131,9 @@ pub const Value: type = union(Value.Type) {
 
     /// Returns this value cast to an object variant of type `T`.
     ///
-    /// Panics if this value is not an object, or panics on access if the value
-    /// is not an object of the given type.
+    /// It is illegal behavior to call this with the wrong type.
     pub fn objCast(self: Value, comptime T: Obj.Type) *Obj.Variant(T) {
         return self.obj.cast(T);
-    }
-
-    /// Returns this value safely cast to an object variant of type `T`.
-    ///
-    /// Returns `null` if this value is not an object of the given type.
-    pub fn asObj(self: Value, comptime T: Obj.Type) ?*Obj.Variant(T) {
-        return if (self.is(.obj)) self.obj.as(T) else null;
     }
 
     /// Concatenate this value with `other` if at least one of the two is a string.
