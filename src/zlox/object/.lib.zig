@@ -2,4 +2,4 @@
 
 pub const HashTable = @import("hash_table.zig");
 pub const Obj = @import("obj.zig");
-pub const Value = @import("value.zig").Value;
+pub const Value = @import("value_binary.zig").Value;

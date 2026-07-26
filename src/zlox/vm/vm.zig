@@ -34,6 +34,7 @@ const FRAME_MAX = zlox.common.FRAME_MAX;
 const STACK_MAX = zlox.common.STACK_MAX;
 
 const printf = std.debug.print;
+const countTrues = std.simd.countTrues;
 
 // =================================================================================================
 
@@ -217,7 +218,7 @@ fn binaryOp(self: *Vm, op: OpCode) !void {
         .add => .Number(a.cast(.number) + b.cast(.number)),
         .subtract => .Number(a.cast(.number) - b.cast(.number)),
         .multiply => .Number(a.cast(.number) * b.cast(.number)),
-        .divide => .Number(a.cast(.number) / b.cast(.number)),
+        .divide => a.divideBy(b) catch return self.err("Divide by 0"),
 
         .greater => .Bool(a.cast(.number) > b.cast(.number)),
         .less => .Bool(a.cast(.number) < b.cast(.number)),
