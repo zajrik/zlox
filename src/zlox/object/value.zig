@@ -112,7 +112,7 @@ pub const Value: type = union(Value.Type) {
 
     /// Cast this value to the zig representation of the given variant type `T`.
     ///
-    /// Panics if the value is not of the given variant type.
+    /// It is illegal behavior to call this with the wrong type.
     pub fn cast(self: Value, comptime T: Value.Type) Value.Variant(T) {
         return switch (T) {
             .nil => self.nil,
@@ -155,6 +155,16 @@ pub const Value: type = union(Value.Type) {
         errdefer alloc.free(chars);
 
         return try Obj.takeString(chars);
+    }
+
+    /// Returns the name string of the type of this value for error printing.
+    pub fn typeName(self: Value) []const u8 {
+        return switch (self) {
+            .nil => "Nil",
+            .bool => "Bool",
+            .number => "Number",
+            .obj => "Obj",
+        };
     }
 
     /// Custom formatter for `Value` values.

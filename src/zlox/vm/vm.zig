@@ -497,7 +497,7 @@ fn run(self: *Vm) !ExecutionResult {
                 const c: *Obj.String = a.concat(b) catch |e| return switch (e) {
                     error.invalid_operand => self.errFmt(
                         "Invalid operands for '+', got: {s}, {s}",
-                        .{ @tagName(a), @tagName(b) },
+                        .{ a.typeName(), b.typeName() },
                     ),
                     else => self.errFmt(
                         "Error concatenating values: {s}",
