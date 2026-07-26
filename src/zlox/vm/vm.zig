@@ -117,6 +117,8 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     var class_context: ?*ClassContext = null;
 
     const parser: *Parser = try .create(&tokenizer);
+    errdefer parser.destroy();
+
     const compiler: *Compiler = try .create(
         .script,
         parser,
@@ -124,6 +126,7 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
         &class_context,
         &self.strings,
     );
+    errdefer compiler.destroy();
 
     defer self.freeInternedConstants();
     defer parser.destroy();
