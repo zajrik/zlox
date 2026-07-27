@@ -45,3 +45,6 @@ var w = 23;
 var x = 24;
 var y = 25;
 var z = 26;
+
+print z += 2;
+print z;

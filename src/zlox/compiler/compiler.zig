@@ -869,32 +869,82 @@ pub fn this(self: *Compiler, _: bool) void {
 /// A set-expression will set the value of the referenced variable to the value of
 /// the following expression, leaving that value on the stack.
 ///
-/// Compiles a set-expression if `can_assign` is `true`.
+/// Compiles a set-expression if `can_assign` is `true` and the next token is a
+/// valid assignment or compound-assignment operator.
 fn variableExprFor(self: *Compiler, identifier: Token, can_assign: bool) void {
-    var var_offset: u8 = 0;
+    var offset: u8 = 0;
     var set_op: OpCode = undefined;
     var get_op: OpCode = undefined;
 
-    if (self.resolveLocal(identifier)) |offset| {
-        var_offset = offset;
+    if (self.resolveLocal(identifier)) |it| {
+        offset = it;
         set_op = .local_set;
         get_op = .local_get;
-    } else if (self.resolveUpvalue(identifier)) |offset| {
-        var_offset = offset;
+    } else if (self.resolveUpvalue(identifier)) |it| {
+        offset = it;
         set_op = .upvalue_set;
         get_op = .upvalue_get;
     } else {
-        var_offset = self.makeIdentConstant(identifier);
+        offset = self.makeIdentConstant(identifier);
         set_op = .global_set;
         get_op = .global_get;
     }
 
-    if (can_assign and self.parser.match(.equal)) {
-        self.expression();
-        self.emitOp1(set_op, var_offset);
-    } else {
-        self.emitOp1(get_op, var_offset);
-    }
+    // Handle valid assignment operators
+    if (can_assign) switch (self.parser.next.type) {
+        .equal => {
+            self.parser.advance();
+            self.expression();
+            return self.emitOp1(set_op, offset);
+        },
+
+        .plus_equal => {
+            self.parser.advance();
+            self.emitOp1(get_op, offset);
+            self.expression();
+            self.emitOp(.add);
+            return self.emitOp1(set_op, offset);
+        },
+
+        .minus_equal => {
+            self.parser.advance();
+            self.emitOp1(get_op, offset);
+            self.expression();
+            self.emitOp(.subtract);
+            return self.emitOp1(set_op, offset);
+        },
+
+        .star_equal => {
+            self.parser.advance();
+            self.emitOp1(get_op, offset);
+            self.expression();
+            self.emitOp(.multiply);
+            return self.emitOp1(set_op, offset);
+        },
+
+        .slash_equal => {
+            self.parser.advance();
+            self.emitOp1(get_op, offset);
+            self.expression();
+            self.emitOp(.divide);
+            return self.emitOp1(set_op, offset);
+        },
+
+        .nilish_equal => {
+            self.parser.advance();
+            self.emitOp1(get_op, offset);
+            const end: usize = self.emitJump(.jump_if_not_nil);
+            self.emitOp(.pop);
+            self.expr(.@"or");
+            self.emitOp1(set_op, offset);
+            return self.patchJump(end);
+        },
+
+        // Not a valid assignment operator, fallthrough to get-op
+        else => {},
+    };
+
+    self.emitOp1(get_op, offset);
 }
 
 /// Compile a variable get/set-expression for a variable with the identifier found
