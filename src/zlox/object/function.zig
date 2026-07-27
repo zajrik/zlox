@@ -61,10 +61,7 @@ pub fn toValue(self: *Function) Value {
 
 /// Custom formatter for `Obj` values of this variant.
 pub fn format(self: *const Function, writer: *Writer) !void {
-    if (self.type == .script) {
-        return try writer.writeAll("<script>");
-    } else if (self.identifier) |identifier| {
-        return try writer.print("<fn {f}()>", .{identifier});
-    }
+    if (self.type == .script) return try writer.writeAll("<script>");
+    if (self.identifier) |it| return try writer.print("<fn {f}()>", .{it});
     return try writer.writeAll("<anon fn()>");
 }

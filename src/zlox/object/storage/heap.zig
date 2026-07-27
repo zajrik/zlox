@@ -59,7 +59,7 @@ pub fn init(strings: *Table, gc: *Gc) Heap {
 pub fn link(self: *Heap, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*Obj.Variant(T) {
     // Intern string objects
     if (T == .string) {
-        // Return interned string if it exists
+        // Return interned string if it already exists
         if (self.strings.findString(object.chars, object.hash)) |it| {
             object.destroy();
             return it;

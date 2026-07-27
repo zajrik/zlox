@@ -753,8 +753,9 @@ fn run(self: *Vm) !ExecutionResult {
 ///
 /// Returns a pointer to the allocated `Obj`.
 ///
-/// Objects created this way are managed by the garbage collector, or cleaned up
-/// when the VM is freed if they live until the end of the program.
+/// Objects created via this method live on the virtual heap and are managed by the
+/// VM's garbage collector, or cleaned up at the end of the VM's lifetime if they
+/// manage to live until the end of the program.
 pub fn createObj(self: *Vm, comptime T: Obj.Type, variant: Obj.Variant(T)) !*Obj.Variant(T) {
     return self.heap.link(T, try Obj.create(T, variant));
 }
@@ -766,8 +767,9 @@ pub fn createObj(self: *Vm, comptime T: Obj.Type, variant: Obj.Variant(T)) !*Obj
 ///
 /// Returns a pointer to the allocated lox string `Obj`.
 ///
-/// Objects created this way are managed by the garbage collector, or cleaned up
-/// when the VM is freed if they live until the end of the program.
+/// Objects created via this method live on the virtual heap and are managed by the
+/// VM's garbage collector, or cleaned up at the end of the VM's lifetime if they
+/// manage to live until the end of the program.
 pub fn takeString(self: *Vm, chars: []const u8) !*Obj.String {
     return self.linkObj(.string, try Obj.takeString(chars));
 }
@@ -777,8 +779,9 @@ pub fn takeString(self: *Vm, chars: []const u8) !*Obj.String {
 ///
 /// Returns a pointer to the allocated lox string `Obj`.
 ///
-/// Objects created this way are managed by the garbage collector, or cleaned up
-/// when the VM is freed if they live until the end of the program.
+/// Objects created via this method live on the virtual heap and are managed by the
+/// VM's garbage collector, or cleaned up at the end of the VM's lifetime if they
+/// manage to live until the end of the program.
 pub fn copyString(self: *Vm, chars: []const u8) !*Obj.String {
     return self.heap.link(.string, try Obj.copyString(chars));
 }

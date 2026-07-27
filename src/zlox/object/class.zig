@@ -24,6 +24,8 @@ obj: Obj = undefined,
 identifier: *Obj.String,
 
 /// Holds methods defined for instances of this class.
+///
+/// The method objs live on the virtual heap and are not owned by the class itself.
 methods: Table = .empty,
 
 /// Free allocated memory owned by this obj.

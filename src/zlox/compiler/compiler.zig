@@ -1502,7 +1502,7 @@ fn createObj(
 
     // Intern string objects
     if (T == .string) {
-        // Return interned string if it exists
+        // Return interned string if it already exists
         if (self.strings.findString(variant.chars, object.hash)) |it| {
             object.destroy();
             return it;

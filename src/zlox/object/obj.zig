@@ -42,10 +42,10 @@ next: ?*Obj = null,
 /// is responsible for freeing it.
 ///
 /// Objects created this way are NOT managed by the garbage collector and must be
-/// manually linked with the VM to be managed.
+/// manually linked with the virtual heap to be managed.
 ///
 /// See also:
-/// - `Vm.linkObj`
+/// - `Heap.link`
 pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     const object: *Variant(T) = try mem.create(Variant(T));
     object.* = variant;
@@ -75,10 +75,10 @@ pub fn createConstant(comptime T: Type, variant: Variant(T)) !*Variant(T) {
 /// Returns a pointer to the allocated lox string `Obj`.
 ///
 /// Strings created this way are NOT managed by the garbage collector and must be
-/// manually linked with the VM to be managed.
+/// manually linked with the virtual heap to be managed.
 ///
 /// See also:
-/// - `Vm.linkObj`
+/// - `Heap.link`
 pub fn takeString(chars: []const u8) !*Obj.String {
     return create(.string, Obj.String{ .chars = chars });
 }
@@ -89,10 +89,10 @@ pub fn takeString(chars: []const u8) !*Obj.String {
 /// Returns a pointer to the allocated lox string `Obj`.
 ///
 /// Strings created this way are NOT managed by the garbage collector and must be
-/// manually linked with the VM to be managed.
+/// manually linked with the virtual heap to be managed.
 ///
 /// See also:
-/// - `Vm.linkObj`
+/// - `Heap.link`
 pub fn copyString(chars: []const u8) !*Obj.String {
     return takeString(try mem.dupe(u8, chars));
 }
@@ -119,18 +119,18 @@ pub fn isNot(self: *Obj, T: Type) bool {
     return self.type != T;
 }
 
-/// Cast this `Obj` to an obj of the given type `T`.
-///
-/// Panics on access if the obj is not of the given type `T`.
-pub fn cast(self: *Obj, comptime T: Type) *Variant(T) {
-    return @alignCast(@fieldParentPtr("obj", self));
-}
-
 /// Safely cast this `Obj` to an obj of the given type `T`.
 ///
 /// Returns `null` if the obj is not of the given type `T`.
 pub fn as(self: *Obj, comptime T: Type) ?*Variant(T) {
     return if (self.is(T)) self.cast(T) else null;
+}
+
+/// Cast this `Obj` to an obj of the given type `T`.
+///
+/// Panics on access if the obj is not of the given type `T`.
+pub fn cast(self: *Obj, comptime T: Type) *Variant(T) {
+    return @alignCast(@fieldParentPtr("obj", self));
 }
 
 /// Returns the runtime size of an `Obj` variant of the given `type`.
