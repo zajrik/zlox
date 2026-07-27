@@ -1,12 +1,15 @@
-//! A simple hash-table implementation mapping lox string object keys to lox values.
+//! Hash-table implementation mapping lox string object keys to lox values.
 //!
-//! Initialize a new HashTable with `HashTable.empty`.
+//! Implemented using open addressing and linear probing for inserts and tombstones
+//! for deletions.
 //!
-//! A HashTable owns allocated memory that must be released at the end of its
-//! lifetime by calling `Chunk.deinit()`.
+//! Initialize a new Table with `Table.empty`.
+//!
+//! A Table owns allocated memory that must be released at the end of its lifetime
+//! by calling `Table.deinit()`.
 
 const std = @import("std");
-const zlox = @import("../.lib.zig");
+const zlox = @import("../../.lib.zig");
 
 const mem = zlox.mem;
 
@@ -20,7 +23,7 @@ const exit = std.process.exit;
 
 // =================================================================================================
 
-const HashTable: type = @This();
+const Table: type = @This();
 
 /// The number of entries within this hash-table.
 count: usize = 0,
@@ -33,11 +36,11 @@ entries: []Entry = undefined,
 /// Maximum load factor before resizing.
 const max_load: f32 = 0.75;
 
-/// A `HashTable` containing no entries.
-pub const empty: HashTable = .{};
+/// A `Table` containing no entries.
+pub const empty: Table = .{};
 
-/// Deinitialize this `HashTable`, freeing its owned resources.
-pub fn deinit(self: *HashTable) void {
+/// Deinitialize this `Table`, freeing its owned resources.
+pub fn deinit(self: *Table) void {
     mem.free(self.entries);
 }
 
@@ -62,7 +65,7 @@ fn grow(capacity: usize) usize {
 /// are moved in this case is technically deterministic because of the hashing
 /// algorithm for string keys and the open addressing method of entry insertion,
 /// but I certainly couldn't prove it mathmatically 🤡
-fn resize(self: *HashTable, capacity: usize) !void {
+fn resize(self: *Table, capacity: usize) !void {
     // Allocate and pre-populate new entries array
     const entries: []Entry = try mem.alloc(Entry, capacity);
     for (entries) |*entry| entry.* = .empty;
@@ -107,7 +110,7 @@ fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
 /// Find a string key object in this table matching the given `chars` and `hash`.
 ///
 /// Returns a pointer to the string key object, or `null` if no key was found.
-pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj.String {
+pub fn findString(self: *const Table, chars: []const u8, hash: u32) ?*Obj.String {
     if (self.count == 0 or self.entries.len == 0) return null;
 
     var index: usize = hash & (self.entries.len - 1);
@@ -135,7 +138,7 @@ pub fn findString(self: *const HashTable, chars: []const u8, hash: u32) ?*Obj.St
 /// Returns whether the entry was empty before the given value was set.
 ///
 /// Returns an error if a resize was necessary but allocation failed.
-pub fn set(self: *HashTable, key: *Obj.String, val: Value) !bool {
+pub fn set(self: *Table, key: *Obj.String, val: Value) !bool {
     const new_count: f128 = @floatFromInt(self.count + 1);
     const entries: f128 = @floatFromInt(self.entries.len);
     const max_load_capacity: f128 = entries * max_load;
@@ -157,7 +160,7 @@ pub fn set(self: *HashTable, key: *Obj.String, val: Value) !bool {
 }
 
 /// Add all entries from `other` to this table.
-pub fn addAll(self: *HashTable, other: *HashTable) !void {
+pub fn addAll(self: *Table, other: *Table) !void {
     for (other.entries) |entry| {
         if (entry.key) |key| {
             _ = try self.set(key, entry.val);
@@ -166,7 +169,7 @@ pub fn addAll(self: *HashTable, other: *HashTable) !void {
 }
 
 /// Get the value from this table at the given `key`, if it exists.
-pub fn get(self: *const HashTable, key: *Obj.String) ?Value {
+pub fn get(self: *const Table, key: *Obj.String) ?Value {
     if (self.count == 0) return null;
 
     const entry: *Entry = findEntry(self.entries, key);
@@ -176,14 +179,14 @@ pub fn get(self: *const HashTable, key: *Obj.String) ?Value {
 }
 
 /// Returns whether this table has an existing entry for the given `key`.
-pub fn hasKey(self: *const HashTable, key: *Obj.String) bool {
+pub fn hasKey(self: *const Table, key: *Obj.String) bool {
     return self.count != 0 and findEntry(self.entries, key).key != null;
 }
 
 /// Remove the entry with the given `key` from this table, if it exists.
 ///
 /// Returns whether an entry was removed.
-pub fn delete(self: *HashTable, key: *Obj.String) bool {
+pub fn delete(self: *Table, key: *Obj.String) bool {
     const entry: *Entry = findEntry(self.entries, key);
     if (entry.key == null) return false;
 
@@ -193,15 +196,15 @@ pub fn delete(self: *HashTable, key: *Obj.String) bool {
     return true;
 }
 
-/// Returns an iterator over key strings in this `HashTable`.
-pub fn keys(self: *const HashTable) KeyIterator {
+/// Returns an iterator over key strings in this `Table`.
+pub fn keys(self: *const Table) KeyIterator {
     return .{
         .len = self.entries.len,
         .entries = self.entries.ptr,
     };
 }
 
-/// An entry within a `HashTable`.
+/// An entry within a `Table`.
 pub const Entry = struct {
     /// The key associated with this entry.
     ///
@@ -221,13 +224,13 @@ pub const Entry = struct {
     /// Custom formatter for `Entry` values.
     pub fn format(self: Entry, writer: *Writer) !void {
         try writer.print(
-            "HashTable.Entry {{ .key = {?f}, .val = {f} }}",
+            "Table.Entry {{ .key = {?f}, .val = {f} }}",
             .{ self.key, self.val },
         );
     }
 };
 
-/// An iterator over `HashTable` keys.
+/// An iterator over `Table` keys.
 pub const KeyIterator = struct {
     /// The total *potential* number of keys yielded by this iterator.
     ///

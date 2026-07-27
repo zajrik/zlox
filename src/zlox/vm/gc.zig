@@ -40,7 +40,7 @@ const zlox = @import("../.lib.zig");
 const mem = zlox.mem;
 const debug = zlox.debug;
 
-const HashTable = zlox.object.HashTable;
+const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
@@ -197,7 +197,7 @@ pub fn visitObject(self: *Gc, obj: *Obj) !void {
 
 /// Mark all keys and values in the given `table` as alive, allowing them to live
 /// through this GC cycle.
-pub fn markTable(self: *Gc, table: *HashTable) !void {
+pub fn markTable(self: *Gc, table: *Table) !void {
     for (table.entries) |entry| {
         if (entry.key) |key| try self.markObject(key.toObj());
         try self.markValue(entry.val);
@@ -208,7 +208,7 @@ pub fn markTable(self: *Gc, table: *HashTable) !void {
 /// for this GC cycle.
 ///
 /// Constant keys will not be removed.
-pub fn sweepTable(_: *const Gc, table: *HashTable) void {
+pub fn sweepTable(_: *const Gc, table: *Table) void {
     for (table.entries) |entry| {
         if (entry.key) |key| {
             if (key.obj.flags.is_constant or key.obj.flags.is_alive) continue;

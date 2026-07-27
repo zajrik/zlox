@@ -5,7 +5,7 @@ const zlox = @import("../.lib.zig");
 
 const mem = zlox.mem;
 
-const HashTable = zlox.object.HashTable;
+const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
@@ -23,8 +23,8 @@ obj: Obj = undefined,
 /// This string is a compile-time constant and not owned by the class itself.
 identifier: *Obj.String,
 
-/// Methods defined for instances of this class.
-methods: HashTable = .empty,
+/// Holds methods defined for instances of this class.
+methods: Table = .empty,
 
 /// Free allocated memory owned by this obj.
 pub fn destroy(self: *Class) void {

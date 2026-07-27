@@ -5,7 +5,7 @@ const zlox = @import("../.lib.zig");
 
 const mem = zlox.mem;
 
-const HashTable = zlox.object.HashTable;
+const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
@@ -24,7 +24,7 @@ obj: Obj = undefined,
 class: *Obj.Class,
 
 /// Holds field data for this class instance.
-fields: HashTable = .empty,
+fields: Table = .empty,
 
 /// Free allocated memory owned by this obj.
 pub fn destroy(self: *Instance) void {

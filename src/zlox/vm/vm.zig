@@ -14,7 +14,8 @@ const OpCode = zlox.compiler.OpCode;
 
 const Tokenizer = zlox.tokenizer.Tokenizer;
 
-const HashTable = zlox.object.HashTable;
+const Stack = zlox.object.storage.Stack;
+const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
@@ -23,7 +24,6 @@ const Parser = zlox.parser.Parser;
 const CallFrame = zlox.vm.CallFrame;
 const ExecutionResult = zlox.vm.ExecutionResult;
 const Gc = zlox.vm.Gc;
-const Stack = zlox.vm.Stack;
 
 const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
@@ -50,10 +50,10 @@ frame_stack: Stack(CallFrame, FRAME_MAX) = .empty,
 stack: Stack(Value, STACK_MAX) = .empty,
 
 /// Contains all runtime-interned strings.
-strings: HashTable = .empty,
+strings: Table = .empty,
 
 /// Contains all runtime global variables.
-globals: HashTable = .empty,
+globals: Table = .empty,
 
 /// Linked list of open upvalues.
 ///
@@ -80,7 +80,8 @@ gc: *Gc = undefined,
 
 /// `init` function identifier string, for looking up class initializers.
 ///
-/// This
+/// This is allocated when the VM is allocated and freed when the heap is freed
+/// at the end of the VMs lifetime.
 init_string: ?*Obj.String = null,
 
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
@@ -858,7 +859,7 @@ pub fn freeHeap(self: *Vm) void {
 
 /// Free all compile-time constant strings owned by the interned strings table.
 pub fn freeInternedConstants(self: *Vm) void {
-    var keys: HashTable.KeyIterator = self.strings.keys();
+    var keys: Table.KeyIterator = self.strings.keys();
     while (keys.next()) |it| {
         const obj: *Obj = it.toObj();
         if (obj.flags.is_constant) obj.destroy();

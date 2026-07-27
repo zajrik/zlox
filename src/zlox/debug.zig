@@ -4,9 +4,9 @@ const zlox = @import(".lib.zig");
 
 const Chunk = zlox.compiler.Chunk;
 const OpCode = zlox.compiler.OpCode;
+const Stack = zlox.object.storage.Stack;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
-const Stack = zlox.vm.Stack;
 
 const printf = std.debug.print;
 

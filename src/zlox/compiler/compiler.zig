@@ -32,7 +32,7 @@ const Token = zlox.tokenizer.Token;
 const Tokenizer = zlox.tokenizer.Tokenizer;
 const TokenType = zlox.tokenizer.TokenType;
 
-const HashTable = zlox.object.HashTable;
+const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
@@ -77,7 +77,7 @@ function: ?*Obj.Function = null,
 ///
 /// This is not owned by the compiler and does not need to be freed when the
 /// compiler is freed.
-strings: *HashTable,
+strings: *Table,
 
 /// Upvalues tracked by this compilation scope.
 upvalues: [cmn.U8_SIZE]Upvalue = undefined,
@@ -109,7 +109,7 @@ pub fn create(
     /// Pointer to a pointer pointing to the root class context node.
     context: *?*ClassContext,
     /// Table for interning strings at compile time.
-    interned_strings: *HashTable,
+    interned_strings: *Table,
 ) !*Compiler {
     const compiler: *Compiler = try mem.createStruct(Compiler, .{
         .parser = parser,
