@@ -1025,6 +1025,17 @@ pub fn orExpr(self: *Compiler, _: bool) void {
     self.patchJump(end);
 }
 
+/// Compile a `??` operator expression.
+///
+/// The left-hand operand of `??` expression has already been compiled to the
+/// chunk at the point this will be executed.
+pub fn nilish(self: *Compiler, _: bool) void {
+    const end: usize = self.emitJump(.jump_if_not_nil);
+    self.emitOp(.pop);
+    self.expr(.@"or");
+    self.patchJump(end);
+}
+
 /// Compile a switch expression from source tokens.
 ///
 /// switchExpr := "switch" "(" expression ")" "{" caseExpr* "}" ;

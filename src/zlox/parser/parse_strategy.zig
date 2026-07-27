@@ -17,8 +17,9 @@ const literal = Compiler.literal;
 const variable = Compiler.variableExpr;
 const unary = Compiler.unary;
 const binary = Compiler.binary;
-const orExpr = Compiler.orExpr;
 const andExpr = Compiler.andExpr;
+const orExpr = Compiler.orExpr;
+const nilish = Compiler.nilish;
 const switchExpr = Compiler.switchExpr;
 const funExpr = Compiler.funExpr;
 const call = Compiler.call;
@@ -91,7 +92,7 @@ const strategies: [token_count]ParseStrategy = .{
     strat(.star_equal,       null,       null,     .none      ),
     strat(.slash_equal,      null,       null,     .none      ),
     strat(.arrow,            null,       null,     .none      ),
-    strat(.nilish,           null,       null,     .none      ),
+    strat(.nilish,           null,       nilish,   .@"or"     ),
     strat(.nilish_equal,     null,       null,     .none      ),
 
     // Literals

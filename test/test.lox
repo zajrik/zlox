@@ -48,3 +48,8 @@ var z = 26;
 
 print z += 2;
 print z;
+
+var aa = nil;
+
+print aa;
+print aa ?? "foo";
