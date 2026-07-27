@@ -256,12 +256,12 @@ fn consumeIdentifier(self: *Tokenizer) Token {
 ///
 /// Returns the tokenized number literal.
 fn consumeNumber(self: *Tokenizer) Token {
-    while (isDigit(self.peek())) self.advance();
+    while (isDigitOrSeparator(self.peek())) self.advance();
 
     // Consume floating point digits if present
-    if (self.peek() == '.' and isDigit(self.peekNext())) {
+    if (self.peek() == '.' and isDigitOrSeparator(self.peekNext())) {
         self.advance();
-        while (isDigit(self.peek())) self.advance();
+        while (isDigitOrSeparator(self.peek())) self.advance();
     }
 
     return self.createToken(.number);
@@ -346,6 +346,11 @@ fn consumeToken(self: *Tokenizer) Token {
 /// Return whether the given `char` is a digit character.
 fn isDigit(char: u8) bool {
     return char >= '0' and char <= '9';
+}
+
+/// Return whether the given `char` is a digit character or an underscore.
+fn isDigitOrSeparator(char: u8) bool {
+    return char == '_' or isDigit(char);
 }
 
 /// Return whether the given `char` is an alpha character.

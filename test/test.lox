@@ -53,3 +53,5 @@ var aa = nil;
 
 print aa;
 print aa ?? "foo";
+
+print 999_999_555_999_999;
