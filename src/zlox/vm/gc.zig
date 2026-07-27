@@ -58,24 +58,55 @@ const Gc: type = @This();
 /// Pointer to the VM instance for which the GC will collect garbage.
 vm: *Vm,
 
+/// The threshold of bytes allocated on the VM's heap at which the next GC sweep
+/// should trigger.
+next_gc: usize = 1024 * 1024,
+
 /// Stack of objects marked as alive by the GC that can hold references to other
 /// objects that need to be traced and marked.
-stack: ArrayList(*Obj),
+visit_stack: ArrayList(*Obj) = .empty,
+
+/// Represents possible errors returned from GC operations.
+pub const Error = error{gc_failure};
 
 /// Allocate a new `Gc` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(vm: *Vm) !*Gc {
-    return try mem.createStruct(
-        Gc,
-        .{ .vm = vm, .stack = .empty },
-    );
+    return try mem.createStruct(Gc, .{ .vm = vm });
 }
 
 /// Destroy the `Gc`, freeing its owned resources.
 pub fn destroy(self: *Gc) void {
     defer mem.destroy(self);
-    self.stack.deinit(mem.allocator());
+    self.visit_stack.deinit(mem.allocator());
+}
+
+/// Report the given object being linked to the virtual heap to the GC.
+///
+/// If the heap size after adding the given object exceeds the GC threshold, a sweep
+/// will be triggered to make sure there is room on the heap for the given object.
+///
+/// Returns the size of the given object in bytes, or an error if something went
+/// wrong while running the GC sweep.
+pub fn report(self: *Gc, comptime T: Obj.Type, obj: *Obj.Variant(T)) Error!usize {
+    const obj_size: usize = switch (T) {
+        .string => @sizeOf(Obj.Variant(T)) + (@sizeOf(u8) * obj.chars.len),
+        else => @sizeOf(Obj.Variant(T)),
+    };
+
+    // Run GC if we exceed the GC threshold. This should only fail if we're out of
+    // memory when allocating memory for tracking marked objs before tracing, at
+    // which point things are out of our hands 💀 We could potentially allocate
+    // a rainy-day fund of memory in the GC that can be freed if that happens and
+    // then try running the GC again, but Bob didn't bother in the book so I'm not
+    // likely to bother here unless it becomes a problem for me personally (it won't)
+
+    if (self.vm.heap.size + obj_size > self.next_gc or debug.stress_gc) {
+        self.collect() catch return Error.gc_failure;
+    }
+
+    return obj_size;
 }
 
 /// Initiate a GC cycle, marking all living objs and freeing all non-living objs.
@@ -84,10 +115,11 @@ pub fn collect(self: *Gc) !void {
 
     try self.markRoots();
     try self.traceReferences();
-    self.sweepTable(&self.vm.strings);
-    try self.sweep();
 
-    self.vm.next_gc = self.vm.heap_size * 2;
+    self.sweepTable(&self.vm.strings);
+    self.sweep();
+
+    self.next_gc = self.vm.heap.size * 2;
 
     if (comptime debug.print_gc) printf("GC end --\n", .{});
 }
@@ -117,13 +149,14 @@ pub fn markRoots(self: *Gc) !void {
 
 /// Trace through marked object references to mark any further reachable objects.
 pub fn traceReferences(self: *Gc) !void {
-    while (self.stack.pop()) |obj| try self.visitObject(obj);
+    while (self.visit_stack.pop()) |obj| try self.visitObject(obj);
 }
 
-/// Free all objects that were not marked as alive during this GC cycle.
-pub fn sweep(self: *const Gc) !void {
+/// Free all objects on the virtual heap that were not marked as alive during
+/// this GC cycle.
+pub fn sweep(self: *const Gc) void {
     var prev: ?*Obj = null;
-    var next: ?*Obj = self.vm.heap;
+    var next: ?*Obj = self.vm.heap.root;
 
     while (next) |it| {
         // Unmark marked object and advance
@@ -134,13 +167,13 @@ pub fn sweep(self: *const Gc) !void {
             continue;
         }
 
-        // Otherwise free unmarked object and unlink it from the VMs tracked objs
+        // Otherwise release unmarked object from the heap
         next = it.next;
-        self.vm.releaseObj(it);
+        self.vm.heap.release(it);
 
         // If there is a previous object then we're unlinking the object linked
-        // to it. Otherwise we're unlinking the root object
-        (if (prev) |obj| &obj.next else &self.vm.heap).* = next;
+        // to it. Otherwise we're unlinking the root object from the heap
+        (if (prev) |obj| &obj.next else &self.vm.heap.root).* = next;
     }
 }
 
@@ -163,7 +196,7 @@ pub fn markObject(self: *Gc, obj: *Obj) !void {
         .class,
         .instance,
         .method,
-        => try self.stack.append(mem.allocator(), obj),
+        => try self.visit_stack.append(mem.allocator(), obj),
 
         else => return,
     }

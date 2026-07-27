@@ -36,8 +36,6 @@ const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
-const Fnv1a_32 = std.hash.Fnv1a_32;
-
 const exit = std.process.exit;
 const parseFloat = std.fmt.parseFloat;
 
@@ -1441,15 +1439,13 @@ fn createObj(
 ) !*Obj.Variant(T) {
     const object: *Obj.Variant(T) = try Obj.createConstant(T, variant);
 
-    // Pre-hash and intern string objects
+    // Intern string objects
     if (T == .string) {
         // Return interned string if it exists
-        object.hash = Fnv1a_32.hash(variant.chars);
         if (self.strings.findString(variant.chars, object.hash)) |it| {
             object.destroy();
             return it;
         }
-
         _ = try self.strings.set(object, .Nil);
     }
 

@@ -19,6 +19,7 @@ pub const Class = @import("class.zig");
 pub const Instance = @import("instance.zig");
 pub const Method = @import("method.zig");
 
+const Fnv1a_32 = std.hash.Fnv1a_32;
 const Writer = std.Io.Writer;
 
 // =================================================================================================
@@ -49,6 +50,7 @@ pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     const object: *Variant(T) = try mem.create(Variant(T));
     object.* = variant;
     object.obj = Obj{ .type = T };
+    if (T == .string) object.hash = Fnv1a_32.hash(object.chars);
     return object;
 }
 
