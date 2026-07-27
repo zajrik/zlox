@@ -108,8 +108,8 @@ pub const Value = packed struct {
         return switch (T) {
             .nil => self == Nil,
             .bool => self.val | 1 == False.val,
-            .number => (self.val & MaskQnan) != MaskQnan,
-            .obj => (self.val & MaskObj) == (MaskObj),
+            .number => self.val & MaskQnan != MaskQnan,
+            .obj => self.val & MaskObj == MaskObj,
         };
     }
 
@@ -145,7 +145,7 @@ pub const Value = packed struct {
         // Runtime error on divide by 0
         // const number_a: Value.Variant(.number) = a.cast(.number);
         // const number_b: Value.Variant(.number) = b.cast(.number);
-        // if (number_a == 0 or number_b == 0) return self.err("Divide by 0");
+        // if (number_a == 0 or number_b == 0) return error.divide_by_zero;
 
         // Runtime error on divide by 0, SIMD for funsies 🤡
         const Vec: type = @Vector(2, u64);

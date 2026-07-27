@@ -114,7 +114,7 @@ pub const Value: type = union(Value.Type) {
         // Runtime error on divide by 0
         // const number_a: Value.Variant(.number) = a.cast(.number);
         // const number_b: Value.Variant(.number) = b.cast(.number);
-        // if (number_a == 0 or number_b == 0) return self.err("Divide by 0");
+        // if (number_a == 0 or number_b == 0) return error.divide_by_zero;
 
         // Runtime error on divide by 0, SIMD for funsies 🤡
         const Vec: type = @Vector(2, Value.Variant(.number));
