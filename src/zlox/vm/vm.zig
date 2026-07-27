@@ -421,7 +421,7 @@ fn invoke(self: *Vm, ident: *Obj.String, arg_count: u8) !void {
         try self.callValue(it, arg_count);
     }
 
-    // Otherwise perform invoke the method
+    // Otherwise invoke the method
     try self.invokeFromClass(instance.class, ident, arg_count);
 }
 
