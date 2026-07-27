@@ -47,15 +47,14 @@ pub fn init(strings: *Table, gc: *Gc) Heap {
 
 /// Link the given object with the virtual heap, allowing it to be traced by the GC.
 ///
+/// If the given object is a string, it will be interned.
+///
 /// Returns a pointer to the linked object. In the event that the given object is
-/// a string that has already been interned, it will be destroyed and the interned
-/// string will be returned instead.
+/// a string that has already been interned, it will be destroyed and the a pointer
+/// to the interned string will be returned instead.
 ///
 /// Assume the heap takes ownership of any object given so there will be no need
 /// to manually clean that object up.
-///
-/// The size of the created object will be reported to the GC so that it can keep
-/// track of when it needs to run.
 pub fn link(self: *Heap, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*Obj.Variant(T) {
     // Intern string objects
     if (T == .string) {
@@ -67,6 +66,7 @@ pub fn link(self: *Heap, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*O
         _ = self.strings.set(object, .Nil) catch return Error.intern_failure;
     }
 
+    // Report link to GC to trigger sweep if needed
     self.size += try self.gc.report(T, object);
 
     object.obj.next = self.root;

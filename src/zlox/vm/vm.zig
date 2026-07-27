@@ -16,6 +16,7 @@ const Tokenizer = zlox.tokenizer.Tokenizer;
 
 const Heap = zlox.object.storage.Heap;
 const Stack = zlox.object.storage.Stack;
+const StackIterator = zlox.object.storage.StackIterator;
 const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
@@ -185,9 +186,8 @@ fn errFmt(self: *Vm, comptime fmt: []const u8, args: anytype) Error {
     printf("\n", .{});
 
     // Print stack trace
-    var i: usize = 0;
-    while (i < self.frame_stack.size()) : (i += 1) {
-        const frame: *CallFrame = self.frame_stack.slot(i);
+    var frames: StackIterator(CallFrame) = self.frame_stack.iter();
+    while (frames.next()) |frame| {
         const function: *Obj.Function = frame.closure.function;
         const instruction_offset: usize = frame.ip - function.chunk.ip() - 1;
 
@@ -201,6 +201,7 @@ fn errFmt(self: *Vm, comptime fmt: []const u8, args: anytype) Error {
     }
 
     self.stack.reset();
+    self.frame_stack.reset();
     return Error.runtime_error;
 }
 
@@ -356,7 +357,7 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             self.stack.slot(arg_count).* = instance.toValue();
 
             // Call initializer if present
-            // SAFETY: init_string is definitely defined at this point
+            // SAFETY: init_string is guaranteed present during VM lifetime
             if (instance.class.methods.get(self.init_string.?)) |init| {
                 return self.callFun(init.objCast(.closure), arg_count);
             }

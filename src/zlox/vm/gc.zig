@@ -40,6 +40,8 @@ const zlox = @import("../.lib.zig");
 const mem = zlox.mem;
 const debug = zlox.debug;
 
+const Stack = zlox.object.storage.Stack;
+const StackIterator = zlox.object.storage.StackIterator;
 const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
@@ -127,16 +129,12 @@ pub fn collect(self: *Gc) !void {
 /// Mark all reachable objects in the VM as alive for this GC cycle.
 pub fn markRoots(self: *Gc) !void {
     // Mark stack values
-    var value: [*]Value = &self.vm.stack.values;
-    while (@intFromPtr(value) < @intFromPtr(self.vm.stack.top)) : (value += 1) {
-        try self.markValue(value[0]);
-    }
+    var stack_iter: StackIterator(Value) = self.vm.stack.iter();
+    while (stack_iter.next()) |it| try self.markValue(it);
 
     // Mark callframe closures
-    var frame: [*]CallFrame = &self.vm.frame_stack.values;
-    while (@intFromPtr(frame) < @intFromPtr(self.vm.frame_stack.top)) : (frame += 1) {
-        try self.markObject(frame[0].closure.toObj());
-    }
+    var frame_iter: StackIterator(CallFrame) = self.vm.frame_stack.iter();
+    while (frame_iter.next()) |it| try self.markObject(it.closure.toObj());
 
     // Mark open upvalues
     var upvalue: ?*Obj.Upvalue = self.vm.open;
@@ -180,7 +178,7 @@ pub fn sweep(self: *const Gc) void {
 /// Mark the given value as alive, allowing it to live through this GC cycle.
 ///
 /// Only affects `Obj` values.
-pub fn markValue(self: *Gc, value: Value) !void {
+pub fn markValue(self: *Gc, value: *Value) !void {
     if (value.as(.obj)) |it| try self.markObject(it);
 }
 
@@ -206,7 +204,7 @@ pub fn markObject(self: *Gc, obj: *Obj) !void {
 /// alive for this GC cycle.
 pub fn visitObject(self: *Gc, obj: *Obj) !void {
     switch (obj.type) {
-        .upvalue => |T| try self.markValue(obj.cast(T).closed),
+        .upvalue => |T| try self.markValue(&obj.cast(T).closed),
         .closure => |T| for (obj.cast(T).upvalues) |upvalue| {
             try self.markObject(upvalue.toObj());
         },
@@ -221,7 +219,7 @@ pub fn visitObject(self: *Gc, obj: *Obj) !void {
         },
         .method => |T| {
             const method: *Obj.Method = obj.cast(T);
-            try self.markValue(method.receiver);
+            try self.markValue(&method.receiver);
             try self.markObject(method.closure.toObj());
         },
         else => return,
@@ -231,9 +229,9 @@ pub fn visitObject(self: *Gc, obj: *Obj) !void {
 /// Mark all keys and values in the given `table` as alive, allowing them to live
 /// through this GC cycle.
 pub fn markTable(self: *Gc, table: *Table) !void {
-    for (table.entries) |entry| {
+    for (table.entries) |*entry| {
         if (entry.key) |key| try self.markObject(key.toObj());
-        try self.markValue(entry.val);
+        try self.markValue(&entry.val);
     }
 }
 

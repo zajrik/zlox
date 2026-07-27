@@ -18,11 +18,6 @@ const cmpfmt = std.fmt.comptimePrint;
 /// point to the first open slot.
 pub fn Stack(comptime T: type, comptime capacity: usize) type {
     return struct {
-        const Self = @This();
-
-        /// A `Stack` containing no elements.
-        pub const empty: Self = .{};
-
         /// Array holding the values on this stack.
         values: [capacity]T = undefined,
 
@@ -32,6 +27,11 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
         /// and the pointer will be incremented to point to the next slot on the
         /// stack.
         top: [*]T = undefined,
+
+        const Self = @This();
+
+        /// A `Stack` containing no elements.
+        pub const empty: Self = .{};
 
         /// Reset this `Stack` by setting the top pointer to the address of the
         /// first slot in the stack, allowing it to be overwritten on the next push.
@@ -101,8 +101,7 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
             self.push(self.peek(offset));
         }
 
-        /// Replace a value at `offset` from the top of this stack with the given
-        /// `value`.
+        /// Replace a value at `offset` from the top of this stack with the given `value`.
         ///
         /// Returns the original, replaced value.
         pub fn replace(self: *Self, offset: usize, value: T) T {
@@ -117,21 +116,59 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
             _ = self.replace(a, self.replace(b, self.peek(a)));
         }
 
+        /// Returns an iterator over the values of this stack.
+        pub fn iter(self: *Self) StackIterator(T) {
+            return .{ .len = self.size(), .values = &self.values };
+        }
+
         /// Custom formatter for `Stack` values.
         ///
         /// Stacks must be formatted by reference, not by value, and the values
         /// within the stack must implement a `format` method.
-        pub fn format(self: *const Self, writer: *Writer) !void {
-            // If stack is empty, don't print anything
+        pub fn format(self: *Self, writer: *Writer) !void {
             if (self.isEmpty()) return;
 
             try writer.writeAll("        |  ");
             defer writer.writeAll("\n") catch {};
 
-            var i: usize = 0;
-            while (i < self.size()) : (i += 1) {
-                try writer.print("[ {f} ]", .{self.values[i]});
+            var values: StackIterator(T) = self.iter();
+            while (values.next()) |it| try writer.print("[ {f} ]", .{it});
+        }
+    };
+}
+
+/// An iterator over the values on a `Stack`, yielding pointers to those values.
+///
+/// Iteration is in bottom-up order.
+///
+/// If values are somehow popped from the stack during iteration, they will still
+/// exist in the backing array to be iterated over as they were when the iterator
+/// was initialized unless they've been overwritten, but there's no way to know if
+/// they have.
+///
+/// Additionally, if values are pushed to the array during iteration, they will not
+/// be captured in the iterator since it captures the size of the stack when the
+/// iterator is initialized.
+pub fn StackIterator(comptime T: type) type {
+    return struct {
+        const Self = @This();
+
+        /// The number of remaining values in this iterator.
+        len: usize,
+
+        /// Pointer to the backing array from which this iterator yields values.
+        values: [*]T,
+
+        /// Returns the next value from this iterator.
+        pub fn next(self: *Self) ?*T {
+            while (self.len > 0) {
+                const value: *T = &self.values[0];
+                self.len -= 1;
+                self.values += 1;
+                return value;
             }
+
+            return null;
         }
     };
 }
