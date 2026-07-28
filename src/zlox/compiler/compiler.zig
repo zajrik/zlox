@@ -192,7 +192,7 @@ pub fn compile(self: *Compiler) !?*Obj.Function {
             debug.disassembleChunk(self.chunk(), "code");
         }
 
-        // SAFETY: function is guaranteed not-null until this point
+        // SAFETY: function is guaranteed non-null until this point
         self.function.?.destroy();
         self.function = null;
     }
@@ -518,7 +518,7 @@ fn continueStmt(self: *Compiler) void {
 
 /// Compile a return statement from source tokens.
 fn returnStmt(self: *Compiler) void {
-    // SAFETY: function is always not-null during compilation
+    // SAFETY: function is guaranteed non-null during compilation
     if (self.function.?.type == .script) self.err(
         "Can't return from top-level code.",
     );
@@ -665,26 +665,26 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     // Load identifier into the current token if this is a labeled function expression
     if (is_expr and p.next.is(.identifier)) p.advance();
 
-    const fun_cmp: *Compiler = self.createNestedCompiler(T) catch {
+    const fun_compiler: *Compiler = self.createNestedCompiler(T) catch {
         return p.err("Error compiling function.");
     };
-    defer fun_cmp.destroy();
+    defer fun_compiler.destroy();
 
     // Push scope for function to contain arguments and the function body. This
     // does not need to be closed since the scope will be discarded when the compiler
     // instance is freed
-    fun_cmp.pushScope();
+    fun_compiler.pushScope();
 
     p.expect(.paren_left, "'(' after function name");
 
     // Compile function parameters, if any
     if (p.next.isNot(.paren_right)) {
-        // SAFETY: function is always not-null during compilation
-        const arity: *u8 = &fun_cmp.function.?.arity;
+        // SAFETY: function is guaranteed non-null during compilation
+        const arity: *u8 = &fun_compiler.function.?.arity;
 
         while (true) : (if (p.listEnd(.paren_right)) break) {
-            fun_cmp.define(
-                fun_cmp.variableIdentifier("parameter identifier"),
+            fun_compiler.define(
+                fun_compiler.variableIdentifier("parameter identifier"),
             );
 
             defer arity.* += 1;
@@ -695,19 +695,19 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     p.expect(.paren_right, "')' after parameter list");
 
     // Compile block function body if we see an opening brace
-    if (p.match(.brace_left)) fun_cmp.block()
+    if (p.match(.brace_left)) fun_compiler.block()
 
     // Compile expression body if we see `=`
     else if (p.match(.equal)) {
-        fun_cmp.expression();
-        fun_cmp.emitOp(.@"return");
+        fun_compiler.expression();
+        fun_compiler.emitOp(.@"return");
         if (!is_expr) p.expect(.semicolon, "';' after function body");
     }
 
     // Otherwise emit a compilation error
     else p.err("Expected '{' or '=' before function body.");
 
-    const fun_obj: *Obj.Function = fun_cmp.endCompilation() orelse {
+    const fun_obj: *Obj.Function = fun_compiler.endCompilation() orelse {
         return p.err("Error compiling function.");
     };
 
@@ -717,8 +717,8 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     // Emit closure upvalue bytecode
     var i: u8 = 0;
     while (i < fun_obj.upvalue_count) : (i += 1) {
-        self.emitByte(@intFromBool(fun_cmp.upvalues[i].is_local));
-        self.emitByte(fun_cmp.upvalues[i].offset);
+        self.emitByte(@intFromBool(fun_compiler.upvalues[i].is_local));
+        self.emitByte(fun_compiler.upvalues[i].offset);
     }
 }
 
@@ -1295,7 +1295,7 @@ fn resolveUpvalue(self: *Compiler, identifier: Token) ?u8 {
 /// If an upvalue with the given offset/locality already exists, its offset will
 /// be returned.
 fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
-    // SAFETY: function is always not-null during compilation
+    // SAFETY: function is guaranteed non-null during compilation
     const upvalue_count: u8 = self.function.?.upvalue_count;
 
     // Check for existing compiled upvalue matching the given offset/locality
@@ -1318,7 +1318,7 @@ fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
         .is_local = is_local,
     };
 
-    // SAFETY: function is always not-null during compilation
+    // SAFETY: function is guaranteed non-null during compilation
     self.function.?.upvalue_count += 1;
     return upvalue_count;
 }
@@ -1395,7 +1395,7 @@ fn emitConstant(self: *const Compiler, value: Value) void {
 
 /// Write default return instructions to the chunk currently being compiled.
 fn emitDefaultReturn(self: *const Compiler) void {
-    // SAFETY: function is always not-null during compilation
+    // SAFETY: function is guaranteed non-null during compilation
     if (self.function.?.type == .initializer) {
         self.emitOp1(.local_get, 0);
         self.emitOp(.@"return");

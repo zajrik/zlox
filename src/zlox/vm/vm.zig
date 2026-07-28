@@ -617,8 +617,9 @@ fn run(self: *Vm) !ExecutionResult {
                 const ident: *Obj.String = frame.readString();
                 const super: *Obj.Class = stack.pop().objCast(.class);
 
-                // UNSAFE?: bindMethod() allocates a bound method object which can
-                // trigger a GC while the superclass is off the stack and vulnerable
+                // SAFETY: `this` is on the stack under the popped `super` which allows
+                // tracing `super` via the upvalues owned by the methods on `this` if
+                // a sweep is triggered by `bindMethod()` while `super` is off the stack
 
                 try self.bindMethod(super, ident) orelse {
                     // Return nil if super method doesn't exist
