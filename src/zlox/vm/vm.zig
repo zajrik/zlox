@@ -130,10 +130,10 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
     defer self.freeInternedConstants();
     defer parser.destroy();
     defer compiler.destroy();
-    defer self.heap.free();
 
     const script: *Obj.Function = try compiler.compile() orelse return .compile_error;
     defer script.destroy();
+    defer self.heap.free();
 
     const closure: *Obj.Closure = try self.createObj(
         .closure,

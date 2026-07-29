@@ -11,16 +11,14 @@ const Table = zlox.object.storage.Table;
 const Gc = zlox.vm.Gc;
 
 const Fnv1a_32 = std.hash.Fnv1a_32;
+const Node = std.DoublyLinkedList.Node;
 
 // =================================================================================================
 
 const Heap: type = @This();
 
-/// The root node in a linked list of objects linked to the heap.
-///
-/// The garbage collector will traverse this list and free objects that are no
-/// longer referenced.
-root: ?*Obj = null,
+/// Doubly-linked-list of objects linked to the heap.
+heap_list: std.DoublyLinkedList = .{},
 
 /// The total size in bytes of all allocated objects linked to the heap.
 size: usize = 0,
@@ -69,27 +67,45 @@ pub fn link(self: *Heap, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*O
     // Report link to GC to trigger sweep if needed
     self.size += try self.gc.report(T, object);
 
-    object.obj.next = self.root;
-    self.root = object.toObj();
-
+    self.heap_list.append(&object.toObj().heap_node);
     return object;
 }
 
-/// Destroy an object linked to the virtual heap, making note of the released bytes
-/// to keep heap size up-to-date.
-///
-/// Note: Make sure the object is unlinked from the VM heap before releasing.
+/// Destroy an object linked to the virtual heap, releasing its allocated memory
+/// and unlinking it from the heap.
 pub fn release(self: *Heap, obj: *Obj) void {
+    self.heap_list.remove(&obj.heap_node);
     self.size -= obj.size();
     obj.destroy();
 }
 
 /// Free all allocated lox objects linked to the virtual heap.
 pub fn free(self: *Heap) void {
-    while (self.root) |obj| : (self.release(obj)) {
-        self.root = obj.next;
-
+    var heap: Iterator = self.iter();
+    while (heap.next()) |obj| : (self.release(obj)) {
         // Remove interned runtime strings before releasing
         if (obj.as(.string)) |it| _ = self.strings.delete(it);
     }
 }
+
+/// Returns an iterator over the objects on the virtual heap.
+pub fn iter(self: *Heap) Iterator {
+    return .{ .next_obj = self.heap_list.first };
+}
+
+/// An iterator over objects on the virtual heap.
+pub const Iterator = struct {
+    /// Heap node of the next object on the virtual heap.
+    next_obj: ?*Node,
+
+    /// Returns the next object on the virtual heap, if any.
+    ///
+    /// Returns `null` if we've reached the end of the heap.
+    pub fn next(self: *Iterator) ?*Obj {
+        if (self.next_obj) |it| {
+            self.next_obj = it.next;
+            return @fieldParentPtr("heap_node", it);
+        }
+        return null;
+    }
+};

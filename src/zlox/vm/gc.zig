@@ -40,8 +40,8 @@ const zlox = @import("../.lib.zig");
 const mem = zlox.mem;
 const debug = zlox.debug;
 
-const Stack = zlox.object.storage.Stack;
 const StackIterator = zlox.object.storage.StackIterator;
+const Heap = zlox.object.storage.Heap;
 const Table = zlox.object.storage.Table;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
@@ -153,25 +153,16 @@ pub fn traceReferences(self: *Gc) !void {
 /// Free all objects on the virtual heap that were not marked as alive during
 /// this GC cycle.
 pub fn sweep(self: *const Gc) void {
-    var prev: ?*Obj = null;
-    var next: ?*Obj = self.vm.heap.root;
-
-    while (next) |it| {
+    var iter: Heap.Iterator = self.vm.heap.iter();
+    while (iter.next()) |it| {
         // Unmark marked object and advance
         if (it.flags.is_constant or it.flags.is_alive) {
             it.flags.is_alive = false;
-            prev = it;
-            next = it.next;
             continue;
         }
 
         // Otherwise release unmarked object from the heap
-        next = it.next;
         self.vm.heap.release(it);
-
-        // If there is a previous object then we're unlinking the object linked
-        // to it. Otherwise we're unlinking the root object from the heap
-        (if (prev) |obj| &obj.next else &self.vm.heap.root).* = next;
     }
 }
 

@@ -21,6 +21,7 @@ pub const Method = @import("method.zig");
 
 const Fnv1a_32 = std.hash.Fnv1a_32;
 const Writer = std.Io.Writer;
+const Node = std.DoublyLinkedList.Node;
 
 // =================================================================================================
 
@@ -32,9 +33,9 @@ type: Type,
 /// Bit-flags carrying extra data about this lox object.
 flags: Flags = .{},
 
-/// Pointer to the next lox object on the heap, forming a linked list of objects
-/// at runtime for the garbage collector to trace.
-next: ?*Obj = null,
+/// Doubly-linked-list node through which this object may be linked to the virtual
+/// heap (if it is not a compile-time constant).
+heap_node: Node = .{},
 
 /// Allocate a new `Obj` of the given `type` with the given `variant` payload.
 ///
