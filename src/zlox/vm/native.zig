@@ -16,7 +16,7 @@ pub fn bootstrapNatives(vm: *Vm) !void {
 /// Native `clock()` function.
 ///
 /// Returns the current time since epoch with millisecond precision.
-fn native_clock(io: Io, _: u8, _: [*]Value) Value {
-    const now: Io.Timestamp = Io.Clock.real.now(io);
+fn native_clock(_: []Value, vm: *Vm) Value {
+    const now: Io.Timestamp = Io.Clock.real.now(vm.io);
     return .Number(@floatFromInt(now.toMilliseconds()));
 }

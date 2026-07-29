@@ -41,7 +41,7 @@ const countTrues = std.simd.countTrues;
 
 const Vm: type = @This();
 
-/// `std.Io` interface to be passed to lox native functions.
+/// `std.Io` interface accessible from native functions.
 io: Io,
 
 /// Contains all runtime-interned strings.
@@ -182,8 +182,7 @@ fn err(self: *Vm, comptime fmt: []const u8) Error {
 ///
 /// Accepts a format string and a tuple of format arguments.
 fn errFmt(self: *Vm, comptime fmt: []const u8, args: anytype) Error {
-    printf("Runtime error: " ++ fmt, args);
-    printf("\n", .{});
+    printf("Runtime error: " ++ fmt ++ "\n", args);
 
     // Print stack trace
     var frames: StackIterator(CallFrame) = self.frame_stack.iter();
@@ -207,22 +206,21 @@ fn errFmt(self: *Vm, comptime fmt: []const u8, args: anytype) Error {
 
 /// Perform a binary operation with the top two number values on the stack.
 fn binaryOp(self: *Vm, op: OpCode) !void {
+    const T: Value.Type = .number;
     const b: Value = self.stack.peek(0);
     const a: Value = self.stack.peek(1);
 
-    if (a.isNot(.number) or b.isNot(.number)) {
-        return self.err("Operands must be numbers");
-    }
+    if (a.isNot(T) or b.isNot(T)) return self.err("Operands must be numbers");
 
     self.stack.popN(2);
     self.stack.push(switch (op) {
-        .add => .Number(a.cast(.number) + b.cast(.number)),
-        .subtract => .Number(a.cast(.number) - b.cast(.number)),
-        .multiply => .Number(a.cast(.number) * b.cast(.number)),
+        .add => .Number(a.cast(T) + b.cast(T)),
+        .subtract => .Number(a.cast(T) - b.cast(T)),
+        .multiply => .Number(a.cast(T) * b.cast(T)),
         .divide => a.divideBy(b) catch return self.err("Divide by 0"),
 
-        .greater => .Bool(a.cast(.number) > b.cast(.number)),
-        .less => .Bool(a.cast(.number) < b.cast(.number)),
+        .greater => .Bool(a.cast(T) > b.cast(T)),
+        .less => .Bool(a.cast(T) < b.cast(T)),
 
         else => return self.errFmt(
             "Invalid binary operator: '{s}'",
@@ -332,11 +330,8 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
                 .{ native_obj.arity, arg_count },
             );
 
-            const result: Value = native_fun(
-                self.io,
-                arg_count,
-                self.stack.top - arg_count,
-            );
+            const args: []Value = (self.stack.top - arg_count)[0..arg_count];
+            const result: Value = native_fun(args, self);
 
             // Pop native function and its args from stack
             self.stack.top -= arg_count + 1;

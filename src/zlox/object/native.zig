@@ -8,6 +8,8 @@ const mem = zlox.mem;
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
+const Vm = zlox.vm.Vm;
+
 const Writer = std.Io.Writer;
 
 // =================================================================================================
@@ -15,7 +17,15 @@ const Writer = std.Io.Writer;
 const Native: type = @This();
 
 /// Represents a pointer to a native function callable from lox code.
-pub const FnPtr: type = *const fn (std.Io, u8, [*]Value) Value;
+///
+/// Native functions receive the following arguments:
+///
+/// - slice of argument values
+/// - pointer to the VM instance executing the native function
+///
+/// Native functions must return a `Value`, though the value can be `Value.Nil`
+/// if nothing meaningful needs to be returned.
+pub const FnPtr: type = *const fn ([]Value, *Vm) Value;
 
 /// The base lox object header.
 obj: Obj = undefined,
