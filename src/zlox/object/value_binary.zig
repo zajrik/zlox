@@ -142,18 +142,17 @@ pub const Value = packed struct {
     /// Returns an error if dividing by zero. It is illegal behavior to call this
     /// with any non-number value.
     pub fn divideBy(self: Value, other: Value) !Value {
+        const T: Type = .number;
+
         // Runtime error on divide by 0
-        // const number_a: Value.Variant(.number) = a.cast(.number);
-        // const number_b: Value.Variant(.number) = b.cast(.number);
-        // if (number_a == 0 or number_b == 0) return error.divide_by_zero;
+        // if (self.val == 0 or other.val == 0) return error.divide_by_zero;
 
         // Runtime error on divide by 0, SIMD for funsies 🤡
-        const Vec: type = @Vector(2, u64);
-        const v_1: Vec = .{ self.val, other.val };
-        const v_2: Vec = @splat(0);
+        const v_1: @Vector(2, u64) = .{ self.val, other.val };
+        const v_2: @Vector(2, u64) = .{ 0, 0 };
         if (countTrues(v_1 == v_2) > 0) return error.divide_by_zero;
 
-        return .Number(self.cast(.number) / other.cast(.number));
+        return .Number(self.cast(T) / other.cast(T));
     }
 
     /// Concatenate this value with `other` if at least one of the two is a string.
@@ -200,8 +199,8 @@ pub const Value = packed struct {
         return switch (T) {
             .nil => Nil,
             .bool => self == True,
-            .number => @as(Value.Variant(.number), @bitCast(self.val)),
-            .obj => @as(Value.Variant(.obj), @ptrFromInt(self.val & ~MaskObj)),
+            .number => @as(Value.Variant(T), @bitCast(self.val)),
+            .obj => @as(Value.Variant(T), @ptrFromInt(self.val & ~MaskObj)),
         };
     }
 
@@ -217,7 +216,8 @@ pub const Value = packed struct {
         if (self.is(.nil)) return "Nil";
         if (self.is(.bool)) return "Bool";
         if (self.is(.number)) return "Number";
-        return "Obj";
+        if (self.is(.obj)) return "Obj";
+        return "NaN";
     }
 
     /// Custom formatter for `Value` values.

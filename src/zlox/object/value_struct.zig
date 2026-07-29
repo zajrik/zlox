@@ -112,14 +112,11 @@ pub const Value: type = union(Value.Type) {
     /// with any non-number value.
     pub fn divideBy(self: Value, other: Value) !Value {
         // Runtime error on divide by 0
-        // const number_a: Value.Variant(.number) = a.cast(.number);
-        // const number_b: Value.Variant(.number) = b.cast(.number);
-        // if (number_a == 0 or number_b == 0) return error.divide_by_zero;
+        // if (self.number == 0 or other.number == 0) return error.divide_by_zero;
 
         // Runtime error on divide by 0, SIMD for funsies 🤡
-        const Vec: type = @Vector(2, Value.Variant(.number));
-        const v_1: Vec = .{ self.number, self.number };
-        const v_2: Vec = @splat(0);
+        const v_1: @Vector(2, u64) = .{ self.val, other.val };
+        const v_2: @Vector(2, u64) = .{ 0, 0 };
         if (countTrues(v_1 == v_2) > 0) return error.divide_by_zero;
 
         return .Number(self.number / other.number);
