@@ -161,32 +161,32 @@ fn match(self: *Tokenizer, expected: u8) bool {
     return true;
 }
 
-/// Check if the remainder of the currently-processing token lexeme after `offset`
-/// matches the given partial token text.
+/// Check if the remainder of the currently-processing token lexeme after `part`
+/// matches the `rest` of the token text.
 ///
 /// Returns the given `token_type` if it matches, otherwise returns `TokenType.identifier`.
 ///
 /// ```zig
 /// // Assume the input text is "class" and we've already checked 'c' and 'l'
-/// _ = checkPartial(2, "ass", .keyword_class);
-/// //               ^  ^
-/// //               |  `--remainder of the keyword "class" text after offset
+/// _ = checkPartial("cl", "ass", .keyword_class);
+/// //               ^     ^
+/// //               |     `--remainder of the keyword "class" text
 /// //               |
-/// //               `--offset by 2 because 'c' and 'l' have already been checked
+/// //               `--partial text of the keyword that is already checked
 /// ```
 fn checkPartial(
     self: *Tokenizer,
-    offset: u32,
+    part: []const u8,
     rest: []const u8,
     token_type: TokenType,
 ) TokenType {
     const token_len: usize = self.current - self.start;
-    const keyword_len: usize = offset + rest.len;
+    const keyword_len: usize = part.len + rest.len;
 
     if (token_len != keyword_len) return .identifier;
 
     // Compare `rest` to the remaining token characters
-    if (std.mem.eql(u8, self.start[offset..token_len], rest)) return token_type;
+    if (std.mem.eql(u8, self.start[part.len..token_len], rest)) return token_type;
 
     return .identifier;
 }
@@ -199,46 +199,46 @@ fn identifierType(self: *Tokenizer) TokenType {
     const token_len: usize = self.current - self.start;
 
     return switch (self.start[0]) {
-        'a' => self.checkPartial(1, "nd", .keyword_and),
-        'b' => self.checkPartial(1, "reak", .keyword_break),
+        'a' => self.checkPartial("a", "nd", .keyword_and),
+        'b' => self.checkPartial("b", "reak", .keyword_break),
 
         'c' => if (token_len > 1) switch (self.start[1]) {
-            'a' => self.checkPartial(2, "se", .keyword_case),
-            'l' => self.checkPartial(2, "ass", .keyword_class),
-            'o' => self.checkPartial(2, "ntinue", .keyword_continue),
+            'a' => self.checkPartial("ca", "se", .keyword_case),
+            'l' => self.checkPartial("cl", "ass", .keyword_class),
+            'o' => self.checkPartial("co", "ntinue", .keyword_continue),
             else => .identifier,
         } else .identifier,
 
-        'd' => self.checkPartial(1, "efault", .keyword_default),
-        'e' => self.checkPartial(1, "lse", .keyword_else),
-        'i' => self.checkPartial(1, "f", .keyword_if),
+        'd' => self.checkPartial("d", "efault", .keyword_default),
+        'e' => self.checkPartial("e", "lse", .keyword_else),
+        'i' => self.checkPartial("i", "f", .keyword_if),
 
         'f' => if (token_len > 1) switch (self.start[1]) {
-            'a' => self.checkPartial(2, "lse", .keyword_false),
-            'o' => self.checkPartial(2, "r", .keyword_for),
-            'u' => self.checkPartial(2, "n", .keyword_fun),
+            'a' => self.checkPartial("fa", "lse", .keyword_false),
+            'o' => self.checkPartial("fo", "r", .keyword_for),
+            'u' => self.checkPartial("fu", "n", .keyword_fun),
             else => .identifier,
         } else .identifier,
 
-        'n' => self.checkPartial(1, "il", .keyword_nil),
-        'o' => self.checkPartial(1, "r", .keyword_or),
-        'p' => self.checkPartial(1, "rint", .keyword_print),
-        'r' => self.checkPartial(1, "eturn", .keyword_return),
+        'n' => self.checkPartial("n", "il", .keyword_nil),
+        'o' => self.checkPartial("o", "r", .keyword_or),
+        'p' => self.checkPartial("p", "rint", .keyword_print),
+        'r' => self.checkPartial("r", "eturn", .keyword_return),
 
         's' => if (token_len > 1) switch (self.start[1]) {
-            'u' => self.checkPartial(2, "per", .keyword_super),
-            'w' => self.checkPartial(2, "itch", .keyword_switch),
+            'u' => self.checkPartial("su", "per", .keyword_super),
+            'w' => self.checkPartial("sw", "itch", .keyword_switch),
             else => .identifier,
         } else .identifier,
 
         't' => if (token_len > 1) switch (self.start[1]) {
-            'h' => self.checkPartial(2, "is", .keyword_this),
-            'r' => self.checkPartial(2, "ue", .keyword_true),
+            'h' => self.checkPartial("th", "is", .keyword_this),
+            'r' => self.checkPartial("tr", "ue", .keyword_true),
             else => .identifier,
         } else .identifier,
 
-        'v' => self.checkPartial(1, "ar", .keyword_var),
-        'w' => self.checkPartial(1, "hile", .keyword_while),
+        'v' => self.checkPartial("v", "ar", .keyword_var),
+        'w' => self.checkPartial("w", "hile", .keyword_while),
 
         else => .identifier,
     };

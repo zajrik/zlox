@@ -377,9 +377,7 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
         else => {},
     };
 
-    return self.err(
-        "Can only call functions, methods, and class initializers",
-    );
+    return self.err("Can only call functions, methods, and class initializers");
 }
 
 /// Call the given `function`, using the top `arg_count` stack values as arguments.
