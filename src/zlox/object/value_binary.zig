@@ -27,8 +27,8 @@ const countTrues = std.simd.countTrues;
 ///
 /// 64  63           51  50                                             4  3 1
 ///  0   1111111111111    00000000000000000000000000000000000000000000000  011
-///  |   |                |                                                |
-///  |   |                Obj address space (if sign bit is set)           Tag bits
+///  |   |                |          (includes tag bits)------------_      |
+///  |   |                Obj address space (if sign bit is set)     `---> Tag bits
 ///  |   |
 ///  |   QNaN bits + 1, indicates value is --> a tagged variant if set
 ///  |                                    \`-> an Obj pointer if set with sign bit
@@ -40,7 +40,7 @@ const countTrues = std.simd.countTrues;
 ///
 /// This specific example is a `false` value. This specific example is also quite
 /// possibly the most satisfied I've ever been with my notes 🤌
-pub const Value = packed struct {
+pub const Value = packed struct(u64) {
     // The underlying u64 representation of this lox value.
     val: u64,
 
@@ -95,12 +95,12 @@ pub const Value = packed struct {
 
     /// Creates a number `Value` from the given `number`.
     pub fn Number(number: Value.Variant(.number)) Value {
-        return .{ .val = @as(u64, @bitCast(number)) };
+        return .{ .val = @bitCast(number) };
     }
 
     /// Creates an object `Value` from the given `obj`.
     pub fn Object(obj: Value.Variant(.obj)) Value {
-        return .{ .val = MaskObj | @as(u64, @intFromPtr(obj)) };
+        return .{ .val = MaskObj | @intFromPtr(obj) };
     }
 
     /// Returns whether this value is of type `T`.
@@ -199,8 +199,8 @@ pub const Value = packed struct {
         return switch (T) {
             .nil => Nil,
             .bool => self == True,
-            .number => @as(Value.Variant(T), @bitCast(self.val)),
-            .obj => @as(Value.Variant(T), @ptrFromInt(self.val & ~MaskObj)),
+            .number => @bitCast(self),
+            .obj => @ptrFromInt(self.val & ~MaskObj),
         };
     }
 
