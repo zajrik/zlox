@@ -10,15 +10,15 @@ const Obj = zlox.object.Obj;
 const Table = zlox.object.storage.Table;
 const Gc = zlox.vm.Gc;
 
+const DoublyLinkedList = std.DoublyLinkedList;
 const Fnv1a_32 = std.hash.Fnv1a_32;
-const Node = std.DoublyLinkedList.Node;
 
 // =================================================================================================
 
 const Heap: type = @This();
 
 /// Doubly-linked-list of objects linked to the heap.
-heap_list: std.DoublyLinkedList = .{},
+heap_list: DoublyLinkedList = .{},
 
 /// The total size in bytes of all allocated objects linked to the heap.
 size: usize = 0,
@@ -96,7 +96,7 @@ pub fn iter(self: *Heap) Iterator {
 /// An iterator over objects on the virtual heap.
 pub const Iterator = struct {
     /// Heap node of the next object on the virtual heap.
-    next_obj: ?*Node,
+    next_obj: ?*DoublyLinkedList.Node,
 
     /// Returns the next object on the virtual heap, if any.
     ///
