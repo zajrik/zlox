@@ -460,9 +460,7 @@ fn run(self: *Vm) !ExecutionResult {
             );
         }
 
-        const op: u8 = frame.readByte();
-
-        switch (OpCode.fromByte(op)) {
+        switch (frame.readEnum(OpCode)) {
             // Constant ops
             .constant => stack.push(frame.readConstant()),
             .nil => stack.push(.Nil),
@@ -738,7 +736,7 @@ fn run(self: *Vm) !ExecutionResult {
                 stack.push(result);
             },
 
-            _ => return self.errFmt("Unknown opcode: {d}", .{op}),
+            _ => |op| return self.errFmt("Unknown opcode: {d}", .{op}),
         }
     }
 }
