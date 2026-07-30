@@ -323,7 +323,7 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
     if (callee.as(.obj)) |it| switch (it.type) {
         .native => |T| {
             const native_obj: *Obj.Native = it.cast(T);
-            const native_fun: Obj.Native.Fn = native_obj.function;
+            const native_fun: Obj.Native.FnPtr = native_obj.function;
             const native_call_size: usize = arg_count + 1;
 
             if (arg_count != native_obj.arity) return self.errFmt(
@@ -335,7 +335,7 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
             self.stack.top -= native_call_size;
 
             const args: []Value = self.stack.top[1..native_call_size];
-            const result: Value = native_fun(args, self) catch .Error;
+            const result: Value = native_fun(args, self);
             self.stack.push(result);
 
             return;
