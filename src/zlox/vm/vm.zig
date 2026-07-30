@@ -323,20 +323,21 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
     if (callee.as(.obj)) |it| switch (it.type) {
         .native => |T| {
             const native_obj: *Obj.Native = it.cast(T);
-            const native_fun: Obj.Native.FnPtr = native_obj.function;
+            const native_fun: Obj.Native.Fn = native_obj.function;
+            const native_call_size: usize = arg_count + 1;
 
             if (arg_count != native_obj.arity) return self.errFmt(
                 "Expected {d} arguments, got {d}",
                 .{ native_obj.arity, arg_count },
             );
 
-            const args: []Value = (self.stack.top - arg_count)[0..arg_count];
-            const result: Value = native_fun(args, self);
+            // Pop args and native fn from stack (can still slice em though 👀)
+            self.stack.top -= native_call_size;
 
-            // Pop native function and its args from stack
-            self.stack.top -= arg_count + 1;
-
+            const args: []Value = self.stack.top[1..native_call_size];
+            const result: Value = native_fun(args, self) catch .Error;
             self.stack.push(result);
+
             return;
         },
 
