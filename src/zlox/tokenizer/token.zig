@@ -66,10 +66,8 @@ pub fn equals(self: Token, other: Token) bool {
 
 /// Custom formatter for `Token` values.
 pub fn format(self: Token, writer: *Writer) !void {
-    try writer.writeAll("Token { ");
-    try writer.print(".token_type = {}, ", .{self.type});
-    try writer.print(".lexeme = '{s}', ", .{self.lexeme});
-    try writer.print(".line = {d}, ", .{self.line});
-    try writer.print(".column = {d} ", .{self.column});
-    try writer.writeAll("}");
+    try writer.print(
+        "Token{{ .type = {}, .lexeme = '{s}', .line = {d}, .column = {d} }}",
+        .{ self.type, self.lexeme, self.line, self.column },
+    );
 }

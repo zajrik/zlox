@@ -157,6 +157,9 @@ pub const Value = packed struct(u64) {
     ///
     /// Returns an error if neither is a string, or if something went wrong while
     /// allocating the concatenated string.
+    ///
+    /// Returns an unmanaged string object that must be manually linked to the
+    /// virtual heap to be managed.
     pub fn concat(self: Value, other: Value) !*Obj.String {
         if (!self.isObj(.string) and !other.isObj(.string)) {
             return error.invalid_operand;

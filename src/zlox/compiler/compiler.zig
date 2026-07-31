@@ -1484,7 +1484,7 @@ fn patchContinues(self: *const Compiler, loop_start: usize) void {
 
 // Object creation methods =========================================================================
 
-/// Allocate a new compile-time constant `Obj` of the given `type` with the given
+/// Allocate a new compile-time constant `Obj` of the given type `T` with the given
 /// `variant` payload.
 ///
 /// Returns a pointer to the allocated `Obj`. The caller owns the returned pointer

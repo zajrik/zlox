@@ -754,20 +754,6 @@ pub fn createObj(self: *Vm, comptime T: Obj.Type, variant: Obj.Variant(T)) !*Obj
     return self.heap.link(T, try Obj.create(T, variant));
 }
 
-/// Allocate a new lox string `Obj` on the heap, wrapping and taking ownership of
-/// the given slice.
-///
-/// The given `string` slice will be freed when the allocated `Obj` is freed.
-///
-/// Returns a pointer to the allocated lox string `Obj`.
-///
-/// Objects created via this method live on the virtual heap and are managed by the
-/// VM's garbage collector, or cleaned up at the end of the VM's lifetime if they
-/// manage to live until the end of the program.
-pub fn takeString(self: *Vm, chars: []const u8) !*Obj.String {
-    return self.linkObj(.string, try Obj.takeString(chars));
-}
-
 /// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
 /// allocated lox string `Obj`.
 ///
