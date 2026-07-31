@@ -9,8 +9,6 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Writer = std.Io.Writer;
 
-const countTrues = std.simd.countTrues;
-
 // =================================================================================================
 
 /// Represents a lox value.
@@ -117,7 +115,7 @@ pub const Value: type = union(Value.Type) {
         // Runtime error on divide by 0, SIMD for funsies 🤡
         const v_1: @Vector(2, u64) = .{ self.val, other.val };
         const v_2: @Vector(2, u64) = .{ 0, 0 };
-        if (countTrues(v_1 == v_2) > 0) return error.divide_by_zero;
+        if (@reduce(.Or, v_1 == v_2)) return error.divide_by_zero;
 
         return .Number(self.number / other.number);
     }
