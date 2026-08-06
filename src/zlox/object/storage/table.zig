@@ -199,7 +199,7 @@ pub fn delete(self: *Table, key: *Obj.String) bool {
 /// Returns an iterator over key strings in this `Table`.
 pub fn keys(self: *const Table) KeyIterator {
     return .{
-        .len = self.entries.len,
+        .count = self.entries.len,
         .entries = self.entries.ptr,
     };
 }
@@ -224,7 +224,7 @@ pub const Entry = struct {
     /// Custom formatter for `Entry` values.
     pub fn format(self: Entry, writer: *Writer) !void {
         try writer.print(
-            "Table.Entry {{ .key = {?f}, .val = {f} }}",
+            "Table.Entry{{ .key = {?f}, .val = {f} }}",
             .{ self.key, self.val },
         );
     }
@@ -235,20 +235,18 @@ pub const KeyIterator = struct {
     /// The total *potential* number of keys yielded by this iterator.
     ///
     /// This is not a guarantee of key count.
-    len: usize,
+    count: usize,
 
     /// Pointer to the entries from which this iterator yields keys.
     entries: [*]Entry,
 
     /// Returns the next key from this iterator.
     pub fn next(self: *KeyIterator) ?*Obj.String {
-        while (self.len > 0) {
+        return while (self.count > 0) {
             const entry: Entry = self.entries[0];
-            self.len -= 1;
+            self.count -= 1;
             self.entries += 1;
-            if (entry.key) |key| return key;
-        }
-
-        return null;
+            if (entry.key) |key| break key;
+        } else null;
     }
 };

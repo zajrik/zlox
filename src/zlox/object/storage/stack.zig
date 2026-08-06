@@ -118,7 +118,7 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
 
         /// Returns an iterator over the values of this stack.
         pub fn iter(self: *Self) StackIterator(T) {
-            return .{ .len = self.size(), .values = &self.values };
+            return .{ .count = self.size(), .values = &self.values };
         }
 
         /// Custom formatter for `Stack` values.
@@ -154,21 +154,19 @@ pub fn StackIterator(comptime T: type) type {
         const Self = @This();
 
         /// The number of remaining values in this iterator.
-        len: usize,
+        count: usize,
 
         /// Pointer to the backing array from which this iterator yields values.
         values: [*]T,
 
         /// Returns the next value from this iterator.
         pub fn next(self: *Self) ?*T {
-            while (self.len > 0) {
+            return while (self.count > 0) {
                 const value: *T = &self.values[0];
-                self.len -= 1;
+                self.count -= 1;
                 self.values += 1;
-                return value;
-            }
-
-            return null;
+                break value;
+            } else null;
         }
     };
 }

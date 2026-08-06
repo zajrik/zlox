@@ -64,10 +64,11 @@ pub fn link(self: *Heap, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*O
         _ = self.strings.set(object, .Nil) catch return Error.intern_failure;
     }
 
-    // Report link to GC to trigger sweep if needed
-    self.size += try self.gc.report(T, object);
+    // Report obj to GC and add it to the heap
+    const obj: *Obj = object.toObj();
+    self.size += try self.gc.report(obj);
+    self.heap_list.append(&obj.heap_node);
 
-    self.heap_list.append(&object.toObj().heap_node);
     return object;
 }
 

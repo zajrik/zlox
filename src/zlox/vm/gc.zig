@@ -91,11 +91,8 @@ pub fn destroy(self: *Gc) void {
 ///
 /// Returns the size of the given object in bytes, or an error if something went
 /// wrong while running the GC sweep.
-pub fn report(self: *Gc, comptime T: Obj.Type, obj: *Obj.Variant(T)) Error!usize {
-    const obj_size: usize = switch (T) {
-        .string => @sizeOf(Obj.Variant(T)) + (@sizeOf(u8) * obj.chars.len),
-        else => @sizeOf(Obj.Variant(T)),
-    };
+pub fn report(self: *Gc, obj: *Obj) Error!usize {
+    const obj_size: usize = obj.size();
 
     // Run GC if we exceed the GC threshold. This should only fail if we're out of
     // memory when allocating memory for tracking marked objs before tracing, at
