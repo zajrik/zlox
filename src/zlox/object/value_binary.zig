@@ -226,7 +226,7 @@ pub const Value = packed struct(u64) {
         if (self.is(.nil)) return try writer.writeAll("nil");
         if (self.as(.bool)) |it| return try writer.print("{}", .{it});
         if (self.as(.number)) |it| return try writer.print("{}", .{it});
-        if (self.as(.obj)) |it| return try writer.print("{f}", .{it});
+        if (self.as(.obj)) |it| return it.format(writer);
         return try writer.writeAll("NaN");
     }
 };
