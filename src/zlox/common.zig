@@ -1,6 +1,7 @@
 const std = @import("std");
 
 const maxInt = std.math.maxInt;
+const cmpfmt = std.fmt.comptimePrint;
 
 pub const U8_MAX = maxInt(u8);
 pub const U8_SIZE = U8_MAX + 1;
@@ -24,4 +25,12 @@ pub inline fn do(_: anytype, result: anytype) @TypeOf(result) {
 /// Given integers larger than 16-bits will be truncated.
 pub fn splitBytes(int: usize) struct { u8, u8 } {
     return .{ @as(u8, @truncate(int >> 8)), @as(u8, @truncate(int)) };
+}
+
+/// Asserts at comptime that the given type `T` is an enum type.
+pub fn Enum(comptime T: type) type {
+    return switch (@typeInfo(T)) {
+        .@"enum" => T,
+        else => @compileError(cmpfmt("Expected enum type, got {any}", .{T})),
+    };
 }

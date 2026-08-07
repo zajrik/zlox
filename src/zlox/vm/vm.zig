@@ -778,18 +778,18 @@ pub fn freeInternedConstants(self: *Vm) void {
 /// Register a native function with the VM.
 pub fn defineNative(
     self: *Vm,
-    identifier: []const u8,
+    ident: []const u8,
     arity: u8,
     fn_ptr: Obj.Native.FnPtr,
 ) !void {
-    const fn_ident: *Obj.String = try Obj.copyString(identifier);
-    const fn_obj: *Obj.Native = try Obj.create(
+    const identifier: *Obj.String = try Obj.copyString(ident);
+    const native_fun: *Obj.Native = try Obj.create(
         .native,
         Obj.Native{ .arity = arity, .function = fn_ptr },
     );
 
-    // Link ident string first so we can use the existing interned string, if any,
-    // and link the native fn after insertion when the ident string is safe from gc
-    _ = try self.globals.set(try self.heap.link(.string, fn_ident), fn_obj.toValue());
-    _ = try self.heap.link(.native, fn_obj);
+    // Link identifier first so we can use the existing interned string, if any,
+    // and link the native fn after insertion when the identifier is safe from gc
+    _ = try self.globals.set(try self.heap.link(.string, identifier), native_fun.toValue());
+    _ = try self.heap.link(.native, native_fun);
 }

@@ -19,9 +19,6 @@ const Value = zlox.object.Value;
 
 const Chunk: type = @This();
 
-/// An empty `Chunk` containing no instructions.
-pub const empty: Chunk = .{};
-
 /// Compiled instruction opcodes and operands.
 instructions: ArrayList(u8) = .empty,
 
@@ -33,6 +30,9 @@ constants: ArrayList(Value) = .empty,
 /// Mirrors `instructions` layout where an instruction offset will map to the
 /// line number of that instruction.
 lines: ArrayList(u16) = .empty,
+
+/// An empty `Chunk` containing no instructions.
+pub const empty: Chunk = .{};
 
 /// Release all allocated memory owned by this chunk.
 pub fn deinit(self: *Chunk) void {

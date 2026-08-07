@@ -105,7 +105,7 @@ pub const Iterator = struct {
     pub fn next(self: *Iterator) ?*Obj {
         if (self.next_obj) |it| {
             self.next_obj = it.next;
-            return @fieldParentPtr("heap_node", it);
+            return @alignCast(@fieldParentPtr("heap_node", it));
         }
         return null;
     }

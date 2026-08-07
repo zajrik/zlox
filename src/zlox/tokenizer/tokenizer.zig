@@ -20,7 +20,7 @@ source: []const u8,
 /// Pointer to the current character to be processed.
 ///
 /// - Call `consume()` to advance the tokenizer and return this character.
-/// - Call `discard()` to advance the tokenizer without returning this character.
+/// - Call `advance()` to advance the tokenizer without returning this character.
 current: [*]const u8,
 
 /// Column number of the current character to be processed.

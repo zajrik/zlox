@@ -11,7 +11,7 @@ const zlox = @import("../.lib.zig");
 const Obj = zlox.object.Obj;
 const Value = zlox.object.Value;
 
-const comptimePrint = std.fmt.comptimePrint;
+const Enum = zlox.common.Enum;
 
 // =================================================================================================
 
@@ -63,14 +63,4 @@ pub fn readString(self: *CallFrame) *Obj.String {
 /// Emits a compile error if the given type is not an enum type.
 pub fn readEnum(self: *CallFrame, comptime T: type) Enum(T) {
     return @enumFromInt(self.readByte());
-}
-
-/// Asserts at comptime that the given type `T` is an enum type.
-pub fn Enum(comptime T: type) type {
-    return switch (@typeInfo(T)) {
-        .@"enum" => T,
-        else => @compileError(
-            comptimePrint("Expected enum type, got {any}", .{T}),
-        ),
-    };
 }

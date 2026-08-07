@@ -16,6 +16,15 @@ const Writer = std.Io.Writer;
 
 const Native: type = @This();
 
+/// The base lox object header.
+obj: Obj = undefined,
+
+/// The number of arguments the wrapped native function accepts.
+arity: u8,
+
+/// Pointer to the native function this obj wraps.
+function: FnPtr,
+
 /// Represents a pointer to a native function callable from lox code.
 ///
 /// Native functions receive the following arguments:
@@ -26,15 +35,6 @@ const Native: type = @This();
 /// Native functions must return a `Value`, though the value can be `Value.Nil`
 /// if nothing meaningful needs to be returned.
 pub const FnPtr: type = *const fn ([]Value, *Vm) Value;
-
-/// The base lox object header.
-obj: Obj = undefined,
-
-/// The number of arguments the wrapped native function accepts.
-arity: u8,
-
-/// Pointer to the native function this obj wraps.
-function: FnPtr,
 
 /// Free allocated memory owned by this obj.
 pub fn destroy(self: *const Native) void {

@@ -18,6 +18,7 @@ const Value = zlox.object.Value;
 
 const Writer = std.Io.Writer;
 
+const assert = std.debug.assert;
 const eql = std.mem.eql;
 const exit = std.process.exit;
 
@@ -28,13 +29,31 @@ const Table: type = @This();
 /// The number of entries within this hash-table.
 count: usize = 0,
 
-/// Array slice containing all entries within this hash-table.
+/// Allocated array slice containing all entries within this hash-table.
 ///
 /// The length of this slice is the capacity of the table.
 entries: []Entry = undefined,
 
-/// Maximum load factor before resizing.
-const max_load: f32 = 0.75;
+/// Maximum table load percentage before table capacity must be resized.
+///
+/// Must be between 1-100.
+const max_load_factor: u8 = 75;
+
+/// Predefined capacity growth factor.
+///
+/// Growth factor must be defined such that the resulting capacity is always a power
+/// of `2` to support bit-twiddling our backing-array key-hash indexing rather than
+/// using the modulus of the hash and capacity, which is much, much slower.
+const growth_factor: u2 = 2;
+
+/// The minimum capacity of a table before entries can be added.
+const min_capacity: usize = 8;
+
+comptime {
+    assert(max_load_factor >= 1 and max_load_factor <= 100);
+    assert(std.math.isPowerOfTwo(growth_factor));
+    assert(std.math.isPowerOfTwo(min_capacity));
+}
 
 /// A `Table` containing no entries.
 pub const empty: Table = .{};
@@ -44,39 +63,36 @@ pub fn deinit(self: *Table) void {
     mem.free(self.entries);
 }
 
-/// Increase the given `capacity` by a predefined growth factor (`2`).
-///
-/// The growth factor is defined such that the resulting capacity is always a power
-/// of `2` to support bit-twiddling our backing-array key-hash indexing rather than
-/// using the modulus of the hash and capacity, which is much, much slower.
-///
-/// Returns the increased capacity.
-fn grow(capacity: usize) usize {
-    return if (capacity < 8) 8 else capacity * 2;
+/// Returns the capacity of this table.
+pub fn capacity(self: *const Table) usize {
+    return self.entries.len;
 }
 
-/// Resize this table to the given `capacity`.
+/// Resize this table to the given `new_capacity`.
 ///
 /// A new backing array of the given capacity will be allocated, existing entries
 /// will be inserted into the new array and the old array will be freed.
 ///
-/// If the new capacity is less than the old capacity, a maximum of `capacity`
+/// If the new capacity is less than the old capacity, a maximum of `new_capacity`
 /// entries from the existing table will be moved. The subset of entries that
 /// are moved in this case is technically deterministic because of the hashing
 /// algorithm for string keys and the open addressing method of entry insertion,
 /// but I certainly couldn't prove it mathmatically 🤡
-fn resize(self: *Table, capacity: usize) !void {
+fn resize(self: *Table, new_capacity: usize) !void {
+    const new_cap: usize = @max(new_capacity, min_capacity);
+    assert(new_cap > self.capacity());
+
     // Allocate and pre-populate new entries array
-    const entries: []Entry = try mem.alloc(Entry, capacity);
+    const entries: []Entry = try mem.alloc(Entry, new_cap);
     for (entries) |*entry| entry.* = .empty;
 
     self.count = 0;
 
     // Move existing entries to new entries array
-    for (self.entries) |entry| if (entry.key) |key| {
-        findEntry(entries, key).* = .{ .key = key, .val = entry.val };
+    for (self.entries) |it| if (it.key) |key| {
+        findEntry(entries, key).* = .{ .key = key, .val = it.val };
         self.count += 1;
-        if (self.count >= capacity) break;
+        if (self.count >= new_cap) break;
     };
 
     mem.free(self.entries);
@@ -85,15 +101,16 @@ fn resize(self: *Table, capacity: usize) !void {
 
 /// Find an `Entry` with the given `key` in the given `entries` slice.
 fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
-    var index: usize = key.hash & (entries.len - 1);
+    const mask: usize = entries.len - 1;
+    var index: usize = key.hash & mask;
     var tombstone: ?*Entry = null;
 
-    while (true) : (index = (index + 1) & (entries.len - 1)) {
+    while (true) : (index = (index + 1) & mask) {
         const entry: *Entry = &entries[index];
 
-        // If entry key is null but value is nil, it's an empty slot. If the value
-        // isn't nil then it's a tombstone, and we'll set that aside and move to
-        // the next slot
+        // If entry key is null but value is nil, it's an empty slot we can return.
+        // If the value isn't nil then it's a tombstone, and we'll set that aside
+        // and move to the next slot.
         //
         // If we hit an empty slot again but have a tombstone set aside then the
         // tombstone is a valid entry slot we can return for the given key
@@ -102,7 +119,7 @@ fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
             if (tombstone == null) tombstone = entry;
         }
 
-        // Otherwise check if key matches and move on to the next slot if not.
+        // Otherwise return entry if key matches, moving on to the next slot if not
         else if (entry.key == key) return entry;
     }
 }
@@ -111,11 +128,12 @@ fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
 ///
 /// Returns a pointer to the string key object, or `null` if no key was found.
 pub fn findString(self: *const Table, chars: []const u8, hash: u32) ?*Obj.String {
-    if (self.count == 0 or self.entries.len == 0) return null;
+    if (self.count == 0 or self.capacity() == 0) return null;
 
-    var index: usize = hash & (self.entries.len - 1);
+    const mask: usize = self.capacity() - 1;
+    var index: usize = hash & mask;
 
-    while (true) : (index = (index + 1) & (self.entries.len - 1)) {
+    while (true) : (index = (index + 1) & mask) {
         const entry: *Entry = &self.entries[index];
 
         // If entry key isn't null, check that it's the one we're looking for
@@ -139,13 +157,10 @@ pub fn findString(self: *const Table, chars: []const u8, hash: u32) ?*Obj.String
 ///
 /// Returns an error if a resize was necessary but allocation failed.
 pub fn set(self: *Table, key: *Obj.String, val: Value) !bool {
-    const new_count: f128 = @floatFromInt(self.count + 1);
-    const entries: f128 = @floatFromInt(self.entries.len);
-    const max_load_capacity: f128 = entries * max_load;
+    const new_count: usize = self.count + 1;
+    const max_load: usize = (self.capacity() * max_load_factor) / 100;
 
-    if (new_count > max_load_capacity) {
-        try self.resize(grow(self.entries.len));
-    }
+    if (new_count > max_load) try self.resize(self.capacity() * growth_factor);
 
     const entry: *Entry = findEntry(self.entries, key);
     const is_open: bool = entry.key == null;
@@ -199,7 +214,7 @@ pub fn delete(self: *Table, key: *Obj.String) bool {
 /// Returns an iterator over key strings in this `Table`.
 pub fn keys(self: *const Table) KeyIterator {
     return .{
-        .count = self.entries.len,
+        .count = self.capacity(),
         .entries = self.entries.ptr,
     };
 }
