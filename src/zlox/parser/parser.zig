@@ -120,6 +120,16 @@ pub fn strategy(_: *const Parser, token: Token) ParseStrategy {
     return ParseStrategy.forToken(token);
 }
 
+/// Returns the parse-strategy for the currently-parsed token.
+pub fn currentStrategy(self: *const Parser) ParseStrategy {
+    return self.strategy(self.current);
+}
+
+/// Returns the parse-strategy for the next token to be parsed.
+pub fn nextStrategy(self: *const Parser) ParseStrategy {
+    return self.strategy(self.next);
+}
+
 // Error management ================================================================================
 
 /// Output error `msg` at the given `token`.

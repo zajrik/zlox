@@ -438,25 +438,23 @@ fn ifStmt(self: *Compiler) void {
 /// switchCase  := "case" ":" statement ;
 /// defaultCase := "default" ":" statement ;
 fn switchStmt(self: *Compiler) void {
-    const p: *Parser = self.parser;
-
-    p.expect(.paren_left, "'(' after 'switch'");
+    self.parser.expect(.paren_left, "'(' after 'switch'");
     self.expression();
-    p.expect(.paren_right, "')' after expression");
-    p.expect(.brace_left, "'{' after switch value");
+    self.parser.expect(.paren_right, "')' after expression");
+    self.parser.expect(.brace_left, "'{' after switch value");
 
     var default_found: bool = false;
 
     var exit_jumps: JumpList = .empty;
     defer exit_jumps.deinit();
 
-    while (!p.blockEnd(.brace_right)) {
-        if (!p.match(.keyword_case) and !p.match(.keyword_default)) {
-            p.err("Expected 'case' or 'default'.");
+    while (!self.parser.blockEnd(.brace_right)) {
+        if (!self.parser.match(.keyword_case) and !self.parser.match(.keyword_default)) {
+            self.parser.err("Expected 'case' or 'default'.");
         }
 
         // Compile non-default case expression
-        if (p.current.isNot(.keyword_default)) {
+        if (self.parser.current.isNot(.keyword_default)) {
             // Copy condition value on stack to compare condition and case expression
             // without popping the original condition value from the stack
             self.emitOp(.copy);
@@ -467,13 +465,13 @@ fn switchStmt(self: *Compiler) void {
 
         // Compile default case
         else {
-            if (default_found) p.err("Multiple 'default' cases.");
+            if (default_found) self.parser.err("Multiple 'default' cases.");
             default_found = true;
 
             self.emitOp(.true);
         }
 
-        p.expect(.colon, "':'");
+        self.parser.expect(.colon, "':'");
 
         const case_jump: usize = self.emitJump(.jump_if_false);
         self.emitOp(.pop);
@@ -484,7 +482,7 @@ fn switchStmt(self: *Compiler) void {
         self.emitOp(.pop);
     }
 
-    p.expect(.brace_right, "'}' after switch block");
+    self.parser.expect(.brace_right, "'}' after switch block");
 
     self.patchJumpList(&exit_jumps);
 
@@ -579,17 +577,15 @@ fn whileStmt(self: *Compiler) void {
 /// forStmt := "for" "(" ( varDecl | expression? ";" )
 ///            expression? ";" expression? ")" statement ;
 fn forStmt(self: *Compiler) void {
-    const p: *Parser = self.parser;
-
     self.pushLoopScope();
     defer self.popLoopScope();
 
-    p.expect(.paren_left, "'(' after 'for'");
+    self.parser.expect(.paren_left, "'(' after 'for'");
 
     // Compile initializer clause
-    switch (p.next.type) {
-        .keyword_var => do(p.advance(), self.varDeclaration()),
-        .semicolon => p.advance(),
+    switch (self.parser.next.type) {
+        .keyword_var => do(self.parser.advance(), self.varDeclaration()),
+        .semicolon => self.parser.advance(),
         else => self.expressionStmt(),
     }
 
@@ -601,22 +597,22 @@ fn forStmt(self: *Compiler) void {
     var exit_jump: ?usize = null;
 
     // Compile loop condition if present and set exit jump placeholder
-    if (!p.match(.semicolon)) {
+    if (!self.parser.match(.semicolon)) {
         self.expression();
-        p.expect(.semicolon, "';' after loop condition");
+        self.parser.expect(.semicolon, "';' after loop condition");
 
         exit_jump = self.emitJump(.jump_if_false);
         self.emitOp(.pop);
     }
 
     // Compile increment expression if present
-    if (!p.match(.paren_right)) {
+    if (!self.parser.match(.paren_right)) {
         const increment_jump: usize = self.emitJump(.jump);
         const increment_start: usize = self.instructionOffset();
 
         self.expression();
         self.emitOp(.pop);
-        p.expect(.paren_right, "')' after for-clauses");
+        self.parser.expect(.paren_right, "')' after for-clauses");
 
         // Loop back to start after executing increment expression, update loop_start
         // to point to the increment so the body loops back here after executing
@@ -660,13 +656,11 @@ fn expressionStmt(self: *Compiler) void {
 
 /// Compile a function statement or expression of the given `type` from source tokens.
 fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
-    const p: *Parser = self.parser;
-
     // Load identifier into the current token if this is a labeled function expression
-    if (is_expr and p.next.is(.identifier)) p.advance();
+    if (is_expr and self.parser.next.is(.identifier)) self.parser.advance();
 
     const fun_compiler: *Compiler = self.createNestedCompiler(T) catch {
-        return p.err("Error compiling function.");
+        return self.parser.err("Error compiling function.");
     };
     defer fun_compiler.destroy();
 
@@ -675,40 +669,40 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
     // instance is freed
     fun_compiler.pushScope();
 
-    p.expect(.paren_left, "'(' after function name");
+    self.parser.expect(.paren_left, "'(' after function name");
 
     // Compile function parameters, if any
-    if (p.next.isNot(.paren_right)) {
+    if (self.parser.next.isNot(.paren_right)) {
         // SAFETY: function is guaranteed non-null during compilation
         const arity: *u8 = &fun_compiler.function.?.arity;
 
-        while (true) : (if (p.listEnd(.paren_right)) break) {
+        while (true) : (if (self.parser.listEnd(.paren_right)) break) {
             fun_compiler.define(
                 fun_compiler.variableIdentifier("parameter identifier"),
             );
 
             defer arity.* += 1;
-            if (arity.* == 255) p.err("Too many parameters (255 max).");
+            if (arity.* == 255) self.parser.err("Too many parameters (255 max).");
         }
     }
 
-    p.expect(.paren_right, "')' after parameter list");
+    self.parser.expect(.paren_right, "')' after parameter list");
 
     // Compile block function body if we see an opening brace
-    if (p.match(.brace_left)) fun_compiler.block()
+    if (self.parser.match(.brace_left)) fun_compiler.block()
 
     // Compile expression body if we see `=`
-    else if (p.match(.equal)) {
+    else if (self.parser.match(.equal)) {
         fun_compiler.expression();
         fun_compiler.emitOp(.@"return");
-        if (!is_expr) p.expect(.semicolon, "';' after function body");
+        if (!is_expr) self.parser.expect(.semicolon, "';' after function body");
     }
 
     // Otherwise emit a compilation error
-    else p.err("Expected '{' or '=' before function body.");
+    else self.parser.err("Expected '{' or '=' before function body.");
 
     const fun_obj: *Obj.Function = fun_compiler.endCompilation() orelse {
-        return p.err("Error compiling function.");
+        return self.parser.err("Error compiling function.");
     };
 
     // Add compiled function to chunk constants and emit closure op
@@ -733,9 +727,7 @@ fn expression(self: *Compiler) void {
 
 /// Compile an expression from source tokens with the given `precedence`.
 fn expr(self: *Compiler, precedence: Precedence) void {
-    const p: *Parser = self.parser;
-
-    p.advance();
+    self.parser.advance();
 
     // Check if this expression is allowed to be treated as an assignment expression
     const can_assign: bool = precedence.lte(.assignment);
@@ -749,8 +741,8 @@ fn expr(self: *Compiler, precedence: Precedence) void {
     // (1 + 1); // grouping is a prefix rule
     // -1 + 1); // unary minus is a prefix rule
 
-    const prefix_rule: ExprFn = p.strategy(p.current).prefix orelse {
-        return p.err("Expected expression.");
+    const prefix_rule: ExprFn = self.parser.currentStrategy().prefix orelse {
+        return self.parser.err("Expected expression.");
     };
     prefix_rule(self, can_assign);
 
@@ -762,18 +754,18 @@ fn expr(self: *Compiler, precedence: Precedence) void {
     // Otherwise, we continue parsing infix expressions until hitting a token with
     // higher precedence.
 
-    while (precedence.lte(p.strategy(p.next).precedence)) {
-        p.advance();
-        const infix_rule: ExprFn = p.strategy(p.current).infix orelse {
-            return p.err("Expected expression.");
+    while (precedence.lte(self.parser.nextStrategy().precedence)) {
+        self.parser.advance();
+        const infix_rule: ExprFn = self.parser.currentStrategy().infix orelse {
+            return self.parser.err("Expected expression.");
         };
         infix_rule(self, can_assign);
     }
 
     // `.equal` should have been consumed by the variable prefix rule at this point
     // if assignment was allowed, so we should error if we see `=`
-    if (can_assign and p.match(.equal)) {
-        p.err("Invalid assignment target.");
+    if (can_assign and self.parser.match(.equal)) {
+        self.parser.err("Invalid assignment target.");
     }
 }
 
@@ -1041,21 +1033,19 @@ pub fn nilish(self: *Compiler, _: bool) void {
 /// switchExpr := "switch" "(" expression ")" "{" caseExpr* "}" ;
 /// caseExpr   := ( expression | "_" ) "=>" expression ;
 pub fn switchExpr(self: *Compiler, _: bool) void {
-    const p: *Parser = self.parser;
-
-    p.expect(.paren_left, "'(' after 'switch'");
+    self.parser.expect(.paren_left, "'(' after 'switch'");
     self.expression();
-    p.expect(.paren_right, "')' after expression");
-    p.expect(.brace_left, "'{' after switch value");
+    self.parser.expect(.paren_right, "')' after expression");
+    self.parser.expect(.brace_left, "'{' after switch value");
 
     var wildcard_found: bool = false;
 
     var exit_jumps: JumpList = .empty;
     defer exit_jumps.deinit();
 
-    while (!p.blockEnd(.brace_right)) {
+    while (!self.parser.blockEnd(.brace_right)) {
         // Compile expression case
-        if (p.next.isNot(.identifier) or !p.next.isDiscard()) {
+        if (self.parser.next.isNot(.identifier) or !self.parser.next.isDiscard()) {
             self.emitOp(.copy);
             self.expression();
             self.emitOp(.equal);
@@ -1063,14 +1053,14 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
 
         // Compile wildcard case
         else {
-            if (wildcard_found) p.err("Multiple wildcard cases.");
+            if (wildcard_found) self.parser.err("Multiple wildcard cases.");
             wildcard_found = true;
 
-            p.advance();
+            self.parser.advance();
             self.emitOp(.true);
         }
 
-        p.expect(.arrow, "'=>'");
+        self.parser.expect(.arrow, "'=>'");
 
         const case_jump: usize = self.emitJump(.jump_if_false);
 
@@ -1083,7 +1073,7 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
         self.emitOp(.pop);
     }
 
-    p.expect(.brace_right, "'}' after switch block");
+    self.parser.expect(.brace_right, "'}' after switch block");
 
     // If we didn't find a wildcard case then we need to pop switch input expression
     // from the stack and return nil from the switch expression
@@ -1131,20 +1121,16 @@ pub fn dot(self: *Compiler, can_assign: bool) void {
 /// The result of these expressions will be on the stack at runtime and captured
 /// in the called function's callframe stack window.
 fn argumentList(self: *Compiler) u8 {
-    const p: *Parser = self.parser;
-
     var count: u8 = 0;
 
-    if (p.next.isNot(.paren_right)) {
-        while (true) : (if (p.listEnd(.paren_right)) break) {
+    defer self.parser.expect(.paren_right, "')' after arguments");
+    if (self.parser.next.isNot(.paren_right)) {
+        while (true) : (if (self.parser.listEnd(.paren_right)) break) {
+            if (count == 255) self.parser.err("Too many arguments (255 max).");
             self.expression();
-
-            defer count += 1;
-            if (count == 255) p.err("Too many arguments (255 max).");
+            count += 1;
         }
     }
-
-    p.expect(.paren_right, "')' after arguments");
 
     return count;
 }
