@@ -400,9 +400,9 @@ fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) !void {
     });
 }
 
-/// Invoke a method with the given `ident` on the receiver found on the stack below
-/// `arg_count` argument values.
-fn invoke(self: *Vm, ident: *Obj.String, arg_count: u8) !void {
+/// Invoke a `method` on the receiver instance found on the stack below `arg_count`
+/// argument values.
+fn invoke(self: *Vm, method: *Obj.String, arg_count: u8) !void {
     const receiver: Value = self.stack.peek(arg_count);
     const instance: *Obj.Instance = receiver.asObj(.instance) orelse {
         return self.err("Can't call method on non-instance value");
@@ -410,14 +410,14 @@ fn invoke(self: *Vm, ident: *Obj.String, arg_count: u8) !void {
 
     // If the "method" is actually a function field, call it as a function rather
     // than performing a method lookup and invocation
-    if (instance.fields.get(ident)) |it| {
+    if (instance.fields.get(method)) |it| {
         // Replace receiver with field function
         self.stack.slot(arg_count).* = it;
-        try self.callValue(it, arg_count);
+        return self.callValue(it, arg_count);
     }
 
     // Otherwise invoke the method
-    try self.invokeFromClass(instance.class, ident, arg_count);
+    try self.invokeClassMethod(instance.class, method, arg_count);
 }
 
 /// Invoke a method with the given `ident` from the given `class` on the receiver
@@ -427,13 +427,18 @@ fn invoke(self: *Vm, ident: *Obj.String, arg_count: u8) !void {
 /// the method arguments.
 ///
 /// Returns an error if the given method is undefined.
-fn invokeFromClass(self: *Vm, class: *Obj.Class, ident: *Obj.String, arg_count: u8) !void {
-    if (class.methods.get(ident)) |method| return try self.callFun(
-        method.objCast(.closure),
+fn invokeClassMethod(
+    self: *Vm,
+    class: *Obj.Class,
+    method: *Obj.String,
+    arg_count: u8,
+) !void {
+    if (class.methods.get(method)) |it| return self.callFun(
+        it.objCast(.closure),
         arg_count,
     );
 
-    return self.errFmt("Undefined method '{f}'", .{ident});
+    return self.errFmt("Undefined method '{f}'", .{method});
 }
 
 // Instruction loop ================================================================================
@@ -569,14 +574,13 @@ fn run(self: *Vm) !ExecutionResult {
 
             .property_set => {
                 // Peek instance on stack
-                const inst_val: Value = stack.peek(1);
-                const inst_obj: *Obj.Instance = inst_val.asObj(.instance) orelse {
+                const instance: *Obj.Instance = stack.peek(1).asObj(.instance) orelse {
                     return self.err("Only class instances have properties");
                 };
 
-                // Set property/field on instance
+                // Set instance property/field to value on top of stack
                 const property: *Obj.String = frame.readString();
-                _ = try inst_obj.fields.set(property, stack.peek(0));
+                _ = try instance.fields.set(property, stack.peek(0));
 
                 // Pop instance from stack, leaving set expression value
                 _ = stack.swap(0, 1);
@@ -584,14 +588,13 @@ fn run(self: *Vm) !ExecutionResult {
             },
             .property_get => {
                 // Peek instance on stack
-                const inst_val: Value = stack.peek(0);
-                const inst_obj: *Obj.Instance = inst_val.asObj(.instance) orelse {
+                const instance: *Obj.Instance = stack.peek(0).asObj(.instance) orelse {
                     return self.err("Only class instances have properties");
                 };
 
                 // Try getting property/field from instance
                 const property: *Obj.String = frame.readString();
-                if (inst_obj.fields.get(property)) |it| {
+                if (instance.fields.get(property)) |it| {
                     _ = stack.replace(0, it);
                     continue;
                 }
@@ -599,21 +602,21 @@ fn run(self: *Vm) !ExecutionResult {
                 // If we couldn't find a property/field, try it as a method. If a
                 // method is found, it'll be on the stack ready to be called so we
                 // can continue to the next instruction
-                try self.bindMethod(inst_obj.class, property) orelse {
+                try self.bindMethod(instance.class, property) orelse {
                     // Return nil if prop/field/method doesn't exist
                     _ = stack.replace(0, .Nil);
                 };
             },
 
             .super_get => {
-                const ident: *Obj.String = frame.readString();
+                const method: *Obj.String = frame.readString();
                 const super: *Obj.Class = stack.pop().objCast(.class);
 
                 // SAFETY: `this` is on the stack under the popped `super` which allows
                 // tracing `super` via the upvalues owned by the methods on `this` if
                 // a sweep is triggered by `bindMethod()` while `super` is off the stack
 
-                try self.bindMethod(super, ident) orelse {
+                try self.bindMethod(super, method) orelse {
                     // Return nil if super method doesn't exist
                     _ = stack.replace(0, .Nil);
                 };
@@ -646,15 +649,15 @@ fn run(self: *Vm) !ExecutionResult {
                 try self.callValue(stack.peek(arg_count), arg_count);
             },
             .invoke => {
-                const ident: *Obj.String = frame.readString();
+                const method: *Obj.String = frame.readString();
                 const arg_count: u8 = frame.readByte();
-                try self.invoke(ident, arg_count);
+                try self.invoke(method, arg_count);
             },
             .super_invoke => {
-                const ident: *Obj.String = frame.readString();
+                const method: *Obj.String = frame.readString();
                 const arg_count: u8 = frame.readByte();
                 const superclass: *Obj.Class = stack.pop().objCast(.class);
-                try self.invokeFromClass(superclass, ident, arg_count);
+                try self.invokeClassMethod(superclass, method, arg_count);
             },
 
             .closure => {
