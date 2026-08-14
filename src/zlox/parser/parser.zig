@@ -139,7 +139,8 @@ pub fn errAt(self: *Parser, token: Token, msg: []const u8) void {
     if (token.is(.eof)) {
         printf(" at end", .{});
     } else if (token.is(.@"error")) {
-        // No extra message needed for error tokens
+        // No extra message needed for error tokens because it's reported
+        // separately when the error token is encountered in advance()
     } else {
         printf(" at '{s}'", .{token.lexeme});
     }
