@@ -36,6 +36,7 @@ pub const empty: Chunk = .{};
 
 /// Release all allocated memory owned by this chunk.
 pub fn deinit(self: *Chunk) void {
+    defer self.* = undefined;
     defer self.instructions.deinit(mem.allocator());
     defer self.constants.deinit(mem.allocator());
     defer self.lines.deinit(mem.allocator());

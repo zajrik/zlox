@@ -60,6 +60,7 @@ pub const empty: Table = .{};
 
 /// Deinitialize this `Table`, freeing its owned resources.
 pub fn deinit(self: *Table) void {
+    defer self.* = undefined;
     mem.free(self.entries);
 }
 

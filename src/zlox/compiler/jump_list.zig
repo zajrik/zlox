@@ -22,6 +22,7 @@ head: ?*Jump = null,
 
 /// Deinitialize this `JumpList`, freeing any `Jump` structs it has allocated.
 pub fn deinit(self: *JumpList) void {
+    defer self.* = undefined;
     while (self.head) |it| : (it.destroy()) self.head = it.next;
 }
 
