@@ -86,8 +86,6 @@ pub const Error = error{runtime_error} || Heap.Error;
 /// The caller owns the returned pointer and is responsible for freeing it.
 pub fn create(io: Io) !*Vm {
     const vm: *Vm = try mem.createStruct(Vm, .{ .io = io });
-    vm.frame_stack.reset();
-    vm.stack.reset();
     vm.gc = try .create(vm);
     vm.heap = .init(&vm.strings, vm.gc);
     vm.init_string = try vm.copyString("init");

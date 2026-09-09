@@ -6,18 +6,18 @@ const cmn = zlox.common;
 
 const Writer = std.Io.Writer;
 
+const assert = std.debug.assert;
 const cmpfmt = std.fmt.comptimePrint;
 
 // =================================================================================================
 
-/// A classic generic last-in, first-out stack structure.
+/// A classic generic last-in, first-out stack structure with a fixed capacity.
 ///
 /// Initialize a new Stack instance with `Stack.empty`.
-///
-/// `reset()` must be called before first use to set the `Stack.top` pointer to
-/// point to the first open slot.
 pub fn Stack(comptime T: type, comptime capacity: usize) type {
     return struct {
+        const Self = @This();
+
         /// Array holding the values on this stack.
         values: [capacity]T = undefined,
 
@@ -26,9 +26,13 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
         /// When a value is pushed to the stack it will be inserted at this address
         /// and the pointer will be incremented to point to the next slot on the
         /// stack.
-        top: [*]T = undefined,
+        top: StackPtr = uninitialized,
 
-        const Self = @This();
+        /// Represents a pointer to a slot/value on the stack.
+        ///
+        /// An uninitialized `StackPtr` is 
+        const StackPtr: type = [*]allowzero T;
+        const uninitialized: StackPtr = @ptrFromInt(0);
 
         /// A `Stack` containing no elements.
         pub const empty: Self = .{};
@@ -41,6 +45,7 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
 
         /// Returns the number of items on this stack.
         pub fn size(self: *const Self) usize {
+            if (self.top == uninitialized) return 0;
             return self.top - &self.values;
         }
 
@@ -56,17 +61,22 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
 
         /// Peek at the value at `offset` from the top of this stack.
         pub fn peek(self: *const Self, offset: usize) T {
+            assert(self.isNotEmpty());
             return (self.top - 1 - offset)[0];
         }
 
         /// Returns a pointer to the stack slot at the given `offset` from the top
         /// of this stack.
         pub fn slot(self: *const Self, offset: usize) *T {
+            assert(self.isNotEmpty());
             return @ptrCast(self.top - 1 - offset);
         }
 
         /// Push the given `value` to the top of this stack.
         pub fn push(self: *Self, value: T) void {
+            // Initialize the stack on first push
+            if (self.top == uninitialized) self.reset();
+
             if (self.size() == capacity) @panic(
                 cmpfmt("Stack({any}, {d}): Stack overflow", .{ T, capacity }),
             );
@@ -77,13 +87,15 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
 
         /// Pop the value off of the top of this stack and return it.
         pub fn pop(self: *Self) T {
+            assert(self.isNotEmpty());
             self.top -= 1;
             return self.top[0];
         }
 
         /// Pop the top `n` values off the top of this stack, allowing them to be
         /// overwritten on subsequent pushes.
-        pub fn popN(self: *Self, n: u8) void {
+        pub fn popN(self: *Self, n: usize) void {
+            assert(n <= self.size());
             self.top -= n;
         }
 
@@ -105,6 +117,7 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
         ///
         /// Returns the original, replaced value.
         pub fn replace(self: *Self, offset: usize, value: T) T {
+            assert(self.isNotEmpty());
             const old_val: T = self.slot(offset).*;
             self.slot(offset).* = value;
             return old_val;
