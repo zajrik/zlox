@@ -7,7 +7,7 @@ const cmn = zlox.common;
 const Writer = std.Io.Writer;
 
 const assert = std.debug.assert;
-const cmpfmt = std.fmt.comptimePrint;
+const panic = std.debug.panic;
 
 // =================================================================================================
 
@@ -29,9 +29,12 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
         top: StackPtr = uninitialized,
 
         /// Represents a pointer to a slot/value on the stack.
-        ///
-        /// An uninitialized `StackPtr` is 
         const StackPtr: type = [*]allowzero T;
+
+        /// Uninitialized stack top pointer value.
+        ///
+        /// A stack with its top pointer equal to this has never stored a value.
+        /// Any other value indicates a stack that has been used.
         const uninitialized: StackPtr = @ptrFromInt(0);
 
         /// A `Stack` containing no elements.
@@ -77,8 +80,9 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
             // Initialize the stack on first push
             if (self.top == uninitialized) self.reset();
 
-            if (self.size() == capacity) @panic(
-                cmpfmt("Stack({any}, {d}): Stack overflow", .{ T, capacity }),
+            if (self.size() == capacity) panic(
+                "Stack({any}, {d}): Stack overflow",
+                .{ T, capacity },
             );
 
             self.top[0] = value;
