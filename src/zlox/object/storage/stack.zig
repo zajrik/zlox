@@ -16,7 +16,7 @@ const panic = std.debug.panic;
 /// Initialize a new Stack instance with `Stack.empty`.
 pub fn Stack(comptime T: type, comptime capacity: usize) type {
     return struct {
-        const Self = @This();
+        const Self: type = @This();
 
         /// Array holding the values on this stack.
         values: [capacity]T = undefined,
@@ -168,7 +168,7 @@ pub fn Stack(comptime T: type, comptime capacity: usize) type {
 /// iterator is initialized.
 pub fn StackIterator(comptime T: type) type {
     return struct {
-        const Self = @This();
+        const Self: type = @This();
 
         /// The number of remaining values in this iterator.
         count: usize,

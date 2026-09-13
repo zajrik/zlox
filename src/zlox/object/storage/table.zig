@@ -24,7 +24,7 @@ const exit = std.process.exit;
 
 // =================================================================================================
 
-const Table: type = @This();
+const Self: type = @This();
 
 /// The number of entries within this hash-table.
 count: usize = 0,
@@ -56,16 +56,16 @@ comptime {
 }
 
 /// A `Table` containing no entries.
-pub const empty: Table = .{};
+pub const empty: Self = .{};
 
 /// Deinitialize this `Table`, freeing its owned resources.
-pub fn deinit(self: *Table) void {
+pub fn deinit(self: *Self) void {
     defer self.* = undefined;
     mem.free(self.entries);
 }
 
 /// Returns the capacity of this table.
-pub fn capacity(self: *const Table) usize {
+pub fn capacity(self: *const Self) usize {
     return self.entries.len;
 }
 
@@ -79,7 +79,7 @@ pub fn capacity(self: *const Table) usize {
 /// are moved in this case is technically deterministic because of the hashing
 /// algorithm for string keys and the open addressing method of entry insertion,
 /// but I certainly couldn't prove it mathmatically 🤡
-fn resize(self: *Table, new_capacity: usize) !void {
+fn resize(self: *Self, new_capacity: usize) !void {
     const new_cap: usize = @max(new_capacity, min_capacity);
     assert(new_cap > self.capacity());
 
@@ -128,7 +128,7 @@ fn findEntry(entries: []Entry, key: *Obj.String) *Entry {
 /// Find a string key object in this table matching the given `chars` and `hash`.
 ///
 /// Returns a pointer to the string key object, or `null` if no key was found.
-pub fn findString(self: *const Table, chars: []const u8, hash: u32) ?*Obj.String {
+pub fn findString(self: *const Self, chars: []const u8, hash: u32) ?*Obj.String {
     if (self.count == 0 or self.capacity() == 0) return null;
 
     const mask: usize = self.capacity() - 1;
@@ -140,7 +140,8 @@ pub fn findString(self: *const Table, chars: []const u8, hash: u32) ?*Obj.String
         // If entry key isn't null, check that it's the one we're looking for
         // and return it if so
         if (entry.key) |key| {
-            const key_match: bool = key.chars.len == chars.len and
+            const key_match: bool =
+                key.chars.len == chars.len and
                 key.hash == hash and
                 eql(u8, key.chars, chars);
 
@@ -157,7 +158,7 @@ pub fn findString(self: *const Table, chars: []const u8, hash: u32) ?*Obj.String
 /// Returns whether the entry was empty before the given value was set.
 ///
 /// Returns an error if a resize was necessary but allocation failed.
-pub fn set(self: *Table, key: *Obj.String, val: Value) !bool {
+pub fn set(self: *Self, key: *Obj.String, val: Value) !bool {
     const new_count: usize = self.count + 1;
     const max_load: usize = (self.capacity() * max_load_factor) / 100;
 
@@ -176,7 +177,7 @@ pub fn set(self: *Table, key: *Obj.String, val: Value) !bool {
 }
 
 /// Add all entries from `other` to this table.
-pub fn addAll(self: *Table, other: *Table) !void {
+pub fn addAll(self: *Self, other: *Self) !void {
     for (other.entries) |entry| {
         if (entry.key) |key| {
             _ = try self.set(key, entry.val);
@@ -185,7 +186,7 @@ pub fn addAll(self: *Table, other: *Table) !void {
 }
 
 /// Get the value from this table at the given `key`, if it exists.
-pub fn get(self: *const Table, key: *Obj.String) ?Value {
+pub fn get(self: *const Self, key: *Obj.String) ?Value {
     if (self.count == 0) return null;
 
     const entry: *Entry = findEntry(self.entries, key);
@@ -195,14 +196,14 @@ pub fn get(self: *const Table, key: *Obj.String) ?Value {
 }
 
 /// Returns whether this table has an existing entry for the given `key`.
-pub fn hasKey(self: *const Table, key: *Obj.String) bool {
+pub fn hasKey(self: *const Self, key: *Obj.String) bool {
     return self.count != 0 and findEntry(self.entries, key).key != null;
 }
 
 /// Remove the entry with the given `key` from this table, if it exists.
 ///
 /// Returns whether an entry was removed.
-pub fn delete(self: *Table, key: *Obj.String) bool {
+pub fn delete(self: *Self, key: *Obj.String) bool {
     const entry: *Entry = findEntry(self.entries, key);
     if (entry.key == null) return false;
 
@@ -213,7 +214,7 @@ pub fn delete(self: *Table, key: *Obj.String) bool {
 }
 
 /// Returns an iterator over key strings in this `Table`.
-pub fn keys(self: *const Table) KeyIterator {
+pub fn keys(self: *const Self) KeyIterator {
     return .{
         .count = self.capacity(),
         .entries = self.entries.ptr,

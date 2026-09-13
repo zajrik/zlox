@@ -13,7 +13,7 @@ const Writer = std.Io.Writer;
 
 // =================================================================================================
 
-const Method: type = @This();
+const Self: type = @This();
 
 /// The base lox object header.
 obj: Obj = undefined,
@@ -27,22 +27,22 @@ receiver: Value,
 closure: *Obj.Closure,
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(self: *const Method) void {
-    defer mem.destroy(self);
+pub fn destroy(self: *const Self) void {
+    mem.destroy(self);
 }
 
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
-pub fn toObj(self: *Method) *Obj {
+pub fn toObj(self: *Self) *Obj {
     return &self.obj;
 }
 
 /// Cast this `Obj.Variant` to an object `Value`.
-pub fn toValue(self: *Method) Value {
+pub fn toValue(self: *Self) Value {
     return .Object(self.toObj());
 }
 
 /// Custom formatter for `Obj` values of this variant.
-pub fn format(self: *const Method, writer: *Writer) !void {
+pub fn format(self: *const Self, writer: *Writer) !void {
     // SAFETY: Class methods can't be declared without identifiers
     const class: *Obj.String = self.receiver.objCast(.instance).class.identifier;
     const method: *Obj.String = self.closure.function.identifier.?;

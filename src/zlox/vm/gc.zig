@@ -55,7 +55,7 @@ const printf = std.debug.print;
 
 // =================================================================================================
 
-const Gc: type = @This();
+const Self: type = @This();
 
 /// Pointer to the VM instance for which the GC will collect garbage.
 vm: *Vm,
@@ -69,17 +69,17 @@ next_gc: usize = 1024 * 1024,
 visit_stack: ArrayList(*Obj) = .empty,
 
 /// Represents possible errors returned from GC operations.
-pub const Error = error{gc_failure};
+pub const Error = error{GcFailure};
 
 /// Allocate a new `Gc` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
-pub fn create(vm: *Vm) !*Gc {
-    return try mem.createStruct(Gc, .{ .vm = vm });
+pub fn create(vm: *Vm) !*Self {
+    return try mem.createStruct(Self, .{ .vm = vm });
 }
 
 /// Destroy the `Gc`, freeing its owned resources.
-pub fn destroy(self: *Gc) void {
+pub fn destroy(self: *Self) void {
     defer mem.destroy(self);
     self.visit_stack.deinit(mem.allocator());
 }
@@ -91,7 +91,7 @@ pub fn destroy(self: *Gc) void {
 ///
 /// Returns the size of the given object in bytes, or an error if something went
 /// wrong while running the GC sweep.
-pub fn report(self: *Gc, obj: *Obj) Error!usize {
+pub fn report(self: *Self, obj: *Obj) Error!usize {
     const obj_size: usize = obj.size();
 
     // Run GC if we exceed the GC threshold. This should only fail if we're out of
@@ -102,14 +102,14 @@ pub fn report(self: *Gc, obj: *Obj) Error!usize {
     // likely to bother here unless it becomes a problem for me personally (it won't)
 
     if (self.vm.heap.size + obj_size > self.next_gc or debug.stress_gc) {
-        self.collect() catch return Error.gc_failure;
+        self.collect() catch return Error.GcFailure;
     }
 
     return obj_size;
 }
 
 /// Initiate a GC cycle, marking all living objs and freeing all non-living objs.
-pub fn collect(self: *Gc) !void {
+pub fn collect(self: *Self) !void {
     if (comptime debug.print_gc) printf("-- GC start\n", .{});
     defer if (comptime debug.print_gc) printf("-- GC end\n", .{});
 
@@ -125,12 +125,12 @@ pub fn collect(self: *Gc) !void {
 /// Mark the given value as alive, allowing it to live through this GC cycle.
 ///
 /// Only affects `Obj` values.
-pub fn markValue(self: *Gc, value: *Value) !void {
+pub fn markValue(self: *Self, value: *Value) !void {
     if (value.as(.obj)) |it| try self.markObject(it);
 }
 
 /// Mark the given object as alive, allowing it to live through this GC cycle.
-pub fn markObject(self: *Gc, obj: *Obj) !void {
+pub fn markObject(self: *Self, obj: *Obj) !void {
     if (obj.flags.is_alive) return;
     obj.flags.is_alive = true;
 
@@ -149,7 +149,7 @@ pub fn markObject(self: *Gc, obj: *Obj) !void {
 
 /// Mark all keys and values in the given `table` as alive, allowing them to live
 /// through this GC cycle.
-pub fn markTable(self: *Gc, table: *Table) !void {
+pub fn markTable(self: *Self, table: *Table) !void {
     for (table.entries) |*entry| {
         if (entry.key) |key| try self.markObject(key.toObj());
         try self.markValue(&entry.val);
@@ -157,7 +157,7 @@ pub fn markTable(self: *Gc, table: *Table) !void {
 }
 
 /// Mark all reachable objects in the VM as alive for this GC cycle.
-pub fn markRoots(self: *Gc) !void {
+pub fn markRoots(self: *Self) !void {
     // Mark stack values
     var stack_iter: StackIterator(Value) = self.vm.stack.iter();
     while (stack_iter.next()) |it| try self.markValue(it);
@@ -177,7 +177,7 @@ pub fn markRoots(self: *Gc) !void {
 
 /// Visit all object references reachable from the given `obj`, marking them as
 /// alive for this GC cycle.
-pub fn visit(self: *Gc, obj: *Obj) !void {
+pub fn visit(self: *Self, obj: *Obj) !void {
     switch (obj.type) {
         .upvalue => |T| try self.markValue(&obj.cast(T).closed),
         .closure => |T| for (obj.cast(T).upvalues) |upvalue| {
@@ -206,13 +206,13 @@ pub fn visit(self: *Gc, obj: *Obj) !void {
 ///
 /// Any further nested objects with references will be added to the visit stack to
 /// be visited until all reachable objects have been marked and the stack is empty.
-pub fn visitReferences(self: *Gc) !void {
+pub fn visitReferences(self: *Self) !void {
     while (self.visit_stack.pop()) |it| try self.visit(it);
 }
 
 /// Free all objects on the virtual heap that were not marked as alive during
 /// this GC cycle.
-pub fn sweep(self: *const Gc) void {
+pub fn sweep(self: *const Self) void {
     var iter: Heap.Iterator = self.vm.heap.iter();
     while (iter.next()) |it| {
         // Unmark marked object and advance
@@ -230,7 +230,7 @@ pub fn sweep(self: *const Gc) void {
 /// for this GC cycle.
 ///
 /// Constant keys will not be removed.
-pub fn sweepTable(_: *const Gc, table: *Table) void {
+pub fn sweepTable(_: *const Self, table: *Table) void {
     for (table.entries) |entry| {
         if (entry.key) |key| {
             if (key.obj.flags.is_constant or key.obj.flags.is_alive) continue;

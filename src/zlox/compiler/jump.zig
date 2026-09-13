@@ -7,25 +7,25 @@ const mem = zlox.mem;
 
 // =================================================================================================
 
-const Jump: type = @This();
+const Self: type = @This();
 
 /// The instruction offset at which the tracked operand bytes begin.
 offset: usize,
 
 /// The next linked `Jump` node in the list, if any.
-next: ?*Jump = null,
+next: ?*Self = null,
 
 /// Allocate a new `Jump` node on the heap with the given `offset`.
 ///
 /// Returns a pointer to the allocated jump node.
-pub fn create(offset: usize, next: ?*Jump) !*Jump {
+pub fn create(offset: usize, next: ?*Self) !*Self {
     return try mem.createStruct(
-        Jump,
+        Self,
         .{ .offset = offset, .next = next },
     );
 }
 
 /// Destroy this `Jump` node, freeing its allocated memory.
-pub fn destroy(self: *const Jump) void {
+pub fn destroy(self: *const Self) void {
     mem.destroy(self);
 }

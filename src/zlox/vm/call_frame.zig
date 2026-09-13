@@ -15,7 +15,7 @@ const Enum = zlox.common.Enum;
 
 // =================================================================================================
 
-const CallFrame: type = @This();
+const Self: type = @This();
 
 /// The function being invoked.
 closure: *Obj.Closure,
@@ -28,14 +28,14 @@ ip: [*]u8,
 slots: [*]Value,
 
 /// Read the next byte from the invoked function's compiled instructions.
-pub fn readByte(self: *CallFrame) u8 {
+pub fn readByte(self: *Self) u8 {
     defer self.ip += 1;
     return self.ip[0];
 }
 
 /// Read the next two bytes from the invoked function's compiled instructions,
 /// treating them as a single 16-bit value.
-pub fn readShort(self: *CallFrame) u16 {
+pub fn readShort(self: *Self) u16 {
     defer self.ip += 2;
     return @as(u16, self.ip[0]) << 8 | self.ip[1];
 }
@@ -43,7 +43,7 @@ pub fn readShort(self: *CallFrame) u16 {
 /// Read a constant value from the compiled constants of the invoked function
 /// by its constant offset obtained from reading the next byte from the compiled
 /// instructions.
-pub fn readConstant(self: *CallFrame) Value {
+pub fn readConstant(self: *Self) Value {
     return self.closure.function.chunk.constantAt(self.readByte());
 }
 
@@ -53,7 +53,7 @@ pub fn readConstant(self: *CallFrame) Value {
 ///
 /// See also:
 /// - `readConstant`
-pub fn readString(self: *CallFrame) *Obj.String {
+pub fn readString(self: *Self) *Obj.String {
     return self.readConstant().objCast(.string);
 }
 
@@ -61,6 +61,6 @@ pub fn readString(self: *CallFrame) *Obj.String {
 /// it as an enum value of type `T`.
 ///
 /// Emits a compile error if the given type is not an enum type.
-pub fn readEnum(self: *CallFrame, comptime T: type) Enum(T) {
+pub fn readEnum(self: *Self, comptime T: type) Enum(T) {
     return @enumFromInt(self.readByte());
 }

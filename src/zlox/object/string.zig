@@ -12,7 +12,7 @@ const Writer = std.Io.Writer;
 
 // =================================================================================================
 
-const String: type = @This();
+const Self: type = @This();
 
 /// The base lox object header.
 obj: Obj = undefined,
@@ -27,22 +27,22 @@ chars: []const u8,
 hash: u32 = 0,
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(self: *const String) void {
+pub fn destroy(self: *const Self) void {
     defer mem.destroy(self);
     if (!self.obj.flags.is_constant) mem.free(self.chars);
 }
 
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
-pub fn toObj(self: *String) *Obj {
+pub fn toObj(self: *Self) *Obj {
     return &self.obj;
 }
 
 /// Cast this `Obj.Variant` to an object `Value`.
-pub fn toValue(self: *String) Value {
+pub fn toValue(self: *Self) Value {
     return .Object(self.toObj());
 }
 
 /// Custom formatter for `Obj` values of this variant.
-pub fn format(self: *const String, writer: *Writer) !void {
+pub fn format(self: *const Self, writer: *Writer) !void {
     try writer.print("{s}", .{self.chars});
 }

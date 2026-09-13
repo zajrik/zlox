@@ -143,12 +143,12 @@ pub const Value = packed struct(u64) {
         const T: Type = .number;
 
         // Runtime error on divide by 0
-        // if (self.val == 0 or other.val == 0) return error.divide_by_zero;
+        // if (self.val == 0 or other.val == 0) return error.DivideByZero;
 
         // Runtime error on divide by 0, SIMD for funsies 🤡
         const v_1: @Vector(2, u64) = .{ self.val, other.val };
         const v_2: @Vector(2, u64) = .{ 0, 0 };
-        if (@reduce(.Or, v_1 == v_2)) return error.divide_by_zero;
+        if (@reduce(.Or, v_1 == v_2)) return error.DivideByZero;
 
         return .Number(self.cast(T) / other.cast(T));
     }
@@ -162,7 +162,7 @@ pub const Value = packed struct(u64) {
     /// virtual heap to be managed.
     pub fn concat(self: Value, other: Value) !*Obj.String {
         if (!self.isObj(.string) and !other.isObj(.string)) {
-            return error.invalid_operand;
+            return error.InvalidOperand;
         }
 
         var buffer: ArrayList(u8) = .empty;

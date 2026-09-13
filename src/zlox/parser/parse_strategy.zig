@@ -33,7 +33,7 @@ const Precedence = zlox.parser.Precedence;
 
 // =================================================================================================
 
-const ParseStrategy: type = @This();
+const Self: type = @This();
 
 token: TokenType,
 prefix: ?ExprFn,
@@ -46,7 +46,7 @@ fn strat(
     comptime prefix: ?ExprFn,
     comptime infix: ?ExprFn,
     comptime precedence: Precedence,
-) ParseStrategy {
+) Self {
     return .{
         .token = token,
         .prefix = prefix,
@@ -56,13 +56,13 @@ fn strat(
 }
 
 /// Returns the `ParseStrategy` for the given `token`.
-pub fn forToken(token: Token) ParseStrategy {
+pub fn forToken(token: Token) Self {
     return strategies[@intFromEnum(token.type)];
 }
 
 // zig fmt: off
 const token_count: u8 = std.enums.values(TokenType).len;
-const strategies: [token_count]ParseStrategy = .{
+const strategies: [token_count]Self = .{
     strat(.paren_left,       grouping,   call,     .call      ),
     strat(.paren_right,      null,       null,     .none      ),
     strat(.brace_left,       null,       null,     .none      ),

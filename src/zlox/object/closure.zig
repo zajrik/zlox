@@ -12,7 +12,7 @@ const Writer = std.Io.Writer;
 
 // =================================================================================================
 
-const Closure: type = @This();
+const Self: type = @This();
 
 /// The base lox object header.
 obj: Obj = undefined,
@@ -28,22 +28,22 @@ function: *Obj.Function,
 upvalues: []*Obj.Upvalue,
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(self: *const Closure) void {
+pub fn destroy(self: *const Self) void {
     defer mem.destroy(self);
     mem.free(self.upvalues);
 }
 
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
-pub fn toObj(self: *Closure) *Obj {
+pub fn toObj(self: *Self) *Obj {
     return &self.obj;
 }
 
 /// Cast this `Obj.Variant` to an object `Value`.
-pub fn toValue(self: *Closure) Value {
+pub fn toValue(self: *Self) Value {
     return .Object(self.toObj());
 }
 
 /// Custom formatter for `Obj` values of this variant.
-pub fn format(self: *const Closure, writer: *Writer) !void {
+pub fn format(self: *const Self, writer: *Writer) !void {
     try self.function.format(writer);
 }

@@ -18,7 +18,7 @@ const Writer = std.Io.Writer;
 
 // =================================================================================================
 
-const Upvalue: type = @This();
+const Self: type = @This();
 
 /// The base lox object header.
 obj: Obj = undefined,
@@ -41,28 +41,28 @@ closed: Value = .Nil,
 next: ?*Obj.Upvalue,
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(self: *const Upvalue) void {
+pub fn destroy(self: *const Self) void {
     mem.destroy(self);
 }
 
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
-pub fn toObj(self: *Upvalue) *Obj {
+pub fn toObj(self: *Self) *Obj {
     return &self.obj;
 }
 
 /// Cast this `Obj.Variant` to an object `Value`.
-pub fn toValue(self: *Upvalue) Value {
+pub fn toValue(self: *Self) Value {
     return .Object(self.toObj());
 }
 
 /// Close this upvalue, hoisting the value of the variable it captures onto the
 /// heap.
-pub fn close(self: *Upvalue) void {
+pub fn close(self: *Self) void {
     self.closed = self.location.*;
     self.location = &self.closed;
 }
 
 /// Custom formatter for `Obj` values of this variant.
-pub fn format(self: *const Upvalue, writer: *Writer) !void {
+pub fn format(self: *const Self, writer: *Writer) !void {
     try self.location.*.format(writer);
 }

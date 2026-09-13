@@ -13,7 +13,7 @@ const Writer = std.Io.Writer;
 
 // =================================================================================================
 
-const Function: type = @This();
+const Self: type = @This();
 
 /// Enum representing the distinction between different functions declarations.
 pub const Type = enum(u2) { script, function, initializer, method };
@@ -44,23 +44,23 @@ upvalue_count: u8 = 0,
 chunk: Chunk,
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(self: *Function) void {
+pub fn destroy(self: *Self) void {
     defer mem.destroy(self);
     self.chunk.deinit();
 }
 
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
-pub fn toObj(self: *Function) *Obj {
+pub fn toObj(self: *Self) *Obj {
     return &self.obj;
 }
 
 /// Cast this `Obj.Variant` to an object `Value`.
-pub fn toValue(self: *Function) Value {
+pub fn toValue(self: *Self) Value {
     return .Object(self.toObj());
 }
 
 /// Custom formatter for `Obj` values of this variant.
-pub fn format(self: *const Function, writer: *Writer) !void {
+pub fn format(self: *const Self, writer: *Writer) !void {
     if (self.type == .script) return try writer.writeAll("<script>");
     if (self.identifier) |it| return try writer.print("<fn {f}()>", .{it});
     return try writer.writeAll("<anon fn()>");

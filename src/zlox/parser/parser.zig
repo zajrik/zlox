@@ -25,7 +25,7 @@ const printf = std.debug.print;
 
 // =================================================================================================
 
-const Parser: type = @This();
+const Self: type = @This();
 
 /// Tokenizer instance. Not owned by the parser.
 tokenizer: *Tokenizer,
@@ -49,9 +49,9 @@ panic_mode: bool = false,
 /// Allocate a new `Parser` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
-pub fn create(tokenizer: *Tokenizer) !*Parser {
-    const parser: *Parser = try mem.createStruct(
-        Parser,
+pub fn create(tokenizer: *Tokenizer) !*Self {
+    const parser: *Self = try mem.createStruct(
+        Self,
         .{ .tokenizer = tokenizer },
     );
 
@@ -62,12 +62,12 @@ pub fn create(tokenizer: *Tokenizer) !*Parser {
 }
 
 /// Destroy this `Parser`, freeing its owned resources.
-pub fn destroy(self: *Parser) void {
+pub fn destroy(self: *Self) void {
     mem.destroy(self);
 }
 
 /// Advance this parser, fetching the next token from the tokenizer.
-pub fn advance(self: *Parser) void {
+pub fn advance(self: *Self) void {
     self.current = self.next;
 
     while (self.tokenizer.next()) |token| {
@@ -81,7 +81,7 @@ pub fn advance(self: *Parser) void {
 /// Consume an expected token of the given type `T` from the tokenizer.
 ///
 /// Emits error `"Expected {msg}."` if a token of the given type is not found.
-pub fn expect(self: *Parser, T: TokenType, comptime msg: []const u8) void {
+pub fn expect(self: *Self, T: TokenType, comptime msg: []const u8) void {
     if (self.next.is(T)) return self.advance();
     self.errAtNext("Expected " ++ msg ++ ".");
 }
@@ -90,7 +90,7 @@ pub fn expect(self: *Parser, T: TokenType, comptime msg: []const u8) void {
 ///
 /// If it is, the token will be consumed and the next token will be fetched from
 /// the tokenizer.
-pub fn match(self: *Parser, T: TokenType) bool {
+pub fn match(self: *Self, T: TokenType) bool {
     if (self.next.isNot(T)) return false;
     self.advance();
     return true;
@@ -102,7 +102,7 @@ pub fn match(self: *Parser, T: TokenType) bool {
 ///
 /// Call this at the end of every loop after encountering a comma. Dangling commas
 /// are allowed and will be consumed. The given end token will not be consumed.
-pub fn listEnd(self: *Parser, end_token: TokenType) bool {
+pub fn listEnd(self: *Self, end_token: TokenType) bool {
     return !self.match(.comma) or self.next.is(end_token);
 }
 
@@ -111,29 +111,29 @@ pub fn listEnd(self: *Parser, end_token: TokenType) bool {
 /// An end is found when `end_token` is encountered, or we hit `.eof`.
 ///
 /// `.eof` will be consumed if encountered, `end_token` will not.
-pub fn blockEnd(self: *Parser, end_token: TokenType) bool {
+pub fn blockEnd(self: *Self, end_token: TokenType) bool {
     return self.match(.eof) or self.next.is(end_token);
 }
 
 /// Returns the strategy for how the given `token` is parsed/compiled.
-pub fn strategy(_: *const Parser, token: Token) ParseStrategy {
+pub fn strategy(_: *const Self, token: Token) ParseStrategy {
     return ParseStrategy.forToken(token);
 }
 
 /// Returns the parse-strategy for the currently-parsed token.
-pub fn currentStrategy(self: *const Parser) ParseStrategy {
+pub fn currentStrategy(self: *const Self) ParseStrategy {
     return self.strategy(self.current);
 }
 
 /// Returns the parse-strategy for the next token to be parsed.
-pub fn nextStrategy(self: *const Parser) ParseStrategy {
+pub fn nextStrategy(self: *const Self) ParseStrategy {
     return self.strategy(self.next);
 }
 
 // Error management ================================================================================
 
 /// Output error `msg` at the given `token`.
-pub fn errAt(self: *Parser, token: Token, msg: []const u8) void {
+pub fn errAt(self: *Self, token: Token, msg: []const u8) void {
     printf("[line {d}:{d}] Error", .{ token.line, token.column });
 
     if (token.is(.eof)) {
@@ -150,18 +150,18 @@ pub fn errAt(self: *Parser, token: Token, msg: []const u8) void {
 }
 
 /// Output error `msg` at the current token being parsed.
-pub fn err(self: *Parser, msg: []const u8) void {
+pub fn err(self: *Self, msg: []const u8) void {
     self.errAt(self.current, msg);
 }
 
 /// Output error `msg` at the next token to be parsed.
-pub fn errAtNext(self: *Parser, msg: []const u8) void {
+pub fn errAtNext(self: *Self, msg: []const u8) void {
     self.errAt(self.next, msg);
 }
 
 /// Synchronize parser to the next valid statement boundary after encountering
 /// an error.
-pub fn synchronize(self: *Parser) void {
+pub fn synchronize(self: *Self) void {
     self.panic_mode = false;
 
     while (self.next.isNot(.eof)) : (self.advance()) {

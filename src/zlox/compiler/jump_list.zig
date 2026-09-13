@@ -12,21 +12,21 @@ const Jump = zlox.compiler.Jump;
 
 // =================================================================================================
 
-const JumpList: type = @This();
+const Self: type = @This();
 
 /// An empty jump list containing no tracked jumps.
-pub const empty: JumpList = .{};
+pub const empty: Self = .{};
 
 /// The first jump in the jump list.
 head: ?*Jump = null,
 
 /// Deinitialize this `JumpList`, freeing any `Jump` structs it has allocated.
-pub fn deinit(self: *JumpList) void {
+pub fn deinit(self: *Self) void {
     defer self.* = undefined;
     while (self.head) |it| : (it.destroy()) self.head = it.next;
 }
 
 /// Add a `Jump` beginning at the given `offset` to this jump list.
-pub fn addJump(self: *JumpList, offset: usize) !void {
+pub fn addJump(self: *Self, offset: usize) !void {
     self.head = try Jump.create(offset, self.head);
 }

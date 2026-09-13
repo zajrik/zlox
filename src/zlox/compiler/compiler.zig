@@ -44,7 +44,7 @@ const splitBytes = zlox.common.splitBytes;
 
 // =================================================================================================
 
-const Compiler: type = @This();
+const Self: type = @This();
 
 /// Parser instance primed with the source we're compiling.
 ///
@@ -54,7 +54,7 @@ parser: *Parser,
 /// Enclosing compiler, used for tracking and resolving upvalues.
 ///
 /// The root compiler should always have a null `enclosing` value.
-enclosing: ?*Compiler = null,
+enclosing: ?*Self = null,
 
 /// Pointer to a pointer pointing to the root class context node, provided by the
 /// vm when the compiler is created and passed to nested compilers when compiling
@@ -103,13 +103,13 @@ pub fn create(
     /// Parser instance primed with source input to compile.
     parser: *Parser,
     /// Enclosing compiler, if any.
-    enclosing: ?*Compiler,
+    enclosing: ?*Self,
     /// Pointer to a pointer pointing to the root class context node.
     context: *?*ClassContext,
     /// Table for interning strings at compile time.
     interned_strings: *Table,
-) !*Compiler {
-    const compiler: *Compiler = try mem.createStruct(Compiler, .{
+) !*Self {
+    const compiler: *Self = try mem.createStruct(Self, .{
         .parser = parser,
         .enclosing = enclosing,
         .context = context,
@@ -148,12 +148,12 @@ pub fn create(
 ///
 /// Returns a pointer to the created compiler. The caller owns this pointer and is
 /// responsible for freeing it.
-fn createNestedCompiler(self: *Compiler, T: Obj.Function.Type) !*Compiler {
+fn createNestedCompiler(self: *Self, T: Obj.Function.Type) !*Self {
     return try .create(T, self.parser, self, self.context, self.strings);
 }
 
 /// Destroy this `Compiler`, freeing its owned resources.
-pub fn destroy(self: *const Compiler) void {
+pub fn destroy(self: *const Self) void {
     mem.destroy(self);
 }
 
@@ -162,14 +162,14 @@ pub fn destroy(self: *const Compiler) void {
 /// SAFETY: This will panic if called after compilation finishes and any compilation
 /// errors were emitted. `self.function` is guaranteed to be not-`null` within any
 /// compiler method after `compile()` has been called until `compile()` returns.
-fn chunk(self: *const Compiler) *Chunk {
+fn chunk(self: *const Self) *Chunk {
     return &self.function.?.chunk;
 }
 
 /// Returns the offset at which the next instruction will be inserted.
 ///
 /// Autocomplete-able shortcut for `self.function.?chunk.len()`.
-fn instructionOffset(self: *const Compiler) usize {
+fn instructionOffset(self: *const Self) usize {
     return self.chunk().len();
 }
 
@@ -180,7 +180,7 @@ fn instructionOffset(self: *const Compiler) usize {
 /// pointer and is responsible for freeing it.
 ///
 /// Returns `null` if compilation failed for any reason.
-pub fn compile(self: *Compiler) !?*Obj.Function {
+pub fn compile(self: *Self) !?*Obj.Function {
     // Compile declarations from source until reaching end of input.
     while (!self.parser.match(.eof)) {
         self.declaration();
@@ -201,7 +201,7 @@ pub fn compile(self: *Compiler) !?*Obj.Function {
 }
 
 /// Return the compiled function, ending compilation.
-fn endCompilation(self: *const Compiler) ?*Obj.Function {
+fn endCompilation(self: *const Self) ?*Obj.Function {
     // Emit nil return to allow functions to return nil by default if they do not
     // specify a return value of their own
     if (self.function) |fun| {
@@ -223,12 +223,12 @@ fn endCompilation(self: *const Compiler) ?*Obj.Function {
 // Scope management methods ========================================================================
 
 /// Begin a new lexical scope.
-fn pushScope(self: *Compiler) void {
+fn pushScope(self: *Self) void {
     self.scope_depth += 1;
 }
 
 /// End the current lexical scope.
-fn popScope(self: *Compiler) void {
+fn popScope(self: *Self) void {
     self.scope_depth -= 1;
 
     // Pop locals from stack and close upvalues at end of scope
@@ -241,7 +241,7 @@ fn popScope(self: *Compiler) void {
 /// Execute the given statement rule within a new lexical scope.
 ///
 /// The scope will be popped when the rule completes.
-fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
+fn scope(self: *Self, rule: fn (*Self) void) void {
     self.pushScope();
     defer self.popScope();
 
@@ -249,12 +249,12 @@ fn scope(self: *Compiler, rule: fn (*Compiler) void) void {
 }
 
 /// Begin a new loop scope.
-fn pushLoopScope(self: *Compiler) void {
+fn pushLoopScope(self: *Self) void {
     self.loop_scope = LoopScope.create(self.loop_scope) catch return;
 }
 
 /// End the current loop scope.
-fn popLoopScope(self: *Compiler) void {
+fn popLoopScope(self: *Self) void {
     if (self.loop_scope) |it| {
         defer it.destroy();
         self.loop_scope = it.enclosing;
@@ -264,7 +264,7 @@ fn popLoopScope(self: *Compiler) void {
 // Statement compilation methods ===================================================================
 
 /// Compile a declaration from source tokens.
-fn declaration(self: *Compiler) void {
+fn declaration(self: *Self) void {
     switch (self.parser.next.type) {
         .keyword_class => do(self.parser.advance(), self.classDeclaration()),
         .keyword_fun => do(self.parser.advance(), self.funDeclaration()),
@@ -276,7 +276,7 @@ fn declaration(self: *Compiler) void {
 }
 
 /// Compile a class declaration from source tokens.
-fn classDeclaration(self: *Compiler) void {
+fn classDeclaration(self: *Self) void {
     self.parser.expect(.identifier, "class name");
 
     // Declare variable for the parsed class name
@@ -340,7 +340,7 @@ fn classDeclaration(self: *Compiler) void {
 ///
 /// The declaration compiles to instructions to load the method closure onto the
 /// stack and attach it to the class on the stack below it.
-fn methodDeclaration(self: *Compiler) void {
+fn methodDeclaration(self: *Self) void {
     self.parser.expect(.identifier, "method name");
 
     const ident: u8 = self.makeIdentConstant(self.parser.current);
@@ -357,7 +357,7 @@ fn methodDeclaration(self: *Compiler) void {
 ///
 /// The closure will remain on the stack for local functions, or popped when
 /// .global_define is executed for global functions
-fn funDeclaration(self: *Compiler) void {
+fn funDeclaration(self: *Self) void {
     const ident_offset: u8 = self.variableIdentifier("function name");
 
     // Mark function identifier as defined so it can refer to itself
@@ -368,7 +368,7 @@ fn funDeclaration(self: *Compiler) void {
 }
 
 /// Compile a variable declaration statement from source tokens.
-fn varDeclaration(self: *Compiler) void {
+fn varDeclaration(self: *Self) void {
     const ident_offset: u8 = self.variableIdentifier("variable name");
 
     if (self.parser.match(.equal)) self.expression() else self.emitOp(.nil);
@@ -378,7 +378,7 @@ fn varDeclaration(self: *Compiler) void {
 }
 
 /// Compile a statement from source tokens.
-fn statement(self: *Compiler) void {
+fn statement(self: *Self) void {
     switch (self.parser.next.type) {
         .keyword_print => do(self.parser.advance(), self.printStmt()),
         .keyword_if => do(self.parser.advance(), self.ifStmt()),
@@ -396,7 +396,7 @@ fn statement(self: *Compiler) void {
 /// Compile a print statement from source tokens.
 ///
 /// printStmt := "print" exprStmt ";" ;
-fn printStmt(self: *Compiler) void {
+fn printStmt(self: *Self) void {
     self.expression();
     self.parser.expect(.semicolon, "';' after value");
     self.emitOp(.print);
@@ -405,7 +405,7 @@ fn printStmt(self: *Compiler) void {
 /// Compile an if-statement from source tokens.
 ///
 /// ifStmt := "if" "(" expression ")" statement ( "else" statement )? ;
-fn ifStmt(self: *Compiler) void {
+fn ifStmt(self: *Self) void {
     self.parser.expect(.paren_left, "'(' after 'if'");
     self.expression();
     self.parser.expect(.paren_right, "')' after expression");
@@ -437,7 +437,7 @@ fn ifStmt(self: *Compiler) void {
 /// switchStmt  := "switch" "(" expression ")" "{" switchCase* defaultCase? "}" ;
 /// switchCase  := "case" ":" statement ;
 /// defaultCase := "default" ":" statement ;
-fn switchStmt(self: *Compiler) void {
+fn switchStmt(self: *Self) void {
     self.parser.expect(.paren_left, "'(' after 'switch'");
     self.expression();
     self.parser.expect(.paren_right, "')' after expression");
@@ -491,7 +491,7 @@ fn switchStmt(self: *Compiler) void {
 }
 
 /// Compile a break statement from source tokens.
-fn breakStmt(self: *Compiler) void {
+fn breakStmt(self: *Self) void {
     // Emit an unpatched jump for this break statement and add it to the scope
     if (self.loop_scope) |it| {
         it.addBreak(self.emitJump(.jump)) catch self.allocErr();
@@ -502,7 +502,7 @@ fn breakStmt(self: *Compiler) void {
 }
 
 /// Compile a continue statement from source tokens.
-fn continueStmt(self: *Compiler) void {
+fn continueStmt(self: *Self) void {
     // Emit a loop instruction with placeholder operand bytes to be patched when
     // continue statements are resolved at the end of the loop scope
     if (self.loop_scope) |it| {
@@ -515,7 +515,7 @@ fn continueStmt(self: *Compiler) void {
 }
 
 /// Compile a return statement from source tokens.
-fn returnStmt(self: *Compiler) void {
+fn returnStmt(self: *Self) void {
     // SAFETY: function is guaranteed non-null during compilation
     if (self.function.?.type == .script) self.err(
         "Can't return from top-level code.",
@@ -542,7 +542,7 @@ fn returnStmt(self: *Compiler) void {
 /// Compile a while-loop statement from source tokens.
 ///
 /// whileStmt := "while" "(" expression ")" statement ;
-fn whileStmt(self: *Compiler) void {
+fn whileStmt(self: *Self) void {
     self.pushLoopScope();
     defer self.popLoopScope();
 
@@ -576,7 +576,7 @@ fn whileStmt(self: *Compiler) void {
 ///
 /// forStmt := "for" "(" ( varDecl | expression? ";" )
 ///            expression? ";" expression? ")" statement ;
-fn forStmt(self: *Compiler) void {
+fn forStmt(self: *Self) void {
     self.pushLoopScope();
     defer self.popLoopScope();
 
@@ -638,7 +638,7 @@ fn forStmt(self: *Compiler) void {
 }
 
 /// Compile a block statement from source tokens.
-fn block(self: *Compiler) void {
+fn block(self: *Self) void {
     while (!self.parser.blockEnd(.brace_right)) self.declaration();
     self.parser.expect(.brace_right, "'}' after block");
 }
@@ -646,7 +646,7 @@ fn block(self: *Compiler) void {
 /// Compile an expression statement from source tokens.
 ///
 /// exprStmt := expression ";" ;
-fn expressionStmt(self: *Compiler) void {
+fn expressionStmt(self: *Self) void {
     self.expression();
     self.parser.expect(.semicolon, "';' after expression");
     self.emitOp(.pop);
@@ -655,11 +655,11 @@ fn expressionStmt(self: *Compiler) void {
 // Statement/expression compilation overlap functions ==============================================
 
 /// Compile a function statement or expression of the given `type` from source tokens.
-fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
+fn compileFun(self: *Self, T: Obj.Function.Type, is_expr: bool) void {
     // Load identifier into the current token if this is a labeled function expression
     if (is_expr and self.parser.next.is(.identifier)) self.parser.advance();
 
-    const fun_compiler: *Compiler = self.createNestedCompiler(T) catch {
+    const fun_compiler: *Self = self.createNestedCompiler(T) catch {
         return self.parser.err("Error compiling function.");
     };
     defer fun_compiler.destroy();
@@ -721,12 +721,12 @@ fn compileFun(self: *Compiler, T: Obj.Function.Type, is_expr: bool) void {
 /// Compile an expression from source tokens.
 ///
 /// This expression will load the value of the parsed expression onto the stack.
-fn expression(self: *Compiler) void {
+fn expression(self: *Self) void {
     self.expr(.assignment);
 }
 
 /// Compile an expression from source tokens with the given `precedence`.
-fn expr(self: *Compiler, precedence: Precedence) void {
+fn expr(self: *Self, precedence: Precedence) void {
     self.parser.advance();
 
     // Check if this expression is allowed to be treated as an assignment expression
@@ -772,7 +772,7 @@ fn expr(self: *Compiler, precedence: Precedence) void {
 /// Compile a parenthesized grouping expression from source tokens.
 ///
 /// This expression will load the value of the parsed grouping onto the stack.
-pub fn grouping(self: *Compiler, _: bool) void {
+pub fn grouping(self: *Self, _: bool) void {
     self.expression();
     self.parser.expect(.paren_right, "')' after expression");
 }
@@ -780,7 +780,7 @@ pub fn grouping(self: *Compiler, _: bool) void {
 /// Compile a string expression from the current source token.
 ///
 /// This expression will load the value of the parsed string onto the stack.
-pub fn string(self: *const Compiler, _: bool) void {
+pub fn string(self: *const Self, _: bool) void {
     const token: Token = self.parser.current;
     const chars: []const u8 = token.lexeme[1..(token.lexeme.len - 1)];
     const str: *Obj.String = self.wrapString(chars) catch return self.allocErr();
@@ -791,7 +791,7 @@ pub fn string(self: *const Compiler, _: bool) void {
 /// Compile a number expression from the current source token.
 ///
 /// This expression will load the value of the parsed number onto the stack.
-pub fn number(self: *const Compiler, _: bool) void {
+pub fn number(self: *const Self, _: bool) void {
     const value: f64 = parseFloat(f64, self.parser.current.lexeme) catch {
         return self.err("Invalid number literal.");
     };
@@ -802,7 +802,7 @@ pub fn number(self: *const Compiler, _: bool) void {
 /// Compile a literal expression from the current source token.
 ///
 /// This expression will load the value of the parsed literal onto the stack.
-pub fn literal(self: *const Compiler, _: bool) void {
+pub fn literal(self: *const Self, _: bool) void {
     switch (self.parser.current.type) {
         .keyword_nil => self.emitOp(.nil),
         .keyword_true => self.emitOp(.true),
@@ -812,7 +812,7 @@ pub fn literal(self: *const Compiler, _: bool) void {
 }
 
 /// Compile a `super` method expression from the current source token.
-pub fn super(self: *Compiler, _: bool) void {
+pub fn super(self: *Self, _: bool) void {
     self.parser.expect(.dot, "'.' after 'super'");
     self.parser.expect(.identifier, "superclass method name");
 
@@ -847,7 +847,7 @@ pub fn super(self: *Compiler, _: bool) void {
 /// Compile a `this` expression from the current source token.
 ///
 /// This expression will load the value of `this` in the current context onto the stack.
-pub fn this(self: *Compiler, _: bool) void {
+pub fn this(self: *Self, _: bool) void {
     if (self.context.* == null) return self.err(
         "Can't use 'this' outside of a class body",
     );
@@ -863,7 +863,7 @@ pub fn this(self: *Compiler, _: bool) void {
 ///
 /// Compiles a set-expression if `can_assign` is `true` and the next token is a
 /// valid assignment or compound-assignment operator.
-fn variableExprFor(self: *Compiler, identifier: Token, can_assign: bool) void {
+fn variableExprFor(self: *Self, identifier: Token, can_assign: bool) void {
     var offset: u8 = 0;
     var set_op: OpCode = undefined;
     var get_op: OpCode = undefined;
@@ -947,12 +947,12 @@ fn variableExprFor(self: *Compiler, identifier: Token, can_assign: bool) void {
 /// the following expression, leaving that value on the stack.
 ///
 /// Compiles a set-expression if `can_assign` is `true`.
-pub fn variableExpr(self: *Compiler, can_assign: bool) void {
+pub fn variableExpr(self: *Self, can_assign: bool) void {
     self.variableExprFor(self.parser.current, can_assign);
 }
 
 /// Compile a unary expression from source tokens.
-pub fn unary(self: *Compiler, _: bool) void {
+pub fn unary(self: *Self, _: bool) void {
     const operator_type: TokenType = self.parser.current.type;
 
     self.expr(.unary);
@@ -965,7 +965,7 @@ pub fn unary(self: *Compiler, _: bool) void {
 }
 
 /// Compile a binary expression from source tokens.
-pub fn binary(self: *Compiler, _: bool) void {
+pub fn binary(self: *Self, _: bool) void {
     const operator: Token = self.parser.current;
     const strategy: ParseStrategy = self.parser.strategy(operator);
 
@@ -993,7 +993,7 @@ pub fn binary(self: *Compiler, _: bool) void {
 ///
 /// The left-hand operand of the `and` expression has already been compiled to
 /// the chunk at the point this will be executed.
-pub fn andExpr(self: *Compiler, _: bool) void {
+pub fn andExpr(self: *Self, _: bool) void {
     // The left-hand operand will be on the stack for this jump
     const end: usize = self.emitJump(.jump_if_false);
 
@@ -1007,7 +1007,7 @@ pub fn andExpr(self: *Compiler, _: bool) void {
 ///
 /// The left-hand operand of the `or` expression has already been compiled to
 /// the chunk at the point this will be executed.
-pub fn orExpr(self: *Compiler, _: bool) void {
+pub fn orExpr(self: *Self, _: bool) void {
     // The left-hand operand will be on the stack for this jump
     const end: usize = self.emitJump(.jump_if_true);
 
@@ -1021,7 +1021,7 @@ pub fn orExpr(self: *Compiler, _: bool) void {
 ///
 /// The left-hand operand of `??` expression has already been compiled to the
 /// chunk at the point this will be executed.
-pub fn nilish(self: *Compiler, _: bool) void {
+pub fn nilish(self: *Self, _: bool) void {
     const end: usize = self.emitJump(.jump_if_not_nil);
     self.emitOp(.pop);
     self.expr(.@"or");
@@ -1032,7 +1032,7 @@ pub fn nilish(self: *Compiler, _: bool) void {
 ///
 /// switchExpr := "switch" "(" expression ")" "{" caseExpr* "}" ;
 /// caseExpr   := ( expression | "_" ) "=>" expression ;
-pub fn switchExpr(self: *Compiler, _: bool) void {
+pub fn switchExpr(self: *Self, _: bool) void {
     self.parser.expect(.paren_left, "'(' after 'switch'");
     self.expression();
     self.parser.expect(.paren_right, "')' after expression");
@@ -1083,18 +1083,18 @@ pub fn switchExpr(self: *Compiler, _: bool) void {
 }
 
 /// Compile a function expression from source tokens.
-pub fn funExpr(self: *Compiler, _: bool) void {
+pub fn funExpr(self: *Self, _: bool) void {
     self.compileFun(.function, true);
 }
 
 /// Compile a function call expression from source tokens.
-pub fn call(self: *Compiler, _: bool) void {
+pub fn call(self: *Self, _: bool) void {
     const arg_count: u8 = self.argumentList();
     self.emitOp1(.call, arg_count);
 }
 
 /// Compile a dot expression from source tokens.
-pub fn dot(self: *Compiler, can_assign: bool) void {
+pub fn dot(self: *Self, can_assign: bool) void {
     self.parser.expect(.identifier, "property name after '.'");
 
     const ident: u8 = self.makeIdentConstant(self.parser.current);
@@ -1120,7 +1120,7 @@ pub fn dot(self: *Compiler, can_assign: bool) void {
 ///
 /// The result of these expressions will be on the stack at runtime and captured
 /// in the called function's callframe stack window.
-fn argumentList(self: *Compiler) u8 {
+fn argumentList(self: *Self) u8 {
     var count: u8 = 0;
 
     defer self.parser.expect(.paren_right, "')' after arguments");
@@ -1141,7 +1141,7 @@ fn argumentList(self: *Compiler) u8 {
 /// for the variable's identifier in the compiling chunk's constants array.
 ///
 /// If the variable identifier cannot be parsed, errors with message `expect`.
-fn variableIdentifier(self: *Compiler, comptime expect: []const u8) u8 {
+fn variableIdentifier(self: *Self, comptime expect: []const u8) u8 {
     self.parser.expect(.identifier, expect);
 
     // Declare local if we're in a local scope. We just return 0 if so since locals
@@ -1162,7 +1162,7 @@ fn variableIdentifier(self: *Compiler, comptime expect: []const u8) u8 {
 /// and defined separately from local variables.
 ///
 /// The local will be considered uninitialized/undefined until `define()` is called.
-fn declare(self: *Compiler) void {
+fn declare(self: *Self) void {
     if (self.scope_depth == 0) return;
 
     const identifier: Token = self.parser.current;
@@ -1189,7 +1189,7 @@ fn declare(self: *Compiler) void {
 /// Add a local with the given `identifier` to the locals array for this compilation scope.
 ///
 /// The local will be considered uninitialized/undefined until `define()` is called.
-fn addLocal(self: *Compiler, identifier: Token) void {
+fn addLocal(self: *Self, identifier: Token) void {
     self.local_count += 1;
     self.locals[self.local_count - 1] = Local{
         .identifier = identifier,
@@ -1199,7 +1199,7 @@ fn addLocal(self: *Compiler, identifier: Token) void {
 }
 
 /// Returns a pointer to the most recently defined local variable.
-fn lastLocal(self: *Compiler) *Local {
+fn lastLocal(self: *Self) *Local {
     return &self.locals[self.local_count - 1];
 }
 
@@ -1207,7 +1207,7 @@ fn lastLocal(self: *Compiler) *Local {
 ///
 /// Does nothing if we're currently in the global scope. Global variables are declared
 /// and defined separately from local variables.
-fn markDefined(self: *Compiler) void {
+fn markDefined(self: *Self) void {
     if (self.scope_depth == 0) return;
     self.lastLocal().depth = self.scope_depth;
 }
@@ -1221,7 +1221,7 @@ fn markDefined(self: *Compiler) void {
 /// when complete, the only values on the stack when a local is declared are the
 /// values of other locals in scope. This means the offset of the local in the
 /// locals array directly reflects its location in the stack.
-fn resolveLocal(self: *const Compiler, identifier: Token) ?u8 {
+fn resolveLocal(self: *const Self, identifier: Token) ?u8 {
     var i: u8 = self.local_count;
     while (i > 0) : (i -= 1) {
         const local_index: u8 = i - 1;
@@ -1248,7 +1248,7 @@ fn resolveLocal(self: *const Compiler, identifier: Token) ?u8 {
 /// If we're in the global scope, emit bytecode to define the global variable,
 /// passing the offset of the global variable's constant identifier string as
 /// the operand.
-fn define(self: *Compiler, ident_const_offset: u8) void {
+fn define(self: *Self, ident_const_offset: u8) void {
     if (self.scope_depth > 0) return self.markDefined();
     self.emitOp1(.global_define, ident_const_offset);
 }
@@ -1256,7 +1256,7 @@ fn define(self: *Compiler, ident_const_offset: u8) void {
 /// Resolve an upvalue with the given [identifier].
 ///
 /// Returns `null` if no upvalue with the given `identifier` was found.
-fn resolveUpvalue(self: *Compiler, identifier: Token) ?u8 {
+fn resolveUpvalue(self: *Self, identifier: Token) ?u8 {
     // If we have an enclosing scope, try to resolve upvalue from its locals/upvalues
     if (self.enclosing) |enclosing| {
         if (enclosing.resolveLocal(identifier)) |offset| {
@@ -1280,7 +1280,7 @@ fn resolveUpvalue(self: *Compiler, identifier: Token) ?u8 {
 ///
 /// If an upvalue with the given offset/locality already exists, its offset will
 /// be returned.
-fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
+fn addUpvalue(self: *Self, offset: u8, is_local: bool) u8 {
     // SAFETY: function is guaranteed non-null during compilation
     const upvalue_count: u8 = self.function.?.upvalue_count;
 
@@ -1314,7 +1314,7 @@ fn addUpvalue(self: *Compiler, offset: u8, is_local: bool) u8 {
 /// Add the given `value` to the constants in the chunk being compiled.
 ///
 /// Returns the offset of the added constant.
-fn makeConstant(self: *const Compiler, value: Value) u8 {
+fn makeConstant(self: *const Self, value: Value) u8 {
     // Check for existing constant matching this value and return its offset if
     // it already exists.
     if (self.chunk().findConstant(value)) |it| return it;
@@ -1334,7 +1334,7 @@ fn makeConstant(self: *const Compiler, value: Value) u8 {
 
 /// Push an identifier's string to the current chunk's constants array, returning
 /// the offset of the added constant string.
-fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
+fn makeIdentConstant(self: *const Self, token: Token) u8 {
     const ident: *Obj.String = self.wrapString(token.lexeme) catch {
         self.err("Error copying identifier string.");
         return 0;
@@ -1344,30 +1344,30 @@ fn makeIdentConstant(self: *const Compiler, token: Token) u8 {
 }
 
 /// Write the given `byte` to the chunk currently being compiled.
-fn emitByte(self: *const Compiler, byte: u8) void {
+fn emitByte(self: *const Self, byte: u8) void {
     self.chunk().writeByte(byte, self.parser.current.line) catch self.allocErr();
 }
 
 /// Write the given `op` to the chunk currently being compiled.
-fn emitOp(self: *const Compiler, op: OpCode) void {
+fn emitOp(self: *const Self, op: OpCode) void {
     self.emitByte(op.toByte());
 }
 
 /// Write the two given `OpCode` values to the chunk currently being compiled.
-fn emitOps(self: *const Compiler, op_1: OpCode, op_2: OpCode) void {
+fn emitOps(self: *const Self, op_1: OpCode, op_2: OpCode) void {
     self.emitOp1(op_1, op_2.toByte());
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by a single
 /// byte operand.
-fn emitOp1(self: *const Compiler, op: OpCode, byte: u8) void {
+fn emitOp1(self: *const Self, op: OpCode, byte: u8) void {
     self.emitOp(op);
     self.emitByte(byte);
 }
 
 /// Write the given `op` to the chunk currently being compiled, followed by two
 /// byte operands.
-fn emitOp2(self: *const Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
+fn emitOp2(self: *const Self, op: OpCode, byte_1: u8, byte_2: u8) void {
     self.emitOp(op);
     self.emitByte(byte_1);
     self.emitByte(byte_2);
@@ -1375,12 +1375,12 @@ fn emitOp2(self: *const Compiler, op: OpCode, byte_1: u8, byte_2: u8) void {
 
 /// Write `OpCode.constant` to the chunk currently being compiled, followed by
 /// the constants array offset of the given `value`.
-fn emitConstant(self: *const Compiler, value: Value) void {
+fn emitConstant(self: *const Self, value: Value) void {
     self.emitOp1(.constant, self.makeConstant(value));
 }
 
 /// Write default return instructions to the chunk currently being compiled.
-fn emitDefaultReturn(self: *const Compiler) void {
+fn emitDefaultReturn(self: *const Self) void {
     // SAFETY: function is guaranteed non-null during compilation
     if (self.function.?.type == .initializer) {
         self.emitOp1(.local_get, 0);
@@ -1395,20 +1395,20 @@ fn emitDefaultReturn(self: *const Compiler) void {
 /// Must be patched with `patchJump()` to wire up the accompanying jump offset.
 ///
 /// Returns the instruction offset of the operand to be patched.
-fn emitJump(self: *const Compiler, op: OpCode) usize {
+fn emitJump(self: *const Self, op: OpCode) usize {
     self.emitOp2(op, 0xff, 0xff);
     return self.instructionOffset() - 2;
 }
 
 /// Emit a `.jump` op beginning at the current instruction offset, adding it to
 /// the given `jump_list` to be resolved later via `patchJumpList()`.
-fn addJump(self: *const Compiler, jump_list: *JumpList) void {
+fn addJump(self: *const Self, jump_list: *JumpList) void {
     jump_list.addJump(self.emitJump(.jump)) catch self.allocErr();
 }
 
 /// Write `OpCode.loop` to the chunk currently being compiled, followed by loop
 /// offset operands to loop back to the given instruction `offset`.
-fn emitLoop(self: *const Compiler, offset: usize) void {
+fn emitLoop(self: *const Self, offset: usize) void {
     const loop_offset: usize = self.instructionOffset() - offset + 3;
     const byte_1: u8, const byte_2: u8 = splitBytes(loop_offset);
     self.emitOp2(.loop, byte_1, byte_2);
@@ -1422,7 +1422,7 @@ fn emitLoop(self: *const Compiler, offset: usize) void {
 /// `bytes` can be an unsigned integer of any size for callsite convenience, but
 /// it will be truncated to its 16 least-significant bits before being split into
 /// two separate bytes to patch the placeholder bytes.
-fn patchBytes(self: *const Compiler, offset: usize, bytes: usize) void {
+fn patchBytes(self: *const Self, offset: usize, bytes: usize) void {
     if (bytes > cmn.U16_MAX) return self.err("Jump offset is too large.");
 
     const byte_1: u8, const byte_2: u8 = splitBytes(bytes);
@@ -1432,12 +1432,12 @@ fn patchBytes(self: *const Compiler, offset: usize, bytes: usize) void {
 
 /// Patches the jump instruction operand at the given instruction `offset` to point
 /// to the current instruction offset.
-fn patchJump(self: *const Compiler, offset: usize) void {
+fn patchJump(self: *const Self, offset: usize) void {
     self.patchBytes(offset, self.instructionOffset() - offset - 2);
 }
 
 /// Patch all jumps in the given `jump_list` to the current instruction offset.
-fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
+fn patchJumpList(self: *const Self, jump_list: *JumpList) void {
     var next: ?*Jump = jump_list.head;
     while (next) |it| : (next = it.next) self.patchJump(it.offset);
 }
@@ -1446,7 +1446,7 @@ fn patchJumpList(self: *const Compiler, jump_list: *JumpList) void {
 ///
 /// The jump instruction placeholders for break statements tracked by the current
 /// loop scope will be patched to point to the current instruction offset.
-fn patchBreaks(self: *const Compiler) void {
+fn patchBreaks(self: *const Self) void {
     if (self.loop_scope) |loop_scope| {
         var next: ?*Jump = loop_scope.breaks;
         while (next) |it| : (next = it.next) self.patchJump(it.offset);
@@ -1458,7 +1458,7 @@ fn patchBreaks(self: *const Compiler) void {
 /// The loop instruction placeholders for all continue statements tracked by the
 /// current loop scope will be patched to point to the given `loop_start` instruction
 /// offset.
-fn patchContinues(self: *const Compiler, loop_start: usize) void {
+fn patchContinues(self: *const Self, loop_start: usize) void {
     if (self.loop_scope) |loop_scope| {
         var next: ?*Jump = loop_scope.continues;
         while (next) |it| : (next = it.next) self.patchBytes(
@@ -1480,7 +1480,7 @@ fn patchContinues(self: *const Compiler, loop_start: usize) void {
 /// strings table owned by the VM instance that owns the compiler. As such, the VM
 /// becomes responsible for freeing compile-time constant strings.
 fn createObj(
-    self: *const Compiler,
+    self: *const Self,
     comptime T: Obj.Type,
     variant: Obj.Variant(T),
 ) !*Obj.Variant(T) {
@@ -1506,7 +1506,7 @@ fn createObj(
 ///
 /// Returns a pointer to the allocated lox string `Obj`. The returned pointer is
 /// owned by the interned strings table.
-fn wrapString(self: *const Compiler, chars: []const u8) !*Obj.String {
+fn wrapString(self: *const Self, chars: []const u8) !*Obj.String {
     return self.createObj(.string, Obj.String{ .chars = chars });
 }
 
@@ -1515,12 +1515,12 @@ fn wrapString(self: *const Compiler, chars: []const u8) !*Obj.String {
 /// Report an error at the current token.
 ///
 /// Shortcut for `self.parser.err(...)`
-fn err(self: *const Compiler, msg: []const u8) void {
+fn err(self: *const Self, msg: []const u8) void {
     self.parser.err(msg);
 }
 
 /// Report an error at the current token indicating memory allocation critical to
 /// the compilation process failed while compiling.
-fn allocErr(self: *const Compiler) void {
+fn allocErr(self: *const Self) void {
     self.err("Error allocating during compilation. Out of memory?");
 }

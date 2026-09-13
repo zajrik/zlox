@@ -14,7 +14,7 @@ const Writer = std.Io.Writer;
 
 // =================================================================================================
 
-const Native: type = @This();
+const Self: type = @This();
 
 /// The base lox object header.
 obj: Obj = undefined,
@@ -37,21 +37,21 @@ function: FnPtr,
 pub const FnPtr: type = *const fn ([]Value, *Vm) Value;
 
 /// Free allocated memory owned by this obj.
-pub fn destroy(self: *const Native) void {
+pub fn destroy(self: *const Self) void {
     mem.destroy(self);
 }
 
 /// Cast this `Obj.Variant` pointer to a raw `Obj` pointer.
-pub fn toObj(self: *Native) *Obj {
+pub fn toObj(self: *Self) *Obj {
     return &self.obj;
 }
 
 /// Cast this `Obj.Variant` to an object `Value`.
-pub fn toValue(self: *Native) Value {
+pub fn toValue(self: *Self) Value {
     return .Object(self.toObj());
 }
 
 /// Custom formatter for `Obj` values of this variant.
-pub fn format(_: *const Native, writer: *Writer) !void {
+pub fn format(_: *const Self, writer: *Writer) !void {
     try writer.writeAll("<native fn>");
 }

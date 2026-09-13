@@ -25,7 +25,7 @@ const Node = std.DoublyLinkedList.Node;
 
 // =================================================================================================
 
-const Obj: type = @This();
+const Self: type = @This();
 
 /// The type tag of this lox object.
 type: Type,
@@ -50,7 +50,7 @@ heap_node: Node = .{},
 pub fn create(comptime T: Type, variant: Variant(T)) !*Variant(T) {
     const object: *Variant(T) = try mem.create(Variant(T));
     object.* = variant;
-    object.obj = Obj{ .type = T };
+    object.obj = Self{ .type = T };
     if (T == .string) object.hash = Fnv1a_32.hash(object.chars);
     return object;
 }
@@ -80,8 +80,8 @@ pub fn createConstant(comptime T: Type, variant: Variant(T)) !*Variant(T) {
 ///
 /// See also:
 /// - `Heap.link`
-pub fn takeString(chars: []const u8) !*Obj.String {
-    return create(.string, Obj.String{ .chars = chars });
+pub fn takeString(chars: []const u8) !*Self.String {
+    return create(.string, Self.String{ .chars = chars });
 }
 
 /// Allocate a copy of the given `string` slice on the heap, wrapping it in a newly
@@ -94,12 +94,12 @@ pub fn takeString(chars: []const u8) !*Obj.String {
 ///
 /// See also:
 /// - `Heap.link`
-pub fn copyString(chars: []const u8) !*Obj.String {
+pub fn copyString(chars: []const u8) !*Self.String {
     return takeString(try mem.dupe(u8, chars));
 }
 
 /// Destroy this `Obj`, freeing its owned resources.
-pub fn destroy(self: *Obj) void {
+pub fn destroy(self: *Self) void {
     defer switch (self.type) {
         inline else => |T| self.cast(T).destroy(),
     };
@@ -111,31 +111,31 @@ pub fn destroy(self: *Obj) void {
 }
 
 /// Returns whether this obj is of the given type `T`.
-pub fn is(self: *Obj, T: Type) bool {
+pub fn is(self: *Self, T: Type) bool {
     return self.type == T;
 }
 
 /// Returns whether this obj is not of the given type `T`.
-pub fn isNot(self: *Obj, T: Type) bool {
+pub fn isNot(self: *Self, T: Type) bool {
     return self.type != T;
 }
 
 /// Safely cast this `Obj` to an obj of the given type `T`.
 ///
 /// Returns `null` if the obj is not of the given type `T`.
-pub fn as(self: *Obj, comptime T: Type) ?*Variant(T) {
+pub fn as(self: *Self, comptime T: Type) ?*Variant(T) {
     return if (self.is(T)) self.cast(T) else null;
 }
 
 /// Cast this `Obj` to an obj of the given type `T`.
 ///
 /// Panics on access if the obj is not of the given type `T`.
-pub fn cast(self: *Obj, comptime T: Type) *Variant(T) {
+pub fn cast(self: *Self, comptime T: Type) *Variant(T) {
     return @alignCast(@fieldParentPtr("obj", self));
 }
 
 /// Returns the runtime size of an `Obj` variant of the given `type`.
-pub fn size(self: *Obj) usize {
+pub fn size(self: *Self) usize {
     return switch (self.type) {
         .string => |T| @sizeOf(Variant(T)) + @sizeOf(u8) * self.cast(T).chars.len,
         inline else => |T| @sizeOf(Variant(T)),
@@ -143,7 +143,7 @@ pub fn size(self: *Obj) usize {
 }
 
 /// Custom formatter for `Obj` values.
-pub fn format(self: *Obj, writer: *Writer) !void {
+pub fn format(self: *Self, writer: *Writer) !void {
     switch (self.type) {
         inline else => |T| try self.cast(T).format(writer),
     }

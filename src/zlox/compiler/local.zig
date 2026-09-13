@@ -7,7 +7,7 @@ const Token = zlox.tokenizer.Token;
 
 // =================================================================================================
 
-const Local: type = @This();
+const Self: type = @This();
 
 /// Token holding the identifier lexeme of this local.
 identifier: Token,
@@ -19,7 +19,7 @@ depth: i32 = 0,
 is_captured: bool = false,
 
 /// Custom formatter for `Local` values.
-pub fn format(self: Local, writer: *std.Io.Writer) !void {
+pub fn format(self: Self, writer: *std.Io.Writer) !void {
     try writer.print(
         "Local{{ .identifier = '{s}', .depth = {d}, .is_captured = {} }}",
         .{ self.identifier.lexeme, self.depth, self.is_captured },

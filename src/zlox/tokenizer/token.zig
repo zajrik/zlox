@@ -9,7 +9,7 @@ const Writer = std.Io.Writer;
 
 // =================================================================================================
 
-const Token: type = @This();
+const Self: type = @This();
 
 /// The type of this token.
 type: TokenType,
@@ -25,7 +25,7 @@ column: u16,
 
 /// Initializes a new `Token` on the stack with the given type `T`, `lexeme`, and
 /// source text location (`line`/`column`).
-pub fn init(T: TokenType, lexeme: []const u8, line: u16, column: u16) Token {
+pub fn init(T: TokenType, lexeme: []const u8, line: u16, column: u16) Self {
     return .{
         .type = T,
         .lexeme = lexeme,
@@ -38,34 +38,34 @@ pub fn init(T: TokenType, lexeme: []const u8, line: u16, column: u16) Token {
 ///
 /// Tokens are considered equal if their lexemes match, so this can be used for
 /// easily matching reserved identifiers.
-pub fn identifier(lexeme: []const u8) Token {
-    return Token.init(.identifier, lexeme, 0, 0);
+pub fn identifier(lexeme: []const u8) Self {
+    return Self.init(.identifier, lexeme, 0, 0);
 }
 
 /// Returns whether this token is of the given type `T`.
-pub fn is(self: Token, T: TokenType) bool {
+pub fn is(self: Self, T: TokenType) bool {
     return self.type == T;
 }
 
 /// Returns whether this token is *not* of the given type `T`.
-pub fn isNot(self: Token, T: TokenType) bool {
+pub fn isNot(self: Self, T: TokenType) bool {
     return self.type != T;
 }
 
 /// Returns whether this token is a discard token (`_`).
-pub fn isDiscard(self: Token) bool {
+pub fn isDiscard(self: Self) bool {
     return self.lexeme.len == 1 and self.lexeme[0] == '_';
 }
 
 /// Returns whether this token is equal to `other`.
 ///
 /// Tokens are considered equal if their lexemes are equal.
-pub fn equals(self: Token, other: Token) bool {
+pub fn equals(self: Self, other: Self) bool {
     return std.mem.eql(u8, self.lexeme, other.lexeme);
 }
 
 /// Custom formatter for `Token` values.
-pub fn format(self: Token, writer: *Writer) !void {
+pub fn format(self: Self, writer: *Writer) !void {
     try writer.print(
         "Token{{ .type = {}, .lexeme = '{s}', .line = {d}, .column = {d} }}",
         .{ self.type, self.lexeme, self.line, self.column },

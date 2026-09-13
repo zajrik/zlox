@@ -110,12 +110,12 @@ pub const Value: type = union(Value.Type) {
     /// with any non-number value.
     pub fn divideBy(self: Value, other: Value) !Value {
         // Runtime error on divide by 0
-        // if (self.number == 0 or other.number == 0) return error.divide_by_zero;
+        // if (self.number == 0 or other.number == 0) return error.DivideByZero;
 
         // Runtime error on divide by 0, SIMD for funsies 🤡
         const v_1: @Vector(2, u64) = .{ self.val, other.val };
         const v_2: @Vector(2, u64) = .{ 0, 0 };
-        if (@reduce(.Or, v_1 == v_2)) return error.divide_by_zero;
+        if (@reduce(.Or, v_1 == v_2)) return error.DivideByZero;
 
         return .Number(self.number / other.number);
     }
@@ -126,7 +126,7 @@ pub const Value: type = union(Value.Type) {
     /// allocating the concatenated string.
     pub fn concat(self: Value, other: Value) !*Obj.String {
         if (!self.isObj(.string) and !other.isObj(.string)) {
-            return error.invalid_operand;
+            return error.InvalidOperand;
         }
 
         var buffer: ArrayList(u8) = .empty;

@@ -39,7 +39,7 @@ const countTrues = std.simd.countTrues;
 
 // =================================================================================================
 
-const Vm: type = @This();
+const Self: type = @This();
 
 /// `std.Io` interface accessible from native functions.
 io: Io,
@@ -79,13 +79,13 @@ open: ?*Obj.Upvalue = null,
 init_string: ?*Obj.String = null,
 
 /// Represents possible errors returned from VM operations.
-pub const Error = error{runtime_error} || Heap.Error;
+pub const Error = error{RuntimeError} || Heap.Error;
 
 /// Allocate a new `Vm` instance on the heap, returning a pointer to it.
 ///
 /// The caller owns the returned pointer and is responsible for freeing it.
-pub fn create(io: Io) !*Vm {
-    const vm: *Vm = try mem.createStruct(Vm, .{ .io = io });
+pub fn create(io: Io) !*Self {
+    const vm: *Self = try mem.createStruct(Self, .{ .io = io });
     vm.gc = try .create(vm);
     vm.heap = .init(&vm.strings, vm.gc);
     vm.init_string = try vm.copyString("init");
@@ -93,7 +93,7 @@ pub fn create(io: Io) !*Vm {
 }
 
 /// Destroy this `Vm`, freeing its owned resources.
-pub fn destroy(self: *Vm) void {
+pub fn destroy(self: *Self) void {
     defer mem.destroy(self);
     self.strings.deinit();
     self.globals.deinit();
@@ -103,14 +103,14 @@ pub fn destroy(self: *Vm) void {
 /// Interpret the given lox source code by compiling it to lox bytecode and running it.
 ///
 /// Returns the result of executing the given code.
-pub fn interpret(self: *Vm, source: []const u8) ExecutionResult {
+pub fn interpret(self: *Self, source: []const u8) ExecutionResult {
     return self.interp(source) catch .compile_error;
 }
 
 /// Interpret the given lox source code.
 ///
 /// Returns the result of compilation or an error to be replaced with `.compile_error`.
-fn interp(self: *Vm, source: []const u8) !ExecutionResult {
+fn interp(self: *Self, source: []const u8) !ExecutionResult {
     var tokenizer: Tokenizer = .init(source);
     var class_context: ?*ClassContext = null;
 
@@ -157,11 +157,11 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 
     return self.run() catch |e| switch (e) {
         // If we catch a runtime error here, it's already been reported
-        Error.runtime_error => .runtime_error,
+        Error.RuntimeError => .runtime_error,
 
         // Report heap/gc errors
-        Error.gc_failure => self.err("Error occurred during GC sweep"),
-        Error.intern_failure => self.err("Error occurred while interning string"),
+        Error.GcFailure => self.err("Error occurred during GC sweep"),
+        Error.InternFailure => self.err("Error occurred while interning string"),
 
         // Otherwise report unexpected error
         else => self.errFmt(
@@ -172,14 +172,14 @@ fn interp(self: *Vm, source: []const u8) !ExecutionResult {
 }
 
 /// Print a runtime error and stack trace at the current instruction.
-fn err(self: *Vm, comptime fmt: []const u8) Error {
+fn err(self: *Self, comptime fmt: []const u8) Error {
     return self.errFmt(fmt, .{});
 }
 
 /// Print a runtime error and stack trace at the current instruction.
 ///
 /// Accepts a format string and a tuple of format arguments.
-fn errFmt(self: *Vm, comptime fmt: []const u8, args: anytype) Error {
+fn errFmt(self: *Self, comptime fmt: []const u8, args: anytype) Error {
     printf("Runtime error: " ++ fmt ++ "\n", args);
 
     // Print stack trace
@@ -199,11 +199,11 @@ fn errFmt(self: *Vm, comptime fmt: []const u8, args: anytype) Error {
 
     self.stack.reset();
     self.frame_stack.reset();
-    return Error.runtime_error;
+    return Error.RuntimeError;
 }
 
 /// Perform a binary operation with the top two number values on the stack.
-fn binaryOp(self: *Vm, op: OpCode) !void {
+fn binaryOp(self: *Self, op: OpCode) !void {
     const T: Value.Type = .number;
     const b: Value = self.stack.peek(0);
     const a: Value = self.stack.peek(1);
@@ -235,7 +235,7 @@ fn binaryOp(self: *Vm, op: OpCode) !void {
 ///
 /// Returns a pointer to the captured upvalue. The returned object is managed by
 /// the garbage collector.
-fn captureUpvalue(self: *Vm, local: *Value) !*Obj.Upvalue {
+fn captureUpvalue(self: *Self, local: *Value) !*Obj.Upvalue {
     var upvalue: ?*Obj.Upvalue = null;
     var next: ?*Obj.Upvalue = self.open;
 
@@ -285,7 +285,7 @@ fn captureUpvalue(self: *Vm, local: *Value) !*Obj.Upvalue {
 /// Close the open upvalue associated with the given local variable, or the first
 /// open upvalue capturing a local higher on the stack than the given one, as well
 /// as any open upvalues capturing locals above it on the stack.
-fn closeUpvalues(self: *Vm, local: *const Value) void {
+fn closeUpvalues(self: *Self, local: *const Value) void {
     while (self.open) |it| : (self.open = it.next) {
         if (@intFromPtr(it.location) < @intFromPtr(local)) break;
         it.close();
@@ -299,7 +299,7 @@ fn closeUpvalues(self: *Vm, local: *const Value) void {
 ///
 /// Returns `null` if the method doesn't exist on the given class, returns an error
 /// if something went wrong while allocating the bound method object.
-fn bindMethod(self: *Vm, class: *Obj.Class, ident: *Obj.String) !?void {
+fn bindMethod(self: *Self, class: *Obj.Class, ident: *Obj.String) !?void {
     const method: Value = class.methods.get(ident) orelse return null;
     const bound_method: *Obj.Method = try self.createObj(
         .method,
@@ -317,7 +317,7 @@ fn bindMethod(self: *Vm, class: *Obj.Class, ident: *Obj.String) !?void {
 ///
 /// Emits a runtime error if `callee` is not a callable function, method, or class
 /// initializer.
-fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
+fn callValue(self: *Self, callee: Value, arg_count: u8) !void {
     if (callee.as(.obj)) |it| switch (it.type) {
         .native => |T| {
             const native_obj: *Obj.Native = it.cast(T);
@@ -380,7 +380,7 @@ fn callValue(self: *Vm, callee: Value, arg_count: u8) !void {
 }
 
 /// Call the given `function`, using the top `arg_count` stack values as arguments.
-fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) !void {
+fn callFun(self: *Self, closure: *Obj.Closure, arg_count: u8) !void {
     if (arg_count != closure.function.arity) return self.errFmt(
         "Expected {d} arguments, got {d}",
         .{ closure.function.arity, arg_count },
@@ -400,7 +400,7 @@ fn callFun(self: *Vm, closure: *Obj.Closure, arg_count: u8) !void {
 
 /// Invoke a `method` on the receiver instance found on the stack below `arg_count`
 /// argument values.
-fn invoke(self: *Vm, method: *Obj.String, arg_count: u8) !void {
+fn invoke(self: *Self, method: *Obj.String, arg_count: u8) !void {
     const receiver: Value = self.stack.peek(arg_count);
     const instance: *Obj.Instance = receiver.asObj(.instance) orelse {
         return self.err("Can't call method on non-instance value");
@@ -426,7 +426,7 @@ fn invoke(self: *Vm, method: *Obj.String, arg_count: u8) !void {
 ///
 /// Returns an error if the given method is undefined.
 fn invokeClassMethod(
-    self: *Vm,
+    self: *Self,
     class: *Obj.Class,
     method: *Obj.String,
     arg_count: u8,
@@ -442,7 +442,7 @@ fn invokeClassMethod(
 // Instruction loop ================================================================================
 
 /// Run instructions from the currently loaded chunk.
-fn run(self: *Vm) !ExecutionResult {
+fn run(self: *Self) !ExecutionResult {
     printf("\n== begin execution ==\n", .{});
 
     const stack: *Stack(Value, STACK_MAX) = &self.stack;
@@ -492,7 +492,7 @@ fn run(self: *Vm) !ExecutionResult {
 
                 // Otherwise try to concatenate values into a string
                 const c: *Obj.String = a.concat(b) catch |e| return switch (e) {
-                    error.invalid_operand => self.errFmt(
+                    error.InvalidOperand => self.errFmt(
                         "Invalid operands for '+', got: {s}, {s}",
                         .{ a.typeName(), b.typeName() },
                     ),
@@ -751,7 +751,7 @@ fn run(self: *Vm) !ExecutionResult {
 /// Objects created via this method live on the virtual heap and are managed by the
 /// VM's garbage collector, or cleaned up at the end of the VM's lifetime if they
 /// manage to live until the end of the program.
-pub fn createObj(self: *Vm, comptime T: Obj.Type, variant: Obj.Variant(T)) !*Obj.Variant(T) {
+pub fn createObj(self: *Self, comptime T: Obj.Type, variant: Obj.Variant(T)) !*Obj.Variant(T) {
     return self.heap.link(T, try Obj.create(T, variant));
 }
 
@@ -763,12 +763,12 @@ pub fn createObj(self: *Vm, comptime T: Obj.Type, variant: Obj.Variant(T)) !*Obj
 /// Objects created via this method live on the virtual heap and are managed by the
 /// VM's garbage collector, or cleaned up at the end of the VM's lifetime if they
 /// manage to live until the end of the program.
-pub fn copyString(self: *Vm, chars: []const u8) !*Obj.String {
+pub fn copyString(self: *Self, chars: []const u8) !*Obj.String {
     return self.heap.link(.string, try Obj.copyString(chars));
 }
 
 /// Free all compile-time constant strings owned by the interned strings table.
-pub fn freeInternedConstants(self: *Vm) void {
+pub fn freeInternedConstants(self: *Self) void {
     var keys: Table.KeyIterator = self.strings.keys();
     while (keys.next()) |it| {
         const obj: *Obj = it.toObj();
@@ -778,7 +778,7 @@ pub fn freeInternedConstants(self: *Vm) void {
 
 /// Register a native function with the VM.
 pub fn defineNative(
-    self: *Vm,
+    self: *Self,
     ident: []const u8,
     arity: u8,
     fn_ptr: Obj.Native.FnPtr,

@@ -15,7 +15,7 @@ const Fnv1a_32 = std.hash.Fnv1a_32;
 
 // =================================================================================================
 
-const Heap: type = @This();
+const Self: type = @This();
 
 /// Doubly-linked-list of objects linked to the heap.
 heap_list: DoublyLinkedList = .{},
@@ -30,13 +30,13 @@ strings: *Table,
 gc: *Gc,
 
 /// Represents possible errors returned from heap operations.
-pub const Error = error{intern_failure} || Gc.Error;
+pub const Error = error{InternFailure} || Gc.Error;
 
 /// Initialize a new heap on the stack.
 ///
 /// The heap itself does not need any deinitialization, but don't forget to call
 /// `Heap.free()` at the end of the VM's lifetime.
-pub fn init(strings: *Table, gc: *Gc) Heap {
+pub fn init(strings: *Table, gc: *Gc) Self {
     return .{
         .strings = strings,
         .gc = gc,
@@ -53,7 +53,7 @@ pub fn init(strings: *Table, gc: *Gc) Heap {
 ///
 /// Assume the heap takes ownership of any object given so there will be no need
 /// to manually clean that object up.
-pub fn link(self: *Heap, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*Obj.Variant(T) {
+pub fn link(self: *Self, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*Obj.Variant(T) {
     // Intern string objects
     if (T == .string) {
         // Return interned string if it already exists
@@ -61,7 +61,7 @@ pub fn link(self: *Heap, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*O
             object.destroy();
             return it;
         }
-        _ = self.strings.set(object, .Nil) catch return Error.intern_failure;
+        _ = self.strings.set(object, .Nil) catch return Error.InternFailure;
     }
 
     // Report obj to GC and add it to the heap
@@ -74,14 +74,14 @@ pub fn link(self: *Heap, comptime T: Obj.Type, object: *Obj.Variant(T)) Error!*O
 
 /// Destroy an object linked to the virtual heap, releasing its allocated memory
 /// and unlinking it from the heap.
-pub fn release(self: *Heap, obj: *Obj) void {
+pub fn release(self: *Self, obj: *Obj) void {
     self.heap_list.remove(&obj.heap_node);
     self.size -= obj.size();
     obj.destroy();
 }
 
 /// Free all allocated lox objects linked to the virtual heap.
-pub fn free(self: *Heap) void {
+pub fn free(self: *Self) void {
     var heap: Iterator = self.iter();
     while (heap.next()) |obj| : (self.release(obj)) {
         // Remove interned runtime strings before releasing
@@ -90,7 +90,7 @@ pub fn free(self: *Heap) void {
 }
 
 /// Returns an iterator over the objects on the virtual heap.
-pub fn iter(self: *Heap) Iterator {
+pub fn iter(self: *Self) Iterator {
     return .{ .next_obj = self.heap_list.first };
 }
 

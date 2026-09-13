@@ -12,7 +12,7 @@ const allocfmt = zlox.mem.allocfmt;
 
 // =================================================================================================
 
-const Tokenizer: type = @This();
+const Self: type = @This();
 
 /// The source code to be tokenized.
 source: []const u8,
@@ -45,7 +45,7 @@ start_line: u16,
 start_column: u16,
 
 /// Initialize a new `Tokenizer` on the stack with the given source code string.
-pub fn init(source: []const u8) Tokenizer {
+pub fn init(source: []const u8) Self {
     return .{
         .source = source,
         .current = source.ptr,
@@ -59,7 +59,7 @@ pub fn init(source: []const u8) Tokenizer {
 
 /// Consumes and returns the next `Token` from the source input, or `null` if
 /// we've reached the end of the source input.
-pub fn next(self: *Tokenizer) ?Token {
+pub fn next(self: *Self) ?Token {
     if (self.isAtEnd()) return null;
     return self.consumeToken();
 }
@@ -68,7 +68,7 @@ pub fn next(self: *Tokenizer) ?Token {
 /// next character to be processed.
 ///
 /// Returns the currently-processing character.
-fn consume(self: *Tokenizer) u8 {
+fn consume(self: *Self) u8 {
     defer self.column += 1;
     defer self.current += 1;
     return self.peek();
@@ -78,13 +78,13 @@ fn consume(self: *Tokenizer) u8 {
 /// next character to be processed.
 ///
 /// The currently-processing character will not be returned.
-fn advance(self: *Tokenizer) void {
+fn advance(self: *Self) void {
     _ = self.consume();
 }
 
 /// Advance the tokenizer, discarding characters until we see any non-whitespace
 /// character.
-fn discardWhitespace(self: *Tokenizer) void {
+fn discardWhitespace(self: *Self) void {
     while (true) switch (self.peek()) {
         ' ', '\r', '\t' => self.advance(),
 
@@ -110,7 +110,7 @@ fn discardWhitespace(self: *Tokenizer) void {
 
 /// Create and return a `Token` with the given `token_type` using the characters
 /// that have been consumed/discarded since `start` as the token lexeme.
-fn createToken(self: *Tokenizer, token_type: TokenType) Token {
+fn createToken(self: *Self, token_type: TokenType) Token {
     const token_len: usize = self.current - self.start;
     return Token.init(
         token_type,
@@ -121,7 +121,7 @@ fn createToken(self: *Tokenizer, token_type: TokenType) Token {
 }
 
 /// Create and return an error token with the given `err` string as the token lexeme.
-fn errorToken(self: *Tokenizer, err: []const u8) Token {
+fn errorToken(self: *Self, err: []const u8) Token {
     return Token.init(
         .@"error",
         err,
@@ -133,19 +133,19 @@ fn errorToken(self: *Tokenizer, err: []const u8) Token {
 /// Peek at the current character being processed.
 ///
 /// Returns the peeked character without advancing the tokenizer.
-fn peek(self: *Tokenizer) u8 {
+fn peek(self: *Self) u8 {
     return self.current[0];
 }
 
 /// Peek at the character after the current character being processed.
 ///
 /// Returns the peeked character without advancing the tokenizer.
-fn peekNext(self: *Tokenizer) u8 {
+fn peekNext(self: *Self) u8 {
     return self.current[1];
 }
 
 /// Returns whether the tokenizer has reached the end of the source code.
-fn isAtEnd(self: *Tokenizer) bool {
+fn isAtEnd(self: *Self) bool {
     return @intFromPtr(self.current) >= @intFromPtr(self.source.ptr) + self.source.len;
 }
 
@@ -153,7 +153,7 @@ fn isAtEnd(self: *Tokenizer) bool {
 /// `expected`.
 ///
 /// If the character matches, the tokenizer will advance.
-fn match(self: *Tokenizer, expected: u8) bool {
+fn match(self: *Self, expected: u8) bool {
     if (self.isAtEnd()) return false;
     if (self.peek() != expected) return false;
 
@@ -175,7 +175,7 @@ fn match(self: *Tokenizer, expected: u8) bool {
 /// //               `--partial text of the keyword that is already checked
 /// ```
 fn checkPartial(
-    self: *Tokenizer,
+    self: *Self,
     part: []const u8,
     rest: []const u8,
     token_type: TokenType,
@@ -195,7 +195,7 @@ fn checkPartial(
 ///
 /// Returns the keyword token type, or `TokenType.token_identifier` if no keyword
 /// is matched.
-fn identifierType(self: *Tokenizer) TokenType {
+fn identifierType(self: *Self) TokenType {
     const token_len: usize = self.current - self.start;
 
     return switch (self.start[0]) {
@@ -247,7 +247,7 @@ fn identifierType(self: *Tokenizer) TokenType {
 /// Consume an identifier from source.
 ///
 /// Returns the tokenized identifier.
-fn consumeIdentifier(self: *Tokenizer) Token {
+fn consumeIdentifier(self: *Self) Token {
     while (isAlphaNumeric(self.peek())) self.advance();
     return self.createToken(self.identifierType());
 }
@@ -255,7 +255,7 @@ fn consumeIdentifier(self: *Tokenizer) Token {
 /// Consumes a number literal from source.
 ///
 /// Returns the tokenized number literal.
-fn consumeNumber(self: *Tokenizer) Token {
+fn consumeNumber(self: *Self) Token {
     while (isDigitOrSeparator(self.peek())) self.advance();
 
     // Consume floating point digits if present
@@ -270,7 +270,7 @@ fn consumeNumber(self: *Tokenizer) Token {
 /// Consumes a string literal from source.
 ///
 /// Returns the tokenized string literal.
-fn consumeString(self: *Tokenizer) Token {
+fn consumeString(self: *Self) Token {
     while (self.peek() != '"' and !self.isAtEnd()) {
         // Increment line count and reset column on new line
         if (self.peek() == '\n') {
@@ -292,7 +292,7 @@ fn consumeString(self: *Tokenizer) Token {
 /// Consume the next token from the source text.
 ///
 /// Returns the consumed token.
-fn consumeToken(self: *Tokenizer) Token {
+fn consumeToken(self: *Self) Token {
     self.discardWhitespace();
 
     // Set token lexeme start location within source
